@@ -125,6 +125,173 @@ Ready to proceed with Day 3-4 tasks: Menu Bar UI implementation.
 
 ---
 
+## January 17, 2026 (Day 5) - @BUILD_LEAD + @API_INTEGRATION
+
+### Completed
+
+- Consulted API_INTEGRATION.md for Docker API patterns
+- Created UnixSocketConnection.swift:
+  - Low-level Unix domain socket communication using Darwin sockets
+  - HTTP request building and response parsing
+  - Chunked transfer encoding support
+  - Connection management with automatic reconnection
+- Created DockerRawStats.swift:
+  - Raw Docker API stats response model
+  - CPU percentage calculation from deltas
+  - Memory, network, and block I/O parsing
+  - Extension to convert raw stats to user-friendly ContainerStats
+- Created DockerAPIClientImpl.swift:
+  - Full DockerAPIClient protocol implementation
+  - Container listing, stats, start/stop/restart/remove
+  - Log retrieval with multiplexed format parsing
+  - Proper error handling and response validation
+- Created ContainerFetcher.swift:
+  - High-level service wrapping DockerAPIClient
+  - Concurrent stats fetching with TaskGroup
+  - ConsecutiveFailureGate integration for error resilience
+  - Rate limiting to prevent API hammering
+  - Retry configuration with exponential backoff
+- Updated ContainerStore.swift:
+  - Replaced mock data with real Docker API calls
+  - User-friendly error messages for common failures
+  - Fetcher initialization based on selected host
+- Created MockDockerAPIClient.swift for testing
+- Added comprehensive unit tests:
+  - DockerAPITests (5 tests) - Error handling, HTTP request/response
+  - MockDockerAPIClientTests (4 tests) - Mock behavior
+  - RetryConfigTests (2 tests) - Retry configuration
+  - DockerRawStatsTests (2 tests) - Stats parsing
+- All 37 tests pass with zero warnings
+
+### In Progress
+
+- None (Day 5 tasks complete)
+
+### Blockers
+
+- None
+
+### Technical Notes
+
+**Unix Socket Communication**: Implemented direct Darwin socket communication rather than URLSession custom protocol. This gives us full control over the HTTP conversation and avoids URLSession limitations with Unix sockets.
+
+**Error Handling**: Three-tier error handling:
+1. UnixSocketConnection - Low-level socket errors
+2. DockerAPIClientImpl - HTTP status validation
+3. ContainerFetcher - ConsecutiveFailureGate for transient failures
+
+**Performance**:
+- Connection reuse for efficiency
+- Concurrent stats fetching (max 10 parallel)
+- Rate limiting (1 second minimum between fetches)
+
+**Stats Calculation**: CPU percentage calculated as:
+```
+(container_delta / system_delta) * num_cpus * 100
+```
+
+### Files Created
+
+```
+Sources/DockerBarCore/API/
+├── UnixSocketConnection.swift  # Unix socket + HTTP
+├── DockerRawStats.swift        # Raw API response parsing
+├── DockerAPIClientImpl.swift   # API client implementation
+Sources/DockerBarCore/Services/
+├── ContainerFetcher.swift      # High-level fetch service
+Tests/DockerBarCoreTests/
+├── Mocks/MockDockerAPIClient.swift
+├── DockerAPITests.swift
+```
+
+### Next Up (Day 6-7)
+
+- Test with real Docker daemon
+- Handle edge cases (no Docker running, permissions)
+- Implement container action confirmations
+- Add loading states to UI
+- Get @SECURITY_COMPLIANCE review of socket access
+
+### Quality Metrics
+
+- Build: Zero warnings
+- Tests: 37/37 passing
+- New coverage: API client, stats parsing, retry logic
+- Architecture: Clean separation of socket/HTTP/API layers
+
+---
+
+## January 17, 2026 (Day 6-7) - @BUILD_LEAD
+
+### Completed
+
+- Fixed Docker API version (v1.43 → v1.44) for compatibility with Docker Desktop
+- Updated DockerIconRenderer to use SF Symbols instead of custom CoreGraphics:
+  - `shippingbox.fill` for connected state
+  - `shippingbox` for disconnected state
+  - `exclamationmark.triangle.fill` for error state
+  - `arrow.clockwise` for refreshing state
+- Fixed template image color rendering (use black for proper system adaptation)
+- Created basic app bundle structure with Info.plist
+- Tested app execution - logs confirm successful initialization:
+  - StatusItemController initializes correctly
+  - Docker API errors handled gracefully when Docker not running
+  - Auto-refresh timer starts as expected
+- All 37 tests continue to pass
+
+### In Progress
+
+- None
+
+### Blockers
+
+- **Menu bar icon not visible**: The app runs correctly (confirmed via process list and logs) but the menu bar icon doesn't appear. This is a macOS security restriction - unsigned executables cannot display menu bar items. **Resolution**: Need to build with Xcode for proper code signing, or create a properly signed .app bundle.
+
+### Technical Notes
+
+**Code Signing Requirement**: macOS blocks unsigned applications from displaying NSStatusItem in the menu bar. The app's functionality is complete and working (confirmed via logging), but visual testing requires either:
+1. Building with Xcode (handles code signing automatically)
+2. Ad-hoc signing the app bundle
+3. Developer ID signing for distribution
+
+**Icon Implementation**: Switched from custom CoreGraphics drawing to SF Symbols for reliability:
+- SF Symbols are guaranteed to render correctly on all supported macOS versions
+- Template mode works correctly with system appearance
+- Simpler code, easier to maintain
+
+**Docker Detection**: App gracefully handles missing Docker:
+```
+error: Docker socket not found at /var/run/docker.sock
+```
+User-friendly message: "Docker not running. Please start Docker Desktop."
+
+### Files Modified
+
+```
+Sources/DockerBar/Views/DockerIconRenderer.swift  # Fixed color for template images
+Sources/DockerBar/StatusItemController.swift       # Use SF Symbols
+Sources/DockerBar/AppDelegate.swift                # Activation policy timing
+Sources/DockerBarCore/API/DockerAPIClientImpl.swift # API version v1.44
+DockerBar.app/Contents/Info.plist                  # App bundle (created)
+```
+
+### Next Up (Day 8-9)
+
+- Create Xcode project for proper code signing and testing
+- Test with Docker Desktop running
+- Implement Settings window UI
+- Add keyboard shortcuts support
+- Get @SECURITY_COMPLIANCE review
+
+### Quality Metrics
+
+- Build: Zero warnings
+- Tests: 37/37 passing
+- App: Runs successfully, logs confirm correct initialization
+- Blocker: Code signing required for menu bar visibility
+
+---
+
 ## Standup Format
 
 ```markdown

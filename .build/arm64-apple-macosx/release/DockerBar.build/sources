@@ -1,0 +1,9 @@
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift

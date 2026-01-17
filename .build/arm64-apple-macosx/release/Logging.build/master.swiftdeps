@@ -1,0 +1,9 @@
+version: "Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)"
+options: "1854b40bf76c52d4bd02aa124412c6a453ea0f4933940c87c07d0e6be76a2df7"
+build_start_time: [1768633311, 987700000]
+build_end_time: [1768633314, 72465000]
+inputs:
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift": [1768631617, 343310403]
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift": [1768631617, 343440030]
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift": [1768631617, 343892576]
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift": [1768631617, 344080328]

@@ -1,0 +1,2679 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.xctest/Contents/MacOS/DockerBarPackageTests",
+      "packagePath" : "/Users/michaeltookes/Desktop/DockerBar",
+      "productName" : "DockerBarPackageTests"
+    }
+  ],
+  "copyCommands" : {
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/Info.plist" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Info.plist"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/Info.plist"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ar.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/ar.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ar.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/cs.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/cs.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/cs.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/de.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/de.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/de.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/en.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/en.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/en.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/es.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/es.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/es.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/fr.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/fr.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/fr.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/hu.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/hu.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/hu.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/it.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/it.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/it.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ja.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/ja.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ja.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ko.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/ko.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ko.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/nl.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/nl.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/nl.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/pt-br.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/pt-BR.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/pt-br.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ru.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/ru.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/ru.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/sk.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/sk.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/sk.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/zh-hans.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/zh-Hans.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/zh-hans.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/zh-tw.lproj/Localizable.strings" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Localization/zh-TW.lproj/Localizable.strings"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts_KeyboardShortcuts.bundle/zh-tw.lproj/Localizable.strings"
+        }
+      ]
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Sparkle.framework" : {
+      "inputs" : [
+        {
+          "kind" : "directory",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "directory",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Sparkle.framework"
+        }
+      ]
+    }
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.DockerBar-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/Logging.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/KeyboardShortcuts.swiftmodule"
+        },
+        {
+          "kind" : "directory",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Sparkle.framework"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "DockerBar",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBar.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AppDelegate.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerStore.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerMenuCardView.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerRowView.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-O",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-I",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "DockerBar_main",
+        "-F",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+        "-swift-version",
+        "6",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "dockerbar"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AppDelegate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerMenuCardView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerRowView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBar.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.DockerBarCore-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClientImpl.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerRawStats.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ContainerFetcher.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/Logging.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "DockerBarCore",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCore.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClient.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClientImpl.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerStats.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerContainer.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerHost.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/Errors.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ConsecutiveFailureGate.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetcher.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetchStrategy.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-O",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore-Swift.h",
+        "-swift-version",
+        "6",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "dockerbar"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClientImpl.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerContainer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerHost.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/Errors.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ConsecutiveFailureGate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetcher.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetchStrategy.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCore.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClientImpl.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerRawStats.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ContainerFetcher.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.DockerBarCoreTests-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "DockerBarCoreTests",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCoreTests.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/ContainerStatsTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerAPITests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerContainerTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/MockDockerAPIClient.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-index-store-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/index/store",
+        "-O",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "6",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "dockerbar"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/ContainerStatsTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerAPITests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerContainerTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/MockDockerAPIClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCoreTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.DockerBarPackageTests-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCoreTests.swiftmodule"
+        },
+        {
+          "kind" : "directory",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Sparkle.framework"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "DockerBarPackageTests",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-O",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-I",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-F",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/DockerBarPackageTests-Swift.h",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "dockerbar"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.DockerBarTests-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerBarTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerIconRendererTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/SettingsStoreTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarCore.swiftmodule"
+        },
+        {
+          "kind" : "directory",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Sparkle.framework"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "DockerBarTests",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarTests.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerBarTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerIconRendererTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/SettingsStoreTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-index-store-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/index/store",
+        "-O",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-I",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-Xcc",
+        "-I",
+        "-Xcc",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-F",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+        "-swift-version",
+        "6",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "dockerbar"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerBarTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerIconRendererTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/SettingsStoreTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/DockerBarTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerBarTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerIconRendererTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/SettingsStoreTests.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.InMemoryLogging-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/InMemoryLogging/InMemoryLogHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/Logging.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "InMemoryLogging",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/InMemoryLogging.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/InMemoryLogHandler.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-O",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/InMemoryLogging-Swift.h",
+        "-swift-version",
+        "6",
+        "-enable-experimental-feature",
+        "StrictConcurrency=complete",
+        "-enable-upcoming-feature",
+        "MemberImportVisibility",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-suppress-warnings",
+        "-user-module-version",
+        "1.9.0",
+        "-package-name",
+        "swift_log"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/InMemoryLogHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/InMemoryLogging.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/InMemoryLogging/InMemoryLogHandler.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.KeyboardShortcuts-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Key.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/KeyboardShortcuts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/NSMenuItem++.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Name.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/RecorderCocoa.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Shortcut.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/ViewModifiers.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/DerivedSources/resource_bundle_accessor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<KeyboardShortcuts-arm64-apple-macosx15.0-release.module-resources>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "KeyboardShortcuts",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/KeyboardShortcuts.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Key.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/NSMenuItem++.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Name.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Recorder.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/RecorderCocoa.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Shortcut.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Utilities.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/ViewModifiers.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/resource_bundle_accessor.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.15",
+        "-O",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts-Swift.h",
+        "-swift-version",
+        "5",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-suppress-warnings",
+        "-user-module-version",
+        "2.4.0",
+        "-package-name",
+        "keyboardshortcuts"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Key.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/NSMenuItem++.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Name.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Recorder.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/RecorderCocoa.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Shortcut.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Utilities.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/ViewModifiers.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/KeyboardShortcuts.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Key.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/KeyboardShortcuts.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/NSMenuItem++.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Name.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/RecorderCocoa.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Shortcut.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/ViewModifiers.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/DerivedSources/resource_bundle_accessor.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.Logging-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/sources",
+      "importPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "Logging",
+      "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/Logging.swiftmodule",
+      "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx10.13",
+        "-O",
+        "-j12",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging-Swift.h",
+        "-swift-version",
+        "6",
+        "-enable-experimental-feature",
+        "StrictConcurrency=complete",
+        "-enable-upcoming-feature",
+        "MemberImportVisibility",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-suppress-warnings",
+        "-user-module-version",
+        "1.9.0",
+        "-package-name",
+        "swift_log"
+      ],
+      "outputFileMapPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules/Logging.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift"
+      ],
+      "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build",
+      "wholeModuleOptimization" : true
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "DockerBar" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "DockerBar",
+      "-package-name",
+      "dockerbar",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-O",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-Xcc",
+      "-I",
+      "-Xcc",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "DockerBar_main",
+      "-F",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+      "-swift-version",
+      "6",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "dockerbar",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "DockerBarCore" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "DockerBarCore",
+      "-package-name",
+      "dockerbar",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClientImpl.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerRawStats.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ContainerFetcher.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-O",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore-Swift.h",
+      "-swift-version",
+      "6",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "dockerbar",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "DockerBarCoreTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "DockerBarCoreTests",
+      "-package-name",
+      "dockerbar",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-index-store-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/index/store",
+      "-O",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "6",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "dockerbar",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "DockerBarPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "DockerBarPackageTests",
+      "-package-name",
+      "dockerbar",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-O",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-Xcc",
+      "-I",
+      "-Xcc",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-F",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/DockerBarPackageTests-Swift.h",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "dockerbar",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "DockerBarTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "DockerBarTests",
+      "-package-name",
+      "dockerbar",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerBarTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerIconRendererTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/SettingsStoreTests.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-index-store-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/index/store",
+      "-O",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-Xcc",
+      "-I",
+      "-Xcc",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-F",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release",
+      "-swift-version",
+      "6",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "dockerbar",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "InMemoryLogging" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "InMemoryLogging",
+      "-package-name",
+      "swift_log",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/InMemoryLogging/InMemoryLogHandler.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-O",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/InMemoryLogging-Swift.h",
+      "-swift-version",
+      "6",
+      "-enable-experimental-feature",
+      "StrictConcurrency=complete",
+      "-enable-upcoming-feature",
+      "MemberImportVisibility",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-suppress-warnings",
+      "-user-module-version",
+      "1.9.0",
+      "-package-name",
+      "swift_log",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "KeyboardShortcuts" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "KeyboardShortcuts",
+      "-package-name",
+      "keyboardshortcuts",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Key.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/KeyboardShortcuts.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/NSMenuItem++.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Name.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/RecorderCocoa.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Shortcut.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/ViewModifiers.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/DerivedSources/resource_bundle_accessor.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx10.15",
+      "-O",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts-Swift.h",
+      "-swift-version",
+      "5",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-suppress-warnings",
+      "-user-module-version",
+      "2.4.0",
+      "-package-name",
+      "keyboardshortcuts",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "Logging" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "Logging",
+      "-package-name",
+      "swift_log",
+      "-whole-module-optimization",
+      "-num-threads",
+      "12",
+      "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift",
+      "-I",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx10.13",
+      "-O",
+      "-j12",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging-Swift.h",
+      "-swift-version",
+      "6",
+      "-enable-experimental-feature",
+      "StrictConcurrency=complete",
+      "-enable-upcoming-feature",
+      "MemberImportVisibility",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-suppress-warnings",
+      "-user-module-version",
+      "1.9.0",
+      "-package-name",
+      "swift_log",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "DockerBar" : [
+      "Sparkle",
+      "KeyboardShortcuts",
+      "DockerBarCore",
+      "Logging"
+    ],
+    "DockerBarCore" : [
+      "Logging"
+    ],
+    "DockerBarCoreTests" : [
+      "DockerBarCore",
+      "Logging"
+    ],
+    "DockerBarPackageTests" : [
+      "DockerBarCoreTests",
+      "DockerBarTests",
+      "DockerBar",
+      "Sparkle",
+      "KeyboardShortcuts",
+      "DockerBarCore",
+      "Logging"
+    ],
+    "DockerBarTests" : [
+      "DockerBar",
+      "Sparkle",
+      "KeyboardShortcuts",
+      "DockerBarCore",
+      "Logging"
+    ],
+    "InMemoryLogging" : [
+      "Logging"
+    ],
+    "KeyboardShortcuts" : [
+
+    ],
+    "Logging" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "enableAllTraits" : false
+  },
+  "writeCommands" : {
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AppDelegate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerMenuCardView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerRowView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ConsecutiveFailureGate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetchStrategy.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetcher.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClientImpl.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerContainer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerHost.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/Errors.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Key.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/NSMenuItem++.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Name.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Recorder.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/RecorderCocoa.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Shortcut.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Utilities.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/ViewModifiers.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.product/Objects.LinkFileList"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClientImpl.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerRawStats.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ContainerFetcher.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AppDelegate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerMenuCardView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerRowView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ConsecutiveFailureGate.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetchStrategy.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerFetcher.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/ContainerStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerAPIClientImpl.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerContainer.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerHost.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/Errors.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/ContainerStatsTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerAPITests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/DockerContainerTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCoreTests.build/MockDockerAPIClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerBarTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/DockerIconRendererTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/SettingsStoreTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Key.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/KeyboardShortcuts.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/NSMenuItem++.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Name.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Recorder.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/RecorderCocoa.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Shortcut.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/Utilities.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/ViewModifiers.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerBarTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerIconRendererTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/SettingsStoreTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarTests.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/InMemoryLogging/InMemoryLogHandler.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/InMemoryLogging.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/CarbonKeyboardShortcuts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Key.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/KeyboardShortcuts.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/NSMenuItem++.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Name.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/RecorderCocoa.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Shortcut.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Utilities.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/ViewModifiers.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/DerivedSources/resource_bundle_accessor.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/KeyboardShortcuts.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/sources"
+    },
+    "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}

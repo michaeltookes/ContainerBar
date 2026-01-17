@@ -52,8 +52,11 @@ final class StatusItemController: NSObject {
             return
         }
 
-        // Set the initial icon
-        updateIcon()
+        // Use SF Symbol for menu bar icon
+        if let image = NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "Docker") {
+            image.isTemplate = true
+            button.image = image
+        }
 
         // Set accessibility
         button.toolTip = "DockerBar - Docker Container Monitor"
@@ -102,21 +105,22 @@ final class StatusItemController: NSObject {
         let runningCount = containerStore.containers.filter { $0.state == .running }.count
         let totalCount = containerStore.containers.count
 
-        // Build icon configuration
-        let config = DockerIconRenderer.Config(
-            style: settingsStore.iconStyle,
-            runningCount: runningCount,
-            totalCount: totalCount,
-            cpuPercent: containerStore.metricsSnapshot?.totalCPUPercent ?? 0,
-            memoryPercent: containerStore.metricsSnapshot?.memoryUsagePercent ?? 0,
-            isRefreshing: containerStore.isRefreshing,
-            isConnected: containerStore.isConnected,
-            hasError: containerStore.connectionError != nil
-        )
+        // Choose SF Symbol based on state
+        let symbolName: String
+        if containerStore.connectionError != nil {
+            symbolName = "exclamationmark.triangle.fill"
+        } else if containerStore.isRefreshing {
+            symbolName = "arrow.clockwise"
+        } else if containerStore.isConnected {
+            symbolName = "shippingbox.fill"
+        } else {
+            symbolName = "shippingbox"
+        }
 
-        // Render and set icon
-        let icon = DockerIconRenderer.render(config: config)
-        button.image = icon
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Docker") {
+            image.isTemplate = true
+            button.image = image
+        }
 
         // Show running count as title (for container count style)
         if settingsStore.iconStyle == .containerCount && totalCount > 0 {

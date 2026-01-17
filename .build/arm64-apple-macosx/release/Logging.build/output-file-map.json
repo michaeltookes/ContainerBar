@@ -1,0 +1,27 @@
+{
+  "": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.o",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/master.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Locks.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Locks.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/LogHandler.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/LogHandler.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/Logging.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/Logging.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/checkouts/swift-log/Sources/Logging/MetadataProvider.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/Logging.build/MetadataProvider.swiftdeps"
+  }
+}

@@ -27,14 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("DockerBar starting up")
 
+        // Hide dock icon - we're a menu bar app
+        NSApp.setActivationPolicy(.accessory)
+
         // Create the status bar item
         statusItemController = StatusItemController(
             containerStore: containerStore,
             settingsStore: settingsStore
         )
-
-        // Hide dock icon - we're a menu bar app
-        NSApp.setActivationPolicy(.accessory)
 
         // Start initial container fetch
         Task {

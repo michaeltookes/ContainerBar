@@ -46,9 +46,6 @@ enum DockerIconRenderer {
                 return false
             }
 
-            // Clear background
-            context.clear(rect)
-
             // Render based on style
             switch config.style {
             case .containerCount:
@@ -75,7 +72,8 @@ enum DockerIconRenderer {
         config: Config,
         rect: CGRect
     ) {
-        let color = NSColor.labelColor.cgColor
+        // Use black for template images - system handles light/dark adaptation
+        let color = NSColor.black.cgColor
 
         if config.isRefreshing {
             // Show refresh arrow when refreshing
@@ -95,7 +93,8 @@ enum DockerIconRenderer {
         config: Config,
         rect: CGRect
     ) {
-        let color = NSColor.labelColor.cgColor
+        // Use black for template images - system handles light/dark adaptation
+        let color = NSColor.black.cgColor
         let barHeight: CGFloat = 4
         let barSpacing: CGFloat = 3
         let padding: CGFloat = 2
@@ -139,7 +138,8 @@ enum DockerIconRenderer {
         config: Config,
         rect: CGRect
     ) {
-        let color = NSColor.labelColor.cgColor
+        // Use black for template images - system handles light/dark adaptation
+        let color = NSColor.black.cgColor
 
         // Determine dot size based on health status
         let dotSize: CGFloat
