@@ -15,6 +15,7 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
     case notImplemented(String)
     case decodingError(String)
     case socketNotFound(String)
+    case sshConnectionFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -44,6 +45,8 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
             return "Failed to parse response: \(message)"
         case .socketNotFound(let path):
             return "Docker socket not found at \(path)"
+        case .sshConnectionFailed(let message):
+            return "SSH connection failed: \(message)"
         }
     }
 
@@ -75,6 +78,8 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
             return "This may indicate an API version mismatch"
         case .socketNotFound:
             return "Make sure Docker Desktop is running"
+        case .sshConnectionFailed:
+            return "Check your SSH credentials and ensure the remote host is accessible"
         }
     }
 }

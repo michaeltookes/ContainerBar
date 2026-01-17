@@ -13,6 +13,8 @@ struct ContainerMenuCardView: View {
 
     let onAction: (ContainerAction) -> Void
 
+    @State private var showMetricsPopover = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -103,18 +105,36 @@ struct ContainerMenuCardView: View {
             SectionHeader(title: "Overview")
 
             if let metrics = store.metricsSnapshot {
-                MetricProgressBar(
-                    title: "CPU Usage",
-                    percent: metrics.totalCPUPercent,
-                    tint: .blue
-                )
+                VStack(spacing: 8) {
+                    MetricProgressBar(
+                        title: "CPU Usage",
+                        percent: metrics.totalCPUPercent,
+                        tint: .blue
+                    )
 
-                MetricProgressBar(
-                    title: "Memory Usage",
-                    percent: metrics.memoryUsagePercent,
-                    subtitle: formatMemoryRange(used: metrics.totalMemoryUsedMB, limit: metrics.totalMemoryLimitMB),
-                    tint: .purple
+                    MetricProgressBar(
+                        title: "Memory Usage",
+                        percent: metrics.memoryUsagePercent,
+                        subtitle: formatMemoryRange(used: metrics.totalMemoryUsedMB, limit: metrics.totalMemoryLimitMB),
+                        tint: .purple
+                    )
+                }
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(showMetricsPopover ? 0.1 : 0))
                 )
+                .onHover { hovering in
+                    showMetricsPopover = hovering
+                }
+                .popover(isPresented: $showMetricsPopover, arrowEdge: .trailing) {
+                    MetricsGaugePopover(
+                        cpuPercent: metrics.totalCPUPercent,
+                        memoryPercent: metrics.memoryUsagePercent,
+                        memoryUsed: formatMemory(metrics.totalMemoryUsedMB),
+                        memoryLimit: formatMemory(metrics.totalMemoryLimitMB)
+                    )
+                }
             }
         }
     }
@@ -135,50 +155,56 @@ struct ContainerMenuCardView: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "shippingbox")
-                .font(.system(size: 24))
-                .foregroundStyle(.tertiary)
+            if store.isRefreshing {
+                ProgressView()
+                    .controlSize(.regular)
 
-            Text("No containers")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text("Loading containers...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Image(systemName: "shippingbox")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.tertiary)
 
-            Text("Start some containers to see them here")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+                Text("No containers")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text("Start some containers to see them here")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
     }
 
     private var containerList: some View {
-        VStack(spacing: 2) {
-            ForEach(displayedContainers) { container in
-                ContainerRowView(
-                    container: container,
-                    stats: store.stats[container.id],
-                    onAction: onAction
-                )
-            }
-
-            // Show "more" indicator if truncated
-            if store.containers.count > maxDisplayedContainers {
-                HStack {
-                    Spacer()
-                    Text("+ \(store.containers.count - maxDisplayedContainers) more")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    Spacer()
+        ScrollView {
+            VStack(spacing: 2) {
+                ForEach(displayedContainers) { container in
+                    ContainerRowView(
+                        container: container,
+                        stats: store.stats[container.id],
+                        onAction: onAction
+                    )
                 }
-                .padding(.top, 4)
             }
         }
+        .frame(maxHeight: maxContainerListHeight)
+    }
+
+    /// Maximum height for the container list (roughly 8 rows)
+    private var maxContainerListHeight: CGFloat {
+        let rowHeight: CGFloat = 44 // Approximate height per container row
+        let maxRows: CGFloat = 8
+        let containerCount = CGFloat(displayedContainers.count)
+        return min(containerCount * rowHeight, maxRows * rowHeight)
     }
 
     // MARK: - Computed Properties
-
-    private let maxDisplayedContainers = 10
 
     private var displayedContainers: [DockerContainer] {
         let sorted = store.containers.sorted { lhs, rhs in
@@ -189,11 +215,9 @@ struct ContainerMenuCardView: View {
         }
 
         // Filter based on settings
-        let filtered = settings.showStoppedContainers
+        return settings.showStoppedContainers
             ? sorted
             : sorted.filter { $0.state.isActive }
-
-        return Array(filtered.prefix(maxDisplayedContainers))
     }
 
     private var runningCount: Int {
@@ -218,8 +242,11 @@ struct ContainerMenuCardView: View {
         if let error = store.connectionError {
             return "Error: \(error)"
         }
+        let hostName = settings.selectedHost?.name ?? "Local Docker"
+        if store.isRefreshing && !store.isConnected {
+            return "Connecting to \(hostName)..."
+        }
         if store.isConnected {
-            let hostName = settings.selectedHost?.name ?? "Local Docker"
             return "Connected to \(hostName)"
         }
         return "Connecting..."

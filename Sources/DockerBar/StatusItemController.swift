@@ -170,11 +170,16 @@ final class StatusItemController: NSObject {
         .environment(settingsStore)
 
         let hostingView = NSHostingView(rootView: cardView)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Size to fit content
-        let fittingSize = hostingView.fittingSize
-        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+        // Calculate height based on content
+        // Base height: header(~30) + connection(~50) + overview(~80) + section header(~20) + padding(32)
+        let baseHeight: CGFloat = 212
+        // Container rows: ~44pt each, max 8 visible
+        let containerCount = min(containerStore.containers.count, 8)
+        let containerHeight = CGFloat(max(containerCount, 1)) * 44
+        let totalHeight = baseHeight + containerHeight
+
+        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: totalHeight)
 
         item.view = hostingView
         return item
@@ -190,6 +195,53 @@ final class StatusItemController: NSObject {
         refreshItem.target = self
         refreshItem.isEnabled = !containerStore.isRefreshing
         menu.addItem(refreshItem)
+
+        // Hosts submenu
+        let hostsItem = NSMenuItem(title: "Hosts", action: nil, keyEquivalent: "")
+        let hostsSubmenu = NSMenu()
+
+        // Add each configured host
+        for host in settingsStore.hosts {
+            let hostItem = NSMenuItem(
+                title: host.name,
+                action: #selector(switchHost(_:)),
+                keyEquivalent: ""
+            )
+            hostItem.target = self
+            hostItem.representedObject = host.id
+
+            // Show checkmark for selected host
+            if settingsStore.selectedHostId == host.id {
+                hostItem.state = .on
+            }
+
+            // Show connection type indicator
+            switch host.connectionType {
+            case .unixSocket:
+                hostItem.image = NSImage(systemSymbolName: "laptopcomputer", accessibilityDescription: "Local")
+            case .ssh:
+                hostItem.image = NSImage(systemSymbolName: "network", accessibilityDescription: "SSH")
+            case .tcpTLS:
+                hostItem.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: "TLS")
+            }
+
+            hostsSubmenu.addItem(hostItem)
+        }
+
+        hostsSubmenu.addItem(NSMenuItem.separator())
+
+        // Add new host option
+        let addHostItem = NSMenuItem(
+            title: "Add Host...",
+            action: #selector(addHost),
+            keyEquivalent: ""
+        )
+        addHostItem.target = self
+        addHostItem.image = NSImage(systemSymbolName: "plus.circle", accessibilityDescription: "Add")
+        hostsSubmenu.addItem(addHostItem)
+
+        hostsItem.submenu = hostsSubmenu
+        menu.addItem(hostsItem)
 
         // Settings
         let settingsItem = NSMenuItem(
@@ -209,6 +261,108 @@ final class StatusItemController: NSObject {
             keyEquivalent: "q"
         )
         menu.addItem(quitItem)
+    }
+
+    @objc private func switchHost(_ sender: NSMenuItem) {
+        guard let hostId = sender.representedObject as? UUID else { return }
+        logger.info("Switching to host: \(hostId)")
+        settingsStore.selectedHostId = hostId
+        containerStore.reinitializeFetcher()
+
+        // Reopen menu immediately with loading state
+        reopenMenu()
+
+        // Fetch data in background - UI will update reactively
+        Task {
+            await containerStore.refresh(force: true)
+        }
+    }
+
+    private func reopenMenu() {
+        // Small delay to let the menu fully close first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.statusItem.button?.performClick(nil)
+        }
+    }
+
+    @objc private func addHost() {
+        logger.info("Opening add host dialog")
+
+        let alert = NSAlert()
+        alert.messageText = "Add Remote Host"
+        alert.informativeText = "Enter the SSH connection details for your remote Docker host."
+        alert.alertStyle = .informational
+
+        // Helper to create properly styled editable text field
+        func makeTextField(placeholder: String) -> NSTextField {
+            let field = NSTextField()
+            field.placeholderString = placeholder
+            field.isEditable = true
+            field.isSelectable = true
+            field.isBordered = true
+            field.isBezeled = true
+            field.bezelStyle = .roundedBezel
+            field.translatesAutoresizingMaskIntoConstraints = false
+            field.widthAnchor.constraint(equalToConstant: 250).isActive = true
+            return field
+        }
+
+        // Create fields
+        let nameLabel = NSTextField(labelWithString: "Name:")
+        let nameField = makeTextField(placeholder: "My Server")
+
+        let hostLabel = NSTextField(labelWithString: "Host (IP or hostname):")
+        let hostField = makeTextField(placeholder: "192.168.1.100 or myserver.local")
+
+        let userLabel = NSTextField(labelWithString: "SSH User:")
+        let userField = makeTextField(placeholder: "root")
+
+        // Create stack view
+        let stackView = NSStackView()
+        stackView.orientation = .vertical
+        stackView.alignment = .leading
+        stackView.spacing = 6
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        stackView.addArrangedSubview(nameLabel)
+        stackView.addArrangedSubview(nameField)
+        stackView.addArrangedSubview(hostLabel)
+        stackView.addArrangedSubview(hostField)
+        stackView.addArrangedSubview(userLabel)
+        stackView.addArrangedSubview(userField)
+
+        // Set stack view size
+        stackView.setFrameSize(stackView.fittingSize)
+
+        alert.accessoryView = stackView
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let name = nameField.stringValue.isEmpty ? "Remote Host" : nameField.stringValue
+            let host = hostField.stringValue
+            let user = userField.stringValue.isEmpty ? "root" : userField.stringValue
+
+            guard !host.isEmpty else {
+                logger.warning("Host field is empty")
+                return
+            }
+
+            let newHost = DockerHost(
+                name: name,
+                connectionType: .ssh,
+                isDefault: false,
+                host: host,
+                sshUser: user,
+                sshPort: 22
+            )
+
+            settingsStore.addHost(newHost)
+            logger.info("Added new host: \(name) (\(host))")
+        }
     }
 
     // MARK: - Container Actions

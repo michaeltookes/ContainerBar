@@ -292,6 +292,41 @@ DockerBar.app/Contents/Info.plist                  # App bundle (created)
 
 ---
 
+## January 17, 2026 (Day 6-7 continued) - @BUILD_LEAD
+
+### Completed
+
+- **Menu bar icon now visible!** Opening Package.swift in Xcode provides automatic code signing
+- Tested with Docker Desktop running - all containers display correctly
+- Full functionality confirmed:
+  - Unix socket connection to Docker daemon ✓
+  - Container listing via Docker API v1.44 ✓
+  - Menu bar icon with SF Symbols ✓
+  - SwiftUI dropdown menu ✓
+  - Real-time container data ✓
+
+### Technical Notes
+
+**Code Signing Solution**: Instead of creating a custom .xcodeproj, simply open `Package.swift` in Xcode. Xcode handles:
+- Swift Package Manager dependencies (swift-log, etc.)
+- Automatic ad-hoc code signing for development
+- Proper app bundle creation
+
+**Docker Desktop Interaction**: Docker Desktop may show "Lingering processes detected" if DockerBar is running when Docker starts. Solution: Stop DockerBar, start Docker Desktop, then relaunch DockerBar.
+
+### Next Up (Day 8-9)
+
+- Test container actions (start, stop, restart)
+- Implement Settings window UI
+- Add keyboard shortcuts
+- Polish UI based on real container data
+
+### Milestone
+
+🎉 **MVP Complete** - DockerBar successfully displays all Docker containers in the menu bar!
+
+---
+
 ## Standup Format
 
 ```markdown
