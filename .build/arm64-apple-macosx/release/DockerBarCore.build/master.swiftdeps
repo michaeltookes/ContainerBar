@@ -1,0 +1,17 @@
+version: "Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)"
+options: "869f629d691a7af3dc775d6d628481a2a83bd4209d416f2035f5711f25628061"
+build_start_time: [1768633421, 508035000]
+build_end_time: [1768633423, 637371000]
+inputs:
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift": [1768632061, 959699853]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClientImpl.swift": [1768633403, 46808608]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerRawStats.swift": [1768632994, 808212721]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift": [1768632973, 53164320]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift": [1768632061, 960030262]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift": [1768632061, 960189550]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift": [1768632061, 960316963]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift": [1768632061, 960419961]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift": [1768632061, 960517292]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift": [1768632061, 960646122]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ContainerFetcher.swift": [1768633068, 962960561]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift": [1768632061, 960773953]

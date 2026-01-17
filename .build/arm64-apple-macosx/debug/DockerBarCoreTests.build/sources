@@ -1,2 +1,4 @@
 /Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift
+/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift
 /Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift
+/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift

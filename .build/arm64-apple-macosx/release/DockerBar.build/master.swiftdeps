@@ -1,0 +1,14 @@
+version: "Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)"
+options: "3066cb3c9d9fbea86145528b1aa0132a2cdff0e0b7b8032d61e652ea31deadf1"
+build_start_time: [1768634723, 124868000]
+build_end_time: [1768634725, 295778000]
+inputs:
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift": [1768634718, 216749828]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift": [1768632061, 958797416]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift": [1768634712, 661492632]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift": [1768633101, 4719073]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/SettingsStore.swift": [1768632061, 959426068]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift": [1768632871, 668197936]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerRowView.swift": [1768632871, 668482437]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift": [1768633802, 353899750]
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift": [1768632871, 668900606]

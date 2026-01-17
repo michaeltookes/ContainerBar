@@ -42,7 +42,7 @@ public final class ContainerStore {
     // MARK: - Private Properties
 
     @ObservationIgnored
-    private let failureGate = ConsecutiveFailureGate()
+    private var fetcher: ContainerFetcher?
 
     @ObservationIgnored
     private var timerTask: Task<Void, Never>?
@@ -57,11 +57,34 @@ public final class ContainerStore {
 
     public init(settings: SettingsStore) {
         self.settings = settings
+        initializeFetcher()
         startTimer()
     }
 
     deinit {
         timerTask?.cancel()
+    }
+
+    // MARK: - Fetcher Initialization
+
+    private func initializeFetcher() {
+        do {
+            if let host = settings.selectedHost {
+                fetcher = try ContainerFetcher.forHost(host)
+                logger.info("Fetcher initialized for host: \(host.name)")
+            } else {
+                fetcher = try ContainerFetcher.local()
+                logger.info("Fetcher initialized for local Docker")
+            }
+        } catch {
+            logger.error("Failed to initialize fetcher: \(error.localizedDescription)")
+            connectionError = error.localizedDescription
+        }
+    }
+
+    /// Reinitialize the fetcher (e.g., when settings change)
+    public func reinitializeFetcher() {
+        initializeFetcher()
     }
 
     // MARK: - Refresh
@@ -79,21 +102,39 @@ public final class ContainerStore {
 
         logger.info("Refreshing container data")
 
-        // For now, use mock data until API client is implemented
-        // TODO: Replace with actual Docker API calls in Day 5
-        // When real API is implemented, wrap this in do-catch for error handling
-        let mockContainers = generateMockContainers()
-        let mockStats = generateMockStats(for: mockContainers)
+        // If no fetcher, try to initialize
+        if fetcher == nil {
+            initializeFetcher()
+        }
 
-        self.containers = mockContainers
-        self.stats = mockStats
-        self.metricsSnapshot = buildMetricsSnapshot(containers: mockContainers, stats: mockStats)
-        self.isConnected = true
-        self.connectionError = nil
-        self.lastRefreshAt = Date()
-        self.failureGate.recordSuccess()
+        guard let fetcher else {
+            connectionError = "Docker connection not configured"
+            isConnected = false
+            return
+        }
 
-        logger.info("Refresh complete: \(mockContainers.count) containers")
+        do {
+            let result = try await fetcher.fetch(
+                includeStats: true,
+                all: settings.showStoppedContainers
+            )
+
+            self.containers = result.containers
+            self.stats = result.stats
+            self.metricsSnapshot = result.metrics
+            self.isConnected = true
+            self.connectionError = nil
+            self.lastRefreshAt = Date()
+
+            logger.info("Refresh complete: \(result.containers.count) containers")
+        } catch {
+            logger.error("Refresh failed: \(error.localizedDescription)")
+
+            // User-friendly error messages
+            let userMessage = userFriendlyErrorMessage(for: error)
+            self.connectionError = userMessage
+            self.isConnected = false
+        }
     }
 
     // MARK: - Container Actions
@@ -106,10 +147,17 @@ public final class ContainerStore {
 
         logger.info("Starting container: \(id)")
 
-        // TODO: Implement actual Docker API call
-        // For now, just refresh after a delay to simulate the action
-        try? await Task.sleep(for: .milliseconds(500))
-        await refresh(force: true)
+        guard let fetcher else {
+            logger.error("No fetcher available")
+            return
+        }
+
+        do {
+            try await fetcher.startContainer(id: id)
+            await refresh(force: true)
+        } catch {
+            logger.error("Failed to start container: \(error.localizedDescription)")
+        }
     }
 
     /// Stop a running container
@@ -120,9 +168,17 @@ public final class ContainerStore {
 
         logger.info("Stopping container: \(id)")
 
-        // TODO: Implement actual Docker API call
-        try? await Task.sleep(for: .milliseconds(500))
-        await refresh(force: true)
+        guard let fetcher else {
+            logger.error("No fetcher available")
+            return
+        }
+
+        do {
+            try await fetcher.stopContainer(id: id)
+            await refresh(force: true)
+        } catch {
+            logger.error("Failed to stop container: \(error.localizedDescription)")
+        }
     }
 
     /// Restart a container
@@ -133,9 +189,38 @@ public final class ContainerStore {
 
         logger.info("Restarting container: \(id)")
 
-        // TODO: Implement actual Docker API call
-        try? await Task.sleep(for: .milliseconds(500))
-        await refresh(force: true)
+        guard let fetcher else {
+            logger.error("No fetcher available")
+            return
+        }
+
+        do {
+            try await fetcher.restartContainer(id: id)
+            await refresh(force: true)
+        } catch {
+            logger.error("Failed to restart container: \(error.localizedDescription)")
+        }
+    }
+
+    /// Remove a container
+    public func removeContainer(id: String, force: Bool = false) async {
+        guard !actionInProgress.contains(id) else { return }
+        actionInProgress.insert(id)
+        defer { actionInProgress.remove(id) }
+
+        logger.info("Removing container: \(id)")
+
+        guard let fetcher else {
+            logger.error("No fetcher available")
+            return
+        }
+
+        do {
+            try await fetcher.removeContainer(id: id, force: force)
+            await refresh(force: true)
+        } catch {
+            logger.error("Failed to remove container: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Timer Management
@@ -164,61 +249,23 @@ public final class ContainerStore {
         startTimer()
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Error Handling
 
-    private func buildMetricsSnapshot(
-        containers: [DockerContainer],
-        stats: [String: ContainerStats]
-    ) -> ContainerMetricsSnapshot {
-        let statsList = Array(stats.values)
-        let totalCPU = statsList.reduce(0.0) { $0 + $1.cpuPercent }
-        let totalMemUsed = statsList.reduce(UInt64(0)) { $0 + $1.memoryUsageBytes }
-        let totalMemLimit = statsList.reduce(UInt64(0)) { $0 + $1.memoryLimitBytes }
-
-        return ContainerMetricsSnapshot(
-            containers: statsList,
-            totalCPUPercent: totalCPU,
-            totalMemoryUsedBytes: totalMemUsed,
-            totalMemoryLimitBytes: totalMemLimit,
-            runningCount: containers.filter { $0.state == .running }.count,
-            stoppedCount: containers.filter { $0.state == .exited }.count,
-            pausedCount: containers.filter { $0.state == .paused }.count,
-            totalCount: containers.count,
-            updatedAt: Date()
-        )
-    }
-
-    // MARK: - Mock Data (Temporary)
-
-    /// Generate mock containers for testing until API is implemented
-    private func generateMockContainers() -> [DockerContainer] {
-        #if DEBUG
-        return [
-            .mock(id: "abc123", name: "nginx-proxy", state: .running, status: "Up 2 hours"),
-            .mock(id: "def456", name: "postgres-db", image: "postgres:15", state: .running, status: "Up 3 days"),
-            .mock(id: "ghi789", name: "redis-cache", image: "redis:alpine", state: .running, status: "Up 3 days"),
-            .mock(id: "jkl012", name: "api-server", image: "node:18", state: .running, status: "Up 1 hour"),
-            .mock(id: "mno345", name: "backup-service", image: "alpine", state: .exited, status: "Exited (0) 12 hours ago"),
-        ]
-        #else
-        return []
-        #endif
-    }
-
-    /// Generate mock stats for testing until API is implemented
-    private func generateMockStats(for containers: [DockerContainer]) -> [String: ContainerStats] {
-        #if DEBUG
-        var stats: [String: ContainerStats] = [:]
-        for container in containers where container.state == .running {
-            stats[container.id] = .mock(
-                containerId: container.id,
-                cpuPercent: Double.random(in: 0.1...15.0),
-                memoryUsageBytes: UInt64.random(in: 50_000_000...500_000_000)
-            )
+    private func userFriendlyErrorMessage(for error: Error) -> String {
+        if let dockerError = error as? DockerAPIError {
+            switch dockerError {
+            case .socketNotFound:
+                return "Docker not running. Please start Docker Desktop."
+            case .connectionFailed:
+                return "Cannot connect to Docker. Make sure Docker is running."
+            case .unauthorized:
+                return "Access denied. Check Docker permissions."
+            default:
+                return dockerError.localizedDescription
+            }
         }
-        return stats
-        #else
-        return [:]
-        #endif
+
+        // Generic error
+        return "Connection error: \(error.localizedDescription)"
     }
 }

@@ -1,0 +1,12 @@
+{
+  "": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/DockerBarPackageTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/DockerBarPackageTests.o",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/master.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.derived/runner.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarPackageTests.build/runner.swiftdeps"
+  }
+}
