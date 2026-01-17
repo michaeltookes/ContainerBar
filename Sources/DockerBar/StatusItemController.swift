@@ -4,6 +4,9 @@ import DockerBarCore
 import Logging
 
 /// Controller managing the menu bar status item and dropdown menu
+///
+/// Uses NSHostingView to embed SwiftUI content in NSMenu items,
+/// following the SWIFT_EXPERT pattern for hybrid AppKit/SwiftUI.
 @MainActor
 final class StatusItemController: NSObject {
     /// The system status item in the menu bar
@@ -18,8 +21,8 @@ final class StatusItemController: NSObject {
     /// Logger for status item operations
     private let logger = Logger(label: "com.dockerbar.statusitem")
 
-    /// Observation tracking for store changes
-    private var storeObservation: Any?
+    /// Task for observing store changes
+    private var observationTask: Task<Void, Never>?
 
     init(containerStore: ContainerStore, settingsStore: SettingsStore) {
         self.containerStore = containerStore
@@ -32,9 +35,13 @@ final class StatusItemController: NSObject {
 
         setupStatusItem()
         setupMenu()
-        observeStoreChanges()
+        startObservation()
 
         logger.info("StatusItemController initialized")
+    }
+
+    deinit {
+        observationTask?.cancel()
     }
 
     // MARK: - Setup
@@ -45,50 +52,142 @@ final class StatusItemController: NSObject {
             return
         }
 
-        // Set the initial icon - Docker whale with container count
+        // Set the initial icon
         updateIcon()
 
         // Set accessibility
         button.toolTip = "DockerBar - Docker Container Monitor"
+        button.setAccessibilityLabel("DockerBar")
+        button.setAccessibilityHelp("Click to view Docker containers")
     }
 
     private func setupMenu() {
         let menu = NSMenu()
         menu.delegate = self
+        menu.autoenablesItems = false
+        statusItem.menu = menu
+    }
 
-        // Title item
-        let titleItem = NSMenuItem(title: "DockerBar", action: nil, keyEquivalent: "")
-        titleItem.isEnabled = false
-        menu.addItem(titleItem)
+    private func startObservation() {
+        observationTask?.cancel()
+
+        observationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { break }
+
+                withObservationTracking {
+                    // Track relevant properties
+                    _ = self.containerStore.containers
+                    _ = self.containerStore.isConnected
+                    _ = self.containerStore.isRefreshing
+                    _ = self.containerStore.connectionError
+                    _ = self.settingsStore.iconStyle
+                } onChange: {
+                    Task { @MainActor [weak self] in
+                        self?.updateIcon()
+                    }
+                }
+
+                // Small delay to batch updates
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    // MARK: - Icon Updates
+
+    private func updateIcon() {
+        guard let button = statusItem.button else { return }
+
+        let runningCount = containerStore.containers.filter { $0.state == .running }.count
+        let totalCount = containerStore.containers.count
+
+        // Build icon configuration
+        let config = DockerIconRenderer.Config(
+            style: settingsStore.iconStyle,
+            runningCount: runningCount,
+            totalCount: totalCount,
+            cpuPercent: containerStore.metricsSnapshot?.totalCPUPercent ?? 0,
+            memoryPercent: containerStore.metricsSnapshot?.memoryUsagePercent ?? 0,
+            isRefreshing: containerStore.isRefreshing,
+            isConnected: containerStore.isConnected,
+            hasError: containerStore.connectionError != nil
+        )
+
+        // Render and set icon
+        let icon = DockerIconRenderer.render(config: config)
+        button.image = icon
+
+        // Show running count as title (for container count style)
+        if settingsStore.iconStyle == .containerCount && totalCount > 0 {
+            button.title = " \(runningCount)"
+        } else {
+            button.title = ""
+        }
+
+        // Update accessibility
+        let stateDescription: String
+        if containerStore.connectionError != nil {
+            stateDescription = "Error connecting to Docker"
+        } else if containerStore.isRefreshing {
+            stateDescription = "Refreshing"
+        } else if containerStore.isConnected {
+            stateDescription = "\(runningCount) of \(totalCount) containers running"
+        } else {
+            stateDescription = "Connecting to Docker"
+        }
+        button.setAccessibilityValue(stateDescription)
+    }
+
+    // MARK: - Menu Building
+
+    private func rebuildMenu() {
+        guard let menu = statusItem.menu else { return }
+
+        menu.removeAllItems()
+
+        // Main content card (SwiftUI)
+        let cardItem = createCardMenuItem()
+        menu.addItem(cardItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Connection status placeholder
-        let connectionItem = NSMenuItem(title: "Not connected", action: nil, keyEquivalent: "")
-        connectionItem.isEnabled = false
-        connectionItem.tag = MenuItemTag.connectionStatus.rawValue
-        menu.addItem(connectionItem)
+        // Actions section
+        addActionItems(to: menu)
+    }
 
-        menu.addItem(NSMenuItem.separator())
+    private func createCardMenuItem() -> NSMenuItem {
+        let item = NSMenuItem()
 
-        // Container list placeholder - will be populated dynamically
-        let containersItem = NSMenuItem(title: "No containers", action: nil, keyEquivalent: "")
-        containersItem.isEnabled = false
-        containersItem.tag = MenuItemTag.containerList.rawValue
-        menu.addItem(containersItem)
+        let cardView = ContainerMenuCardView { [weak self] action in
+            self?.handleContainerAction(action)
+        }
+        .environment(containerStore)
+        .environment(settingsStore)
 
-        menu.addItem(NSMenuItem.separator())
+        let hostingView = NSHostingView(rootView: cardView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Refresh action
+        // Size to fit content
+        let fittingSize = hostingView.fittingSize
+        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+
+        item.view = hostingView
+        return item
+    }
+
+    private func addActionItems(to menu: NSMenu) {
+        // Refresh
         let refreshItem = NSMenuItem(
             title: "Refresh Now",
             action: #selector(refreshAction),
             keyEquivalent: "r"
         )
         refreshItem.target = self
+        refreshItem.isEnabled = !containerStore.isRefreshing
         menu.addItem(refreshItem)
 
-        // Settings action
+        // Settings
         let settingsItem = NSMenuItem(
             title: "Settings...",
             action: #selector(openSettings),
@@ -99,181 +198,79 @@ final class StatusItemController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Quit action
+        // Quit
         let quitItem = NSMenuItem(
             title: "Quit DockerBar",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
         menu.addItem(quitItem)
-
-        statusItem.menu = menu
     }
 
-    private func observeStoreChanges() {
-        // Observe container store changes using withObservationTracking
-        Task { @MainActor [weak self] in
-            while true {
-                guard let self else { break }
+    // MARK: - Container Actions
 
-                withObservationTracking {
-                    // Access the properties we want to track
-                    _ = self.containerStore.containers
-                    _ = self.containerStore.isConnected
-                    _ = self.containerStore.isRefreshing
-                } onChange: {
-                    Task { @MainActor [weak self] in
-                        self?.updateIcon()
-                        self?.updateMenu()
-                    }
-                }
-
-                // Small delay to prevent tight loops
-                try? await Task.sleep(for: .milliseconds(100))
+    private func handleContainerAction(_ action: ContainerAction) {
+        switch action {
+        case .start(let id):
+            logger.info("Starting container: \(id)")
+            Task {
+                await containerStore.startContainer(id: id)
             }
-        }
-    }
 
-    // MARK: - Updates
-
-    private func updateIcon() {
-        guard let button = statusItem.button else { return }
-
-        let runningCount = containerStore.containers.filter { $0.state == .running }.count
-        let totalCount = containerStore.containers.count
-
-        // Use SF Symbol as base icon
-        let image: NSImage
-        if containerStore.isRefreshing {
-            // Show refresh indicator
-            image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "Refreshing")?
-                .withSymbolConfiguration(.init(pointSize: 14, weight: .medium)) ?? NSImage()
-        } else if !containerStore.isConnected && containerStore.connectionError != nil {
-            // Show error state
-            image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Error")?
-                .withSymbolConfiguration(.init(pointSize: 14, weight: .medium)) ?? NSImage()
-        } else {
-            // Show container icon with count
-            image = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "Containers")?
-                .withSymbolConfiguration(.init(pointSize: 14, weight: .medium)) ?? NSImage()
-        }
-
-        image.isTemplate = true
-        button.image = image
-
-        // Show running count as title if we have containers
-        if totalCount > 0 {
-            button.title = " \(runningCount)"
-        } else {
-            button.title = ""
-        }
-    }
-
-    private func updateMenu() {
-        guard let menu = statusItem.menu else { return }
-
-        // Update connection status
-        if let statusItem = menu.item(withTag: MenuItemTag.connectionStatus.rawValue) {
-            if containerStore.isConnected {
-                let hostName = settingsStore.selectedHost?.name ?? "Local Docker"
-                let runningCount = containerStore.containers.filter { $0.state == .running }.count
-                let stoppedCount = containerStore.containers.filter { $0.state == .exited }.count
-                statusItem.title = "Connected to \(hostName) (\(runningCount) running, \(stoppedCount) stopped)"
-            } else if let error = containerStore.connectionError {
-                statusItem.title = "Error: \(error)"
-            } else {
-                statusItem.title = "Connecting..."
+        case .stop(let id):
+            logger.info("Stopping container: \(id)")
+            Task {
+                await containerStore.stopContainer(id: id)
             }
-        }
 
-        // Update container list
-        if let containerItem = menu.item(withTag: MenuItemTag.containerList.rawValue) {
-            // Remove old container items
-            let containerIndex = menu.index(of: containerItem)
-            while menu.items.count > containerIndex + 1 {
-                let nextItem = menu.items[containerIndex + 1]
-                if nextItem.isSeparatorItem { break }
-                menu.removeItem(nextItem)
+        case .restart(let id):
+            logger.info("Restarting container: \(id)")
+            Task {
+                await containerStore.restartContainer(id: id)
             }
-            menu.removeItem(containerItem)
 
-            // Add new container items
-            if containerStore.containers.isEmpty {
-                let noContainers = NSMenuItem(title: "No containers", action: nil, keyEquivalent: "")
-                noContainers.isEnabled = false
-                noContainers.tag = MenuItemTag.containerList.rawValue
-                menu.insertItem(noContainers, at: containerIndex)
-            } else {
-                var insertIndex = containerIndex
-                for container in containerStore.containers.prefix(20) {
-                    let item = createContainerMenuItem(container)
-                    if insertIndex == containerIndex {
-                        item.tag = MenuItemTag.containerList.rawValue
-                    }
-                    menu.insertItem(item, at: insertIndex)
-                    insertIndex += 1
-                }
+        case .remove(let id):
+            logger.info("Remove requested for container: \(id)")
+            showRemoveConfirmation(for: id)
 
-                // Show "more" item if we have many containers
-                if containerStore.containers.count > 20 {
-                    let moreItem = NSMenuItem(
-                        title: "... and \(containerStore.containers.count - 20) more",
-                        action: nil,
-                        keyEquivalent: ""
-                    )
-                    moreItem.isEnabled = false
-                    menu.insertItem(moreItem, at: insertIndex)
-                }
-            }
+        case .copyId(let id):
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(id, forType: .string)
+            logger.info("Copied container ID to clipboard")
+
+        case .viewLogs(let id):
+            logger.info("View logs requested for container: \(id)")
+            // TODO: Implement log viewer in future phase
         }
     }
 
-    private func createContainerMenuItem(_ container: DockerContainer) -> NSMenuItem {
-        let stateIcon: String
-        switch container.state {
-        case .running: stateIcon = "●"
-        case .paused: stateIcon = "❚❚"
-        case .restarting: stateIcon = "↻"
-        case .exited, .dead: stateIcon = "○"
-        case .created, .removing: stateIcon = "◌"
+    private func showRemoveConfirmation(for containerId: String) {
+        guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
+            return
         }
 
-        let title = "\(stateIcon) \(container.displayName)"
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let alert = NSAlert()
+        alert.messageText = "Remove Container?"
+        alert.informativeText = "Are you sure you want to remove '\(container.displayName)'? This action cannot be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Cancel")
 
-        // Create submenu for container actions
-        let submenu = NSMenu()
-
-        if container.state == .running {
-            let stopItem = NSMenuItem(title: "Stop", action: #selector(stopContainer(_:)), keyEquivalent: "")
-            stopItem.target = self
-            stopItem.representedObject = container.id
-            submenu.addItem(stopItem)
-
-            let restartItem = NSMenuItem(title: "Restart", action: #selector(restartContainer(_:)), keyEquivalent: "")
-            restartItem.target = self
-            restartItem.representedObject = container.id
-            submenu.addItem(restartItem)
-        } else {
-            let startItem = NSMenuItem(title: "Start", action: #selector(startContainer(_:)), keyEquivalent: "")
-            startItem.target = self
-            startItem.representedObject = container.id
-            submenu.addItem(startItem)
+        // Mark remove button as destructive
+        if let removeButton = alert.buttons.first {
+            removeButton.hasDestructiveAction = true
         }
 
-        submenu.addItem(NSMenuItem.separator())
+        NSApp.activate(ignoringOtherApps: true)
 
-        let copyIdItem = NSMenuItem(title: "Copy Container ID", action: #selector(copyContainerId(_:)), keyEquivalent: "")
-        copyIdItem.target = self
-        copyIdItem.representedObject = container.id
-        submenu.addItem(copyIdItem)
-
-        item.submenu = submenu
-
-        return item
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            logger.info("Confirmed removal of container: \(containerId)")
+            // TODO: Implement remove in ContainerStore
+        }
     }
 
-    // MARK: - Actions
+    // MARK: - Menu Actions
 
     @objc private func refreshAction() {
         logger.info("Manual refresh triggered")
@@ -287,53 +284,21 @@ final class StatusItemController: NSObject {
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         NSApp.activate(ignoringOtherApps: true)
     }
-
-    @objc private func startContainer(_ sender: NSMenuItem) {
-        guard let containerId = sender.representedObject as? String else { return }
-        logger.info("Starting container: \(containerId)")
-        Task {
-            await containerStore.startContainer(id: containerId)
-        }
-    }
-
-    @objc private func stopContainer(_ sender: NSMenuItem) {
-        guard let containerId = sender.representedObject as? String else { return }
-        logger.info("Stopping container: \(containerId)")
-        Task {
-            await containerStore.stopContainer(id: containerId)
-        }
-    }
-
-    @objc private func restartContainer(_ sender: NSMenuItem) {
-        guard let containerId = sender.representedObject as? String else { return }
-        logger.info("Restarting container: \(containerId)")
-        Task {
-            await containerStore.restartContainer(id: containerId)
-        }
-    }
-
-    @objc private func copyContainerId(_ sender: NSMenuItem) {
-        guard let containerId = sender.representedObject as? String else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(containerId, forType: .string)
-        logger.info("Copied container ID to clipboard")
-    }
 }
 
 // MARK: - NSMenuDelegate
 
 extension StatusItemController: NSMenuDelegate {
     nonisolated func menuWillOpen(_ menu: NSMenu) {
-        Task { @MainActor in
-            // Refresh when menu opens for freshest data
-            await containerStore.refresh()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            // Rebuild menu with fresh content
+            self.rebuildMenu()
+
+            // Refresh data when menu opens
+            await self.containerStore.refresh()
         }
     }
-}
 
-// MARK: - Menu Item Tags
-
-private enum MenuItemTag: Int {
-    case connectionStatus = 100
-    case containerList = 200
 }
