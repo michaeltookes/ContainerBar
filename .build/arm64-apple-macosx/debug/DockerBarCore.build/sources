@@ -1,0 +1,8 @@
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/DockerAPIClient.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/DockerBarCore.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/ContainerStats.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerContainer.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/DockerHost.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Models/Errors.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Services/ConsecutiveFailureGate.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/Strategies/ContainerFetchStrategy.swift
