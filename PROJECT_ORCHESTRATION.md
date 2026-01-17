@@ -16,9 +16,10 @@ Build DockerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` 
 
 **BEFORE STARTING**: All agents must read these documents in order:
 
-1. **`/.claude/agents/AGENTS.md`** - Master coordinator with project overview
-2. **`DESIGN_DOCUMENT.md`** - Complete technical specification (in repo root)
-3. **Your specific agent file** - Your role and responsibilities
+1. **`AGENTS.md`** - Master coordinator with project overview (in repo root)
+2. **`PROJECT_ORCHESTRATION.md`** - This file - orchestration guide
+3. **`DESIGN_DOCUMENT.md`** - Complete technical specification (in repo root)
+4. **Your specific agent file** - Your role and responsibilities (in /.claude/agents/)
 
 ---
 
@@ -88,7 +89,7 @@ Build DockerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` 
 
 ```
 TASKS:
-1. Read AGENTS.md and DESIGN_DOCUMENT.md
+1. Read AGENTS.md, PROJECT_ORCHESTRATION.md, and DESIGN_DOCUMENT.md
 2. Create Swift package structure (Package.swift)
 3. Set up DockerBar and DockerBarCore targets
 4. Create basic README
@@ -321,9 +322,10 @@ You are the primary agent who kicks off the project. Here's your immediate actio
 
 **Step 1**: Read the requirements
 ```
-1. Read /.claude/agents/AGENTS.md (project overview)
-2. Read DESIGN_DOCUMENT.md (complete spec - in repo root)
-3. Read /.claude/agents/BUILD_LEAD.md (your role)
+1. Read AGENTS.md (project overview - in repo root)
+2. Read PROJECT_ORCHESTRATION.md (this file - orchestration guide)
+3. Read DESIGN_DOCUMENT.md (complete spec - in repo root)
+4. Read /.claude/agents/BUILD_LEAD.md (your role)
 ```
 
 **Step 2**: Set up the project
@@ -419,7 +421,7 @@ All agents post daily standups with progress
 
 ### For All Agents
 
-1. **Read First**: AGENTS.md, DESIGN_DOCUMENT.md, your agent file
+1. **Read First**: AGENTS.md (repo root), PROJECT_ORCHESTRATION.md, DESIGN_DOCUMENT.md, your agent file
 2. **Communicate**: Use /.claude/agents/communications/ for all coordination
 3. **Quality First**: Don't skip quality gates
 4. **Security Always**: Never compromise security
