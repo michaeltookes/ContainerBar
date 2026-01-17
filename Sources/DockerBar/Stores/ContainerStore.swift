@@ -84,6 +84,19 @@ public final class ContainerStore {
 
     /// Reinitialize the fetcher (e.g., when settings change)
     public func reinitializeFetcher() {
+        // Clear existing data when switching hosts
+        containers = []
+        stats = [:]
+        metricsSnapshot = nil
+        isConnected = false
+        connectionError = nil
+        lastRefreshAt = nil
+
+        // Show loading state immediately
+        isRefreshing = true
+
+        // Reset the fetcher
+        fetcher = nil
         initializeFetcher()
     }
 
@@ -260,6 +273,10 @@ public final class ContainerStore {
                 return "Cannot connect to Docker. Make sure Docker is running."
             case .unauthorized:
                 return "Access denied. Check Docker permissions."
+            case .sshConnectionFailed(let message):
+                return "SSH connection failed: \(message)"
+            case .invalidResponse:
+                return "Invalid response from Docker. Check if Docker is running on the selected host."
             default:
                 return dockerError.localizedDescription
             }

@@ -3,8 +3,7 @@ import Logging
 
 /// Concrete implementation of DockerAPIClient
 ///
-/// Supports Unix socket connections to local Docker daemon.
-/// TCP+TLS and SSH support will be added in Phase 2.
+/// Supports Unix socket and SSH tunnel connections to Docker daemons.
 public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Properties
@@ -13,8 +12,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     private let logger = Logger(label: "com.dockerbar.api")
     private let apiVersion = "v1.44"
 
-    // Unix socket connection (reused for efficiency)
+    // Connection management
     private var connection: UnixSocketConnection?
+    private var sshTunnel: SSHTunnelConnection?
+    private var effectiveSocketPath: String?
     private let connectionLock = NSLock()
 
     // MARK: - Initialization
@@ -31,15 +32,34 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             guard FileManager.default.fileExists(atPath: socketPath) else {
                 throw DockerAPIError.socketNotFound(socketPath)
             }
+            self.effectiveSocketPath = socketPath
 
         case .tcpTLS:
             throw DockerAPIError.notImplemented("TCP+TLS connections")
 
         case .ssh:
-            throw DockerAPIError.notImplemented("SSH tunnel connections")
+            guard let remoteHost = host.host else {
+                throw DockerAPIError.invalidConfiguration("Missing SSH host")
+            }
+            guard let sshUser = host.sshUser else {
+                throw DockerAPIError.invalidConfiguration("Missing SSH user")
+            }
+            let sshPort = host.sshPort ?? 22
+
+            // Create SSH tunnel
+            let tunnel = SSHTunnelConnection(host: remoteHost, user: sshUser, port: sshPort)
+            let localSocket = try tunnel.connect()
+
+            self.sshTunnel = tunnel
+            self.effectiveSocketPath = localSocket
         }
 
         logger.info("DockerAPIClient initialized for \(host.name)")
+    }
+
+    deinit {
+        closeConnection()
+        sshTunnel?.disconnect()
     }
 
     // MARK: - Connection Management
@@ -52,8 +72,15 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             return existing
         }
 
-        guard let socketPath = host.socketPath else {
-            throw DockerAPIError.invalidConfiguration("No socket path")
+        guard let socketPath = effectiveSocketPath else {
+            throw DockerAPIError.invalidConfiguration("No socket path configured")
+        }
+
+        // For SSH connections, verify tunnel is still active
+        if host.connectionType == .ssh {
+            guard let tunnel = sshTunnel, tunnel.isConnected else {
+                throw DockerAPIError.connectionFailed
+            }
         }
 
         let conn = UnixSocketConnection(socketPath: socketPath)

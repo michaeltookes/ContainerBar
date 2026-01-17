@@ -8,6 +8,7 @@ struct ContainerRowView: View {
     let onAction: (ContainerAction) -> Void
 
     @State private var isHovered = false
+    @State private var showDetailPopover = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -52,12 +53,18 @@ struct ContainerRowView: View {
                 isHovered = hovering
             }
         }
+        .onTapGesture {
+            showDetailPopover.toggle()
+        }
+        .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
+            ContainerDetailPopover(container: container, stats: stats)
+        }
         .contextMenu {
             containerContextMenu
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Right-click for actions")
+        .accessibilityHint("Click for details, right-click for actions")
     }
 
     // MARK: - Subviews

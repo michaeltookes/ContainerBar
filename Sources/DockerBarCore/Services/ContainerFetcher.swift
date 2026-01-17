@@ -285,7 +285,7 @@ extension DockerAPIError {
         case .connectionFailed, .networkTimeout, .serverError:
             return true
         case .unauthorized, .notFound, .invalidConfiguration, .invalidURL,
-             .socketNotFound:
+             .socketNotFound, .sshConnectionFailed:
             return false
         case .conflict, .unexpectedStatus, .invalidResponse, .decodingError,
              .notImplemented:
