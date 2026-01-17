@@ -9,3 +9,7 @@
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/DockerIconRenderer.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricGaugeView.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/AboutPane.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/ConnectionSettingsPane.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/GeneralSettingsPane.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/SettingsWindow.swift
