@@ -1,6 +1,10 @@
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/AppDelegate.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/ContainerMenuCardView.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/ContainerRowView.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/ContainerStore.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/DockerBarApp.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/DockerIconRenderer.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/MetricProgressBar.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/SettingsStore.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/StatusItemController.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCore.build/ConsecutiveFailureGate.swift.o
@@ -15,6 +19,8 @@
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarPackageTests.build/runner.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarTests.build/DockerBarTests.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarTests.build/DockerIconRendererTests.swift.o
+/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarTests.build/SettingsStoreTests.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/KeyboardShortcuts.build/CarbonKeyboardShortcuts.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/KeyboardShortcuts.build/Key.swift.o
 /Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/KeyboardShortcuts.build/KeyboardShortcuts.swift.o
