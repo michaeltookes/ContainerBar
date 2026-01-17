@@ -439,8 +439,10 @@ final class StatusItemController: NSObject {
 
     @objc private func openSettings() {
         logger.info("Opening settings")
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        NSApp.activate(ignoringOtherApps: true)
+        SettingsWindowController.shared.showSettings(
+            settings: settingsStore,
+            containerStore: containerStore
+        )
     }
 }
 
