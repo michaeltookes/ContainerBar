@@ -287,6 +287,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift"
         },
         {
@@ -376,6 +380,7 @@
       "objects" : [
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/AppDelegate.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/DockerBarApp.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GlobalHotkey.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/LaunchAtLoginManager.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/StatusItemController.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/ContainerStore.swift.o",
@@ -462,6 +467,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GlobalHotkey.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/LaunchAtLoginManager.swift.o"
         },
         {
@@ -529,6 +538,7 @@
       "sources" : [
         "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift",
@@ -1578,6 +1588,7 @@
       "-c",
       "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift",
@@ -2241,6 +2252,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift"
         },
         {
@@ -2348,6 +2363,10 @@
         {
           "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GeneralSettingsPane.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GlobalHotkey.swift.o"
         },
         {
           "kind" : "file",
@@ -2640,6 +2659,10 @@
         {
           "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GeneralSettingsPane.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBar.build/GlobalHotkey.swift.o"
         },
         {
           "kind" : "file",

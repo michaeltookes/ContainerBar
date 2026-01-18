@@ -1,5 +1,6 @@
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/AppDelegate.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/DockerBarApp.swift
+/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift
 /Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Stores/ContainerStore.swift
