@@ -5,6 +5,13 @@ import DockerBarCore
 struct ContainerDetailPopover: View {
     let container: DockerContainer
     let stats: ContainerStats?
+    let onAction: ((ContainerAction) -> Void)?
+
+    init(container: DockerContainer, stats: ContainerStats?, onAction: ((ContainerAction) -> Void)? = nil) {
+        self.container = container
+        self.stats = stats
+        self.onAction = onAction
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -53,6 +60,48 @@ struct ContainerDetailPopover: View {
                 HStack(spacing: 16) {
                     MiniStat(label: "CPU", value: formatPercent(stats.cpuPercent), color: .blue)
                     MiniStat(label: "Memory", value: formatMemory(stats.memoryUsedMB), color: .purple)
+                }
+            }
+
+            // Actions
+            if let onAction {
+                Divider()
+
+                HStack(spacing: 8) {
+                    Button {
+                        onAction(.viewLogs(container.id))
+                    } label: {
+                        Label("View Logs", systemImage: "doc.text")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+
+                    if container.state == .running {
+                        Button {
+                            onAction(.stop(container.id))
+                        } label: {
+                            Image(systemName: "stop.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Stop container")
+
+                        Button {
+                            onAction(.restart(container.id))
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Restart container")
+                    } else {
+                        Button {
+                            onAction(.start(container.id))
+                        } label: {
+                            Image(systemName: "play.fill")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Start container")
+                    }
                 }
             }
         }
