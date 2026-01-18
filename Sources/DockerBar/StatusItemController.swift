@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import DockerBarCore
 import Logging
+import KeyboardShortcuts
 
 /// Controller managing the menu bar status item and dropdown menu
 ///
@@ -36,6 +37,7 @@ final class StatusItemController: NSObject {
         setupStatusItem()
         setupMenu()
         startObservation()
+        setupGlobalHotkey()
 
         logger.info("StatusItemController initialized")
     }
@@ -94,6 +96,31 @@ final class StatusItemController: NSObject {
                 // Small delay to batch updates
                 try? await Task.sleep(for: .milliseconds(100))
             }
+        }
+    }
+
+    // MARK: - Global Hotkey
+
+    private func setupGlobalHotkey() {
+        KeyboardShortcuts.onKeyUp(for: .toggleMenu) { [weak self] in
+            Task { @MainActor in
+                self?.toggleMenu()
+            }
+        }
+        logger.info("Global hotkey registered")
+    }
+
+    /// Toggle the menu bar dropdown open/closed
+    func toggleMenu() {
+        guard let button = statusItem.button else { return }
+
+        // Check if menu is currently open
+        if let menu = statusItem.menu, menu.highlightedItem != nil {
+            // Menu is open, close it
+            menu.cancelTracking()
+        } else {
+            // Menu is closed, open it
+            button.performClick(nil)
         }
     }
 
@@ -234,6 +261,15 @@ final class StatusItemController: NSObject {
             copyIdItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy")
             actionSubmenu.addItem(copyIdItem)
 
+            actionSubmenu.addItem(NSMenuItem.separator())
+
+            // Remove
+            let removeItem = NSMenuItem(title: "Remove...", action: #selector(removeContainerAction(_:)), keyEquivalent: "")
+            removeItem.target = self
+            removeItem.representedObject = container.id
+            removeItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: "Remove")
+            actionSubmenu.addItem(removeItem)
+
             containerItem.submenu = actionSubmenu
             containersSubmenu.addItem(containerItem)
         }
@@ -270,6 +306,12 @@ final class StatusItemController: NSObject {
         guard let containerId = sender.representedObject as? String else { return }
         logger.info("Copy ID action for: \(containerId)")
         handleContainerAction(.copyId(containerId))
+    }
+
+    @objc private func removeContainerAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("Remove action for: \(containerId)")
+        handleContainerAction(.remove(containerId))
     }
 
     private func createCardMenuItem() -> NSMenuItem {
@@ -519,9 +561,17 @@ final class StatusItemController: NSObject {
             return
         }
 
+        let isRunning = container.state == .running
+
         let alert = NSAlert()
         alert.messageText = "Remove Container?"
-        alert.informativeText = "Are you sure you want to remove '\(container.displayName)'? This action cannot be undone."
+
+        if isRunning {
+            alert.informativeText = "'\(container.displayName)' is currently running. It will be force-stopped and removed. This action cannot be undone."
+        } else {
+            alert.informativeText = "Are you sure you want to remove '\(container.displayName)'? This action cannot be undone."
+        }
+
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Remove")
         alert.addButton(withTitle: "Cancel")
@@ -536,7 +586,9 @@ final class StatusItemController: NSObject {
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
             logger.info("Confirmed removal of container: \(containerId)")
-            // TODO: Implement remove in ContainerStore
+            Task {
+                await containerStore.removeContainer(id: containerId, force: isRunning)
+            }
         }
     }
 

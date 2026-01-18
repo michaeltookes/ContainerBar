@@ -29,14 +29,7 @@ struct ContainerDetailPopover: View {
             VStack(alignment: .leading, spacing: 8) {
                 DetailRow(label: "Image", value: container.image)
 
-                DetailRow(label: "ID", value: String(container.id.prefix(12))) {
-                    Button(action: copyContainerId) {
-                        Image(systemName: "doc.on.doc")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Copy full container ID")
-                }
+                DetailRow(label: "ID", value: String(container.id.prefix(12)))
 
                 if !container.ports.isEmpty {
                     portsSection
@@ -140,13 +133,6 @@ struct ContainerDetailPopover: View {
         }
     }
 
-    // MARK: - Actions
-
-    private func copyContainerId() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(container.id, forType: .string)
-    }
-
     // MARK: - Formatters
 
     private func formatDate(_ date: Date) -> String {
@@ -176,17 +162,10 @@ struct ContainerDetailPopover: View {
 
 // MARK: - Supporting Views
 
-/// A row showing label and value with optional trailing content
-struct DetailRow<Trailing: View>: View {
+/// A row showing label and value
+struct DetailRow: View {
     let label: String
     let value: String
-    let trailing: Trailing
-
-    init(label: String, value: String, @ViewBuilder trailing: () -> Trailing = { EmptyView() }) {
-        self.label = label
-        self.value = value
-        self.trailing = trailing()
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -202,8 +181,6 @@ struct DetailRow<Trailing: View>: View {
                 .textSelection(.enabled)
 
             Spacer()
-
-            trailing
         }
     }
 }

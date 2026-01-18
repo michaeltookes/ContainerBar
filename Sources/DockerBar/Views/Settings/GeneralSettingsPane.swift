@@ -1,6 +1,7 @@
 import SwiftUI
 import ServiceManagement
 import DockerBarCore
+import KeyboardShortcuts
 
 /// General app preferences pane
 struct GeneralSettingsPane: View {
@@ -72,6 +73,20 @@ struct GeneralSettingsPane: View {
                 Text("Startup")
             } footer: {
                 Text("Automatically start DockerBar when you log in to your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                HStack {
+                    Text("Toggle Menu")
+                    Spacer()
+                    KeyboardShortcuts.Recorder(for: .toggleMenu)
+                }
+            } header: {
+                Text("Keyboard Shortcut")
+            } footer: {
+                Text("Set a global keyboard shortcut to quickly open DockerBar from anywhere.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
