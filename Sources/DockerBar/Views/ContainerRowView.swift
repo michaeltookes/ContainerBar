@@ -57,14 +57,12 @@ struct ContainerRowView: View {
             showDetailPopover.toggle()
         }
         .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
-            ContainerDetailPopover(container: container, stats: stats)
-        }
-        .contextMenu {
-            containerContextMenu
+            // Pass nil for onAction since buttons don't work in NSMenu context
+            ContainerDetailPopover(container: container, stats: stats, onAction: nil)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Click for details, right-click for actions")
+        .accessibilityHint("Click for details, use Container Actions menu for controls")
     }
 
     // MARK: - Subviews
@@ -73,34 +71,6 @@ struct ContainerRowView: View {
         Circle()
             .fill(statusColor)
             .frame(width: 8, height: 8)
-    }
-
-    @ViewBuilder
-    private var containerContextMenu: some View {
-        if container.state == .running {
-            Button("Stop") {
-                onAction(.stop(container.id))
-            }
-            Button("Restart") {
-                onAction(.restart(container.id))
-            }
-        } else {
-            Button("Start") {
-                onAction(.start(container.id))
-            }
-        }
-
-        Divider()
-
-        Button("Copy Container ID") {
-            onAction(.copyId(container.id))
-        }
-
-        Divider()
-
-        Button("Remove...", role: .destructive) {
-            onAction(.remove(container.id))
-        }
     }
 
     // MARK: - Computed Properties

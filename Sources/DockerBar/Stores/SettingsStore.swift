@@ -44,8 +44,7 @@ public final class SettingsStore {
     public var launchAtLogin: Bool {
         didSet {
             userDefaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
-            // TODO: Implement LaunchAtLoginManager
-            logger.info("Launch at login: \(launchAtLogin)")
+            LaunchAtLoginManager.shared.setEnabled(launchAtLogin)
         }
     }
 
@@ -89,7 +88,9 @@ public final class SettingsStore {
         ) ?? .seconds10
 
         self.showStoppedContainers = userDefaults.object(forKey: Keys.showStoppedContainers) as? Bool ?? true
-        self.launchAtLogin = userDefaults.bool(forKey: Keys.launchAtLogin)
+
+        // Sync launch at login from actual system state (may have been changed in System Settings)
+        self.launchAtLogin = LaunchAtLoginManager.shared.isEnabled
 
         self.iconStyle = IconStyle(
             rawValue: userDefaults.string(forKey: Keys.iconStyle) ?? ""

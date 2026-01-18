@@ -156,8 +156,120 @@ final class StatusItemController: NSObject {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Container actions submenu
+        addContainerActionsSubmenu(to: menu)
+
+        menu.addItem(NSMenuItem.separator())
+
         // Actions section
         addActionItems(to: menu)
+    }
+
+    private func addContainerActionsSubmenu(to menu: NSMenu) {
+        let containersItem = NSMenuItem(title: "Container Actions", action: nil, keyEquivalent: "")
+        let containersSubmenu = NSMenu()
+
+        // Sort containers: running first, then alphabetically by name
+        // Also filter based on showStoppedContainers setting
+        let sortedContainers = containerStore.containers
+            .sorted { lhs, rhs in
+                if lhs.state == .running && rhs.state != .running { return true }
+                if lhs.state != .running && rhs.state == .running { return false }
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+            }
+            .filter { container in
+                settingsStore.showStoppedContainers || container.state.isActive
+            }
+
+        for container in sortedContainers {
+            let containerItem = NSMenuItem(title: container.displayName, action: nil, keyEquivalent: "")
+
+            // Set icon based on state
+            if container.state == .running {
+                containerItem.image = NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "Running")
+                containerItem.image?.isTemplate = false
+            } else {
+                containerItem.image = NSImage(systemSymbolName: "circle", accessibilityDescription: "Stopped")
+            }
+
+            // Create submenu for this container
+            let actionSubmenu = NSMenu()
+
+            // View Logs
+            let logsItem = NSMenuItem(title: "View Logs...", action: #selector(viewLogsAction(_:)), keyEquivalent: "")
+            logsItem.target = self
+            logsItem.representedObject = container.id
+            logsItem.image = NSImage(systemSymbolName: "doc.text", accessibilityDescription: "Logs")
+            actionSubmenu.addItem(logsItem)
+
+            actionSubmenu.addItem(NSMenuItem.separator())
+
+            // Start/Stop/Restart
+            if container.state == .running {
+                let stopItem = NSMenuItem(title: "Stop", action: #selector(stopContainerAction(_:)), keyEquivalent: "")
+                stopItem.target = self
+                stopItem.representedObject = container.id
+                stopItem.image = NSImage(systemSymbolName: "stop.fill", accessibilityDescription: "Stop")
+                actionSubmenu.addItem(stopItem)
+
+                let restartItem = NSMenuItem(title: "Restart", action: #selector(restartContainerAction(_:)), keyEquivalent: "")
+                restartItem.target = self
+                restartItem.representedObject = container.id
+                restartItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Restart")
+                actionSubmenu.addItem(restartItem)
+            } else {
+                let startItem = NSMenuItem(title: "Start", action: #selector(startContainerAction(_:)), keyEquivalent: "")
+                startItem.target = self
+                startItem.representedObject = container.id
+                startItem.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Start")
+                actionSubmenu.addItem(startItem)
+            }
+
+            actionSubmenu.addItem(NSMenuItem.separator())
+
+            // Copy ID
+            let copyIdItem = NSMenuItem(title: "Copy Container ID", action: #selector(copyIdAction(_:)), keyEquivalent: "")
+            copyIdItem.target = self
+            copyIdItem.representedObject = container.id
+            copyIdItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy")
+            actionSubmenu.addItem(copyIdItem)
+
+            containerItem.submenu = actionSubmenu
+            containersSubmenu.addItem(containerItem)
+        }
+
+        containersItem.submenu = containersSubmenu
+        menu.addItem(containersItem)
+    }
+
+    @objc private func viewLogsAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("View logs action for: \(containerId)")
+        handleContainerAction(.viewLogs(containerId))
+    }
+
+    @objc private func startContainerAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("Start action for: \(containerId)")
+        handleContainerAction(.start(containerId))
+    }
+
+    @objc private func stopContainerAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("Stop action for: \(containerId)")
+        handleContainerAction(.stop(containerId))
+    }
+
+    @objc private func restartContainerAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("Restart action for: \(containerId)")
+        handleContainerAction(.restart(containerId))
+    }
+
+    @objc private func copyIdAction(_ sender: NSMenuItem) {
+        guard let containerId = sender.representedObject as? String else { return }
+        logger.info("Copy ID action for: \(containerId)")
+        handleContainerAction(.copyId(containerId))
     }
 
     private func createCardMenuItem() -> NSMenuItem {
@@ -398,7 +510,7 @@ final class StatusItemController: NSObject {
 
         case .viewLogs(let id):
             logger.info("View logs requested for container: \(id)")
-            // TODO: Implement log viewer in future phase
+            showLogViewer(for: id)
         }
     }
 
@@ -425,6 +537,30 @@ final class StatusItemController: NSObject {
         if response == .alertFirstButtonReturn {
             logger.info("Confirmed removal of container: \(containerId)")
             // TODO: Implement remove in ContainerStore
+        }
+    }
+
+    private func showLogViewer(for containerId: String) {
+        guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
+            logger.warning("Container not found for log viewer: \(containerId)")
+            return
+        }
+
+        do {
+            let fetcher: ContainerFetcher
+            if let host = settingsStore.selectedHost {
+                fetcher = try ContainerFetcher.forHost(host)
+            } else {
+                fetcher = try ContainerFetcher.local()
+            }
+
+            LogViewerWindowController.shared.showLogs(
+                containerId: containerId,
+                containerName: container.displayName,
+                fetcher: fetcher
+            )
+        } catch {
+            logger.error("Failed to create fetcher for log viewer: \(error)")
         }
     }
 

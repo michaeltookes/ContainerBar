@@ -1,9 +1,20 @@
 import SwiftUI
+import ServiceManagement
 import DockerBarCore
 
 /// General app preferences pane
 struct GeneralSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
+
+    private var launchAtLoginRequiresApproval: Bool {
+        SMAppService.mainApp.status == .requiresApproval
+    }
+
+    private func openLoginItemsSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
 
     var body: some View {
         @Bindable var settings = settings
@@ -43,6 +54,20 @@ struct GeneralSettingsPane: View {
 
             Section {
                 Toggle("Launch at Login", isOn: $settings.launchAtLogin)
+
+                if launchAtLoginRequiresApproval {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                        Text("Requires approval in System Settings")
+                            .font(.caption)
+                        Spacer()
+                        Button("Open Settings") {
+                            openLoginItemsSettings()
+                        }
+                        .font(.caption)
+                    }
+                }
             } header: {
                 Text("Startup")
             } footer: {
