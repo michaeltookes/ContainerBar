@@ -2,6 +2,18 @@
   "": {
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/master.swiftdeps"
   },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ConsecutiveFailureGateTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerFetcherTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.swiftdeps"
+  },
   "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift": {
     "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerStatsTests.d",
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerStatsTests.swift.o",
@@ -19,6 +31,12 @@
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests.swift.o",
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerHostTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.swiftdeps"
   },
   "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift": {
     "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/MockDockerAPIClient.d",

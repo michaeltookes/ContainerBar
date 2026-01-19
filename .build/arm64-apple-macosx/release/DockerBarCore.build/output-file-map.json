@@ -19,6 +19,11 @@
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerRawStats.swiftdeps"
   },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/SSHTunnelConnection.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/SSHTunnelConnection.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/SSHTunnelConnection~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/SSHTunnelConnection.swiftdeps"
+  },
   "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBarCore/API/UnixSocketConnection.swift": {
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection.swift.o",
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/UnixSocketConnection~partial.swiftmodule",

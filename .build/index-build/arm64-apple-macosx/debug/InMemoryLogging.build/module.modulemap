@@ -1,0 +1,4 @@
+module InMemoryLogging {
+    header "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/InMemoryLogging-Swift.h"
+    requires objc
+}

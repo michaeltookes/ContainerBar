@@ -1,0 +1,4 @@
+module DockerBarPackageTests {
+    header "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarPackageTests.build/DockerBarPackageTests-Swift.h"
+    requires objc
+}

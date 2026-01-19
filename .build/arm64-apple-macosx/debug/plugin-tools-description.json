@@ -781,6 +781,14 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ConsecutiveFailureGateTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerFetcherTests.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift"
         },
         {
@@ -790,6 +798,10 @@
         {
           "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerHostTests.swift"
         },
         {
           "kind" : "file",
@@ -812,9 +824,12 @@
       "moduleName" : "DockerBarCoreTests",
       "moduleOutputPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/Modules/DockerBarCoreTests.swiftmodule",
       "objects" : [
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerStatsTests.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerAPITests.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests.swift.o",
+        "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.swift.o",
         "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/MockDockerAPIClient.swift.o"
       ],
       "otherArguments" : [
@@ -870,6 +885,14 @@
       "outputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerStatsTests.swift.o"
         },
         {
@@ -882,6 +905,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/MockDockerAPIClient.swift.o"
         },
         {
@@ -891,9 +918,12 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ConsecutiveFailureGateTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerFetcherTests.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift",
+        "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerHostTests.swift",
         "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift"
       ],
       "tempsPath" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build",
@@ -1747,9 +1777,12 @@
       "dockerbar",
       "-incremental",
       "-c",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ConsecutiveFailureGateTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerFetcherTests.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerAPITests.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift",
+      "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerHostTests.swift",
       "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/Mocks/MockDockerAPIClient.swift",
       "-I",
       "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/Modules",
@@ -2582,6 +2615,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ConsecutiveFailureGateTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerFetcherTests.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/ContainerStatsTests.swift"
         },
         {
@@ -2591,6 +2632,10 @@
         {
           "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerContainerTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarCoreTests/DockerHostTests.swift"
         },
         {
           "kind" : "file",
@@ -2746,6 +2791,14 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ConsecutiveFailureGateTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerFetcherTests.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/ContainerStatsTests.swift.o"
         },
         {
@@ -2755,6 +2808,10 @@
         {
           "kind" : "file",
           "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerContainerTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/debug/DockerBarCoreTests.build/DockerHostTests.swift.o"
         },
         {
           "kind" : "file",
