@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DockerBar}",
+            "name": "Debug DockerBar",
+            "target": "DockerBar",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DockerBar"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DockerBar}",
+            "name": "Release DockerBar",
+            "target": "DockerBar",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DockerBar"
+        }
+    ]
+}
