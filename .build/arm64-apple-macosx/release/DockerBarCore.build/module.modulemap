@@ -1,4 +1,0 @@
-module DockerBarCore {
-    header "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBarCore.build/DockerBarCore-Swift.h"
-    requires objc
-}
