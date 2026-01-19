@@ -14,6 +14,16 @@
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerBarApp.swiftdeps"
   },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/GlobalHotkey.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GlobalHotkey.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GlobalHotkey~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GlobalHotkey.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Services/LaunchAtLoginManager.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LaunchAtLoginManager.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LaunchAtLoginManager~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LaunchAtLoginManager.swiftdeps"
+  },
   "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/StatusItemController.swift": {
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController.swift.o",
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/StatusItemController~partial.swiftmodule",
@@ -28,6 +38,11 @@
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swift.o",
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsStore.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerDetailPopover.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerDetailPopover.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerDetailPopover~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerDetailPopover.swiftdeps"
   },
   "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/ContainerMenuCardView.swift": {
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ContainerMenuCardView.swift.o",
@@ -44,9 +59,39 @@
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/DockerIconRenderer.swiftdeps"
   },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/LogViewerWindow.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LogViewerWindow.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LogViewerWindow~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/LogViewerWindow.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricGaugeView.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricGaugeView.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricGaugeView~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricGaugeView.swiftdeps"
+  },
   "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/MetricProgressBar.swift": {
     "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swift.o",
     "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar~partial.swiftmodule",
     "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/MetricProgressBar.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/AboutPane.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AboutPane.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AboutPane~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/AboutPane.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/ConnectionSettingsPane.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ConnectionSettingsPane.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ConnectionSettingsPane~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/ConnectionSettingsPane.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/GeneralSettingsPane.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GeneralSettingsPane.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GeneralSettingsPane~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/GeneralSettingsPane.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Sources/DockerBar/Views/Settings/SettingsWindow.swift": {
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsWindow.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsWindow~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/arm64-apple-macosx/release/DockerBar.build/SettingsWindow.swiftdeps"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "": {
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/master.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/checkouts/swift-log/Sources/InMemoryLogging/InMemoryLogHandler.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/InMemoryLogHandler.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/InMemoryLogHandler.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/InMemoryLogHandler~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/InMemoryLogging.build/InMemoryLogHandler.swiftdeps"
+  }
+}

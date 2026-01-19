@@ -132,25 +132,34 @@ final class StatusItemController: NSObject {
         let runningCount = containerStore.containers.filter { $0.state == .running }.count
         let totalCount = containerStore.containers.count
 
-        // Choose SF Symbol based on state
-        let symbolName: String
-        if containerStore.connectionError != nil {
-            symbolName = "exclamationmark.triangle.fill"
-        } else if containerStore.isRefreshing {
-            symbolName = "arrow.clockwise"
-        } else if containerStore.isConnected {
-            symbolName = "shippingbox.fill"
+        // Calculate CPU and memory percentages from metrics
+        let cpuPercent = containerStore.metricsSnapshot?.totalCPUPercent ?? 0
+        let memoryPercent: Double
+        if let metrics = containerStore.metricsSnapshot,
+           metrics.totalMemoryLimitBytes > 0 {
+            memoryPercent = Double(metrics.totalMemoryUsedBytes) / Double(metrics.totalMemoryLimitBytes) * 100
         } else {
-            symbolName = "shippingbox"
+            memoryPercent = 0
         }
 
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Docker") {
-            image.isTemplate = true
-            button.image = image
-        }
+        // Build renderer config
+        let config = DockerIconRenderer.Config(
+            style: settingsStore.iconStyle,
+            runningCount: runningCount,
+            totalCount: totalCount,
+            cpuPercent: cpuPercent,
+            memoryPercent: memoryPercent,
+            isRefreshing: containerStore.isRefreshing,
+            isConnected: containerStore.isConnected,
+            hasError: containerStore.connectionError != nil
+        )
 
-        // Show running count as title (for container count style)
-        if settingsStore.iconStyle == .containerCount && totalCount > 0 {
+        // Render the icon
+        let image = DockerIconRenderer.render(config: config)
+        button.image = image
+
+        // Show running count as title (for container count style only)
+        if settingsStore.iconStyle == .containerCount && totalCount > 0 && containerStore.isConnected {
             button.title = " \(runningCount)"
         } else {
             button.title = ""

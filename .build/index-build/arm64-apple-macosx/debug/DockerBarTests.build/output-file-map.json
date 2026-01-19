@@ -1,0 +1,23 @@
+{
+  "": {
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/master.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerBarTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerBarTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerBarTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerBarTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerBarTests.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/DockerIconRendererTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerIconRendererTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerIconRendererTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerIconRendererTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/DockerIconRendererTests.swiftdeps"
+  },
+  "/Users/michaeltookes/Desktop/DockerBar/Tests/DockerBarTests/SettingsStoreTests.swift": {
+    "dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/SettingsStoreTests.d",
+    "object": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/SettingsStoreTests.swift.o",
+    "swiftmodule": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/SettingsStoreTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/michaeltookes/Desktop/DockerBar/.build/index-build/arm64-apple-macosx/debug/DockerBarTests.build/SettingsStoreTests.swiftdeps"
+  }
+}
