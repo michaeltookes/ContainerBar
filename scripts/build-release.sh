@@ -98,6 +98,14 @@ create_bundle() {
     # Copy Info.plist
     cp "$DIST_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 
+    # Copy app icon
+    if [ -f "$DIST_DIR/AppIcon.icns" ]; then
+        cp "$DIST_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
+        echo "  ✓ App icon copied"
+    else
+        echo_warning "AppIcon.icns not found in Distribution folder"
+    fi
+
     # Update version in Info.plist
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_BUNDLE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
