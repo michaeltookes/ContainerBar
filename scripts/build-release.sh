@@ -116,6 +116,9 @@ create_bundle() {
         cp -R "$BUILD_DIR/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/"
     fi
 
+    # Fix rpath so the executable can find Sparkle.framework
+    install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+
     echo "  ✓ Bundle created"
 }
 
