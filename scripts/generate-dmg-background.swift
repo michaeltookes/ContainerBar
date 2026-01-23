@@ -44,35 +44,54 @@ class DMGBackgroundGenerator {
 
     static func drawArrow(context: CGContext, rect: CGRect) {
         let centerY = rect.midY + 20 // Slightly above center to account for icon labels
-        let arrowX = rect.midX
-        let arrowLength: CGFloat = 50
-        let arrowHeadSize: CGFloat = 15
+        let centerX = rect.midX
+
+        // Arrow dimensions matching Claude DMG style
+        let arrowWidth: CGFloat = 60
+        let arrowHeight: CGFloat = 32
+        let shaftHeight: CGFloat = 12
+        let headDepth: CGFloat = 20
 
         context.saveGState()
 
-        // Arrow color (dark gray)
-        context.setStrokeColor(NSColor(white: 0.3, alpha: 0.8).cgColor)
-        context.setFillColor(NSColor(white: 0.3, alpha: 0.8).cgColor)
-        context.setLineWidth(3)
-        context.setLineCap(.round)
+        // Arrow color - dark gray matching macOS style
+        let arrowColor = NSColor(white: 0.35, alpha: 0.9).cgColor
+        context.setFillColor(arrowColor)
 
-        // Arrow shaft
-        let shaftStart = CGPoint(x: arrowX - arrowLength/2, y: centerY)
-        let shaftEnd = CGPoint(x: arrowX + arrowLength/2 - arrowHeadSize/2, y: centerY)
-
-        context.move(to: shaftStart)
-        context.addLine(to: shaftEnd)
-        context.strokePath()
-
-        // Arrow head
-        let headTip = CGPoint(x: arrowX + arrowLength/2, y: centerY)
-        let headTop = CGPoint(x: arrowX + arrowLength/2 - arrowHeadSize, y: centerY + arrowHeadSize/2)
-        let headBottom = CGPoint(x: arrowX + arrowLength/2 - arrowHeadSize, y: centerY - arrowHeadSize/2)
-
+        // Create arrow path (pointing right)
+        // Shape: rectangle shaft with triangular head
+        //
+        //         ________
+        //        |        \
+        //   |----|         >
+        //        |________/
+        //
         let arrowPath = CGMutablePath()
-        arrowPath.move(to: headTip)
-        arrowPath.addLine(to: headTop)
-        arrowPath.addLine(to: headBottom)
+
+        let shaftLeft = centerX - arrowWidth / 2
+        let shaftRight = centerX + arrowWidth / 2 - headDepth
+        let tipRight = centerX + arrowWidth / 2
+
+        let shaftTop = centerY + shaftHeight / 2
+        let shaftBottom = centerY - shaftHeight / 2
+        let headTop = centerY + arrowHeight / 2
+        let headBottom = centerY - arrowHeight / 2
+
+        // Start at top-left of shaft
+        arrowPath.move(to: CGPoint(x: shaftLeft, y: shaftTop))
+        // Top of shaft
+        arrowPath.addLine(to: CGPoint(x: shaftRight, y: shaftTop))
+        // Up to top of arrow head
+        arrowPath.addLine(to: CGPoint(x: shaftRight, y: headTop))
+        // Arrow head tip
+        arrowPath.addLine(to: CGPoint(x: tipRight, y: centerY))
+        // Down to bottom of arrow head
+        arrowPath.addLine(to: CGPoint(x: shaftRight, y: headBottom))
+        // Back to bottom of shaft
+        arrowPath.addLine(to: CGPoint(x: shaftRight, y: shaftBottom))
+        // Bottom of shaft
+        arrowPath.addLine(to: CGPoint(x: shaftLeft, y: shaftBottom))
+        // Close path
         arrowPath.closeSubpath()
 
         context.addPath(arrowPath)
