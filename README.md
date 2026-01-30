@@ -1,10 +1,10 @@
-# DockerBar
+# ContainerBar
 
 A lightweight macOS menu bar application for Docker container monitoring and management.
 
 ## Overview
 
-DockerBar provides instant access to Docker container status directly from your macOS menu bar. Monitor running containers, view real-time CPU and memory metrics, and perform quick management actions—all without opening a browser or terminal.
+ContainerBar provides instant access to Docker container status directly from your macOS menu bar. Monitor running containers, view real-time CPU and memory metrics, and perform quick management actions—all without opening a browser or terminal.
 
 ## Features
 
@@ -27,14 +27,14 @@ DockerBar provides instant access to Docker container status directly from your 
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/DockerBar.git
-cd DockerBar
+git clone https://github.com/yourusername/ContainerBar.git
+cd ContainerBar
 
 # Build the application
 swift build -c release
 
 # Run
-swift run DockerBar
+swift run ContainerBar
 ```
 
 ### Homebrew (Coming Soon)
@@ -47,7 +47,7 @@ brew install --cask dockerbar
 
 ### Local Docker
 
-DockerBar automatically connects to the local Docker daemon via `/var/run/docker.sock`. Simply launch the app and your containers will appear in the menu bar dropdown.
+ContainerBar automatically connects to the local Docker daemon via `/var/run/docker.sock`. Simply launch the app and your containers will appear in the menu bar dropdown.
 
 ### Remote Docker (TLS)
 
@@ -63,7 +63,7 @@ DockerBar automatically connects to the local Docker daemon via `/var/run/docker
 |----------|--------|
 | `Cmd + R` | Refresh container list |
 | `Cmd + ,` | Open Settings |
-| `Cmd + Q` | Quit DockerBar |
+| `Cmd + Q` | Quit ContainerBar |
 
 ## Development
 
@@ -93,30 +93,30 @@ swift test --enable-code-coverage
 ### Project Structure
 
 ```
-DockerBar/
+ContainerBar/
 ├── Package.swift                 # Swift Package Manager configuration
 ├── Sources/
-│   ├── DockerBar/               # macOS application
-│   │   ├── DockerBarApp.swift   # App entry point
+│   ├── ContainerBar/               # macOS application
+│   │   ├── ContainerBarApp.swift   # App entry point
 │   │   ├── AppDelegate.swift    # Application delegate
 │   │   ├── StatusItemController.swift  # Menu bar management
 │   │   ├── Stores/              # State management
 │   │   └── Views/               # SwiftUI views
-│   └── DockerBarCore/           # Business logic library
+│   └── ContainerBarCore/           # Business logic library
 │       ├── Models/              # Data structures
 │       ├── API/                 # Docker API client
 │       ├── Services/            # Business services
 │       └── Strategies/          # Connection strategies
 ├── Tests/
-│   ├── DockerBarTests/          # App tests
-│   └── DockerBarCoreTests/      # Core library tests
+│   ├── ContainerBarTests/          # App tests
+│   └── ContainerBarCoreTests/      # Core library tests
 └── docs/
     └── DESIGN_DOCUMENT.md       # Technical specification
 ```
 
 ## Architecture
 
-DockerBar follows a layered architecture:
+ContainerBar follows a layered architecture:
 
 - **UI Layer**: SwiftUI views + AppKit for menu bar integration
 - **State Layer**: `@Observable` stores for reactive state management

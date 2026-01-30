@@ -3,7 +3,7 @@
 import Cocoa
 import Foundation
 
-/// Generates the DockerBar app icon - a Docker whale with containers in a rounded box frame
+/// Generates the ContainerBar app icon - a Docker whale with containers in a rounded box frame
 class IconGenerator {
 
     // Icon sizes required for .icns file

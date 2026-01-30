@@ -19,6 +19,26 @@
             "target": "DockerBar",
             "configuration": "release",
             "preLaunchTask": "swift: Build Release DockerBar"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DockerBar}",
+            "name": "Debug ContainerBar",
+            "target": "ContainerBar",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug ContainerBar"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:DockerBar}",
+            "name": "Release ContainerBar",
+            "target": "ContainerBar",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release ContainerBar"
         }
     ]
 }

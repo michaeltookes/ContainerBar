@@ -1,4 +1,4 @@
-# DockerBar Design Document
+# ContainerBar Design Document
 
 ## Comprehensive Design Specification for macOS Docker Container Monitoring Application
 
@@ -32,9 +32,9 @@
 
 ## Product Vision
 
-DockerBar is a lightweight macOS menu bar application that provides instant access to Docker container monitoring and management directly from the macOS menu bar. Inspired by CodexBar's elegant approach to AI tool usage monitoring, DockerBar eliminates the need to keep browser-based tools like Portainer or Docker Desktop open, providing developers and DevOps engineers with quick container insights at a glance.
+ContainerBar is a lightweight macOS menu bar application that provides instant access to Docker container monitoring and management directly from the macOS menu bar. Inspired by CodexBar's elegant approach to AI tool usage monitoring, ContainerBar eliminates the need to keep browser-based tools like Portainer or Docker Desktop open, providing developers and DevOps engineers with quick container insights at a glance.
 
-The application follows CodexBar's proven architecture patterns: a hybrid SwiftUI + AppKit approach for native macOS integration, the Provider Descriptor pattern for extensible data source management, and Swift 6's strict concurrency model for thread-safe operation. DockerBar translates these patterns from AI tool monitoring to container infrastructure monitoring.
+The application follows CodexBar's proven architecture patterns: a hybrid SwiftUI + AppKit approach for native macOS integration, the Provider Descriptor pattern for extensible data source management, and Swift 6's strict concurrency model for thread-safe operation. ContainerBar translates these patterns from AI tool monitoring to container infrastructure monitoring.
 
 ## Key Objectives
 
@@ -65,11 +65,11 @@ The application follows CodexBar's proven architecture patterns: a hybrid SwiftU
 
 ## 2.1 Application Architecture
 
-DockerBar follows a layered architecture inspired by CodexBar's modular design, with clear separation between UI, business logic, and data access layers.
+ContainerBar follows a layered architecture inspired by CodexBar's modular design, with clear separation between UI, business logic, and data access layers.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            DockerBar Application                            │
+│                            ContainerBar Application                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -91,7 +91,7 @@ DockerBar follows a layered architecture inspired by CodexBar's modular design, 
 │                                      │                                      │
 │                                      ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        Service Layer (DockerBarCore)                │    │
+│  │                        Service Layer (ContainerBarCore)                │    │
 │  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │    │
 │  │  │ContainerFetcher  │  │DockerAPIClient   │  │CredentialManager │   │    │
 │  │  │(Strategy-based)  │  │(HTTP/Socket)     │  │(Keychain)        │   │    │
@@ -111,7 +111,7 @@ DockerBar follows a layered architecture inspired by CodexBar's modular design, 
 
 ### Pattern Mapping Table
 
-| CodexBar Pattern | Applicability | Adaptation for DockerBar |
+| CodexBar Pattern | Applicability | Adaptation for ContainerBar |
 |------------------|---------------|--------------------------|
 | **Provider Descriptor** | Direct adaptation | `DockerSourceDescriptor` defines connection methods and branding |
 | **Fetch Strategy** | Direct adaptation | Strategies for Unix Socket, TCP+TLS, SSH Tunnel |
@@ -217,11 +217,11 @@ let localDockerDescriptor = DockerSourceDescriptor(
 import PackageDescription
 
 let package = Package(
-    name: "DockerBar",
+    name: "ContainerBar",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "DockerBar", targets: ["DockerBar"]),
-        .library(name: "DockerBarCore", targets: ["DockerBarCore"]),
+        .executable(name: "ContainerBar", targets: ["ContainerBar"]),
+        .library(name: "ContainerBarCore", targets: ["ContainerBarCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
@@ -230,9 +230,9 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "DockerBar",
+            name: "ContainerBar",
             dependencies: [
-                "DockerBarCore",
+                "ContainerBarCore",
                 .product(name: "Logging", package: "swift-log"),
                 "KeyboardShortcuts",
                 .product(name: "Sparkle", package: "Sparkle"),
@@ -240,15 +240,15 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
-            name: "DockerBarCore",
+            name: "ContainerBarCore",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
-            name: "DockerBarTests",
-            dependencies: ["DockerBarCore"]
+            name: "ContainerBarTests",
+            dependencies: ["ContainerBarCore"]
         ),
     ]
 )
@@ -710,7 +710,7 @@ enum DockerIconRenderer {
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ DockerBar                              ⟳ Refreshing │
+│ ContainerBar                              ⟳ Refreshing │
 ├─────────────────────────────────────────────────────┤
 │ Connected to: beelink-server                        │
 │ ● 8 running  ○ 2 stopped  ○ 2 paused               │
@@ -742,7 +742,7 @@ enum DockerIconRenderer {
 │ ⟳ Refresh Now                              ⌘R      │
 │ ⚙️ Settings...                             ⌘,      │
 ├─────────────────────────────────────────────────────┤
-│ Quit DockerBar                             ⌘Q      │
+│ Quit ContainerBar                             ⌘Q      │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -1329,7 +1329,7 @@ public struct ContainerFetchResult: Sendable {
 
 ### Polling-based Updates
 
-DockerBar uses a polling approach with configurable intervals:
+ContainerBar uses a polling approach with configurable intervals:
 
 | Setting | Interval | Use Case |
 |---------|----------|----------|
@@ -1509,11 +1509,11 @@ swiftlint
 ## 9.2 Project Structure
 
 ```
-DockerBar/
+ContainerBar/
 ├── Package.swift
 ├── Sources/
-│   ├── DockerBar/                    # Main macOS app
-│   │   ├── DockerBarApp.swift        # App entry point
+│   ├── ContainerBar/                    # Main macOS app
+│   │   ├── ContainerBarApp.swift        # App entry point
 │   │   ├── AppDelegate.swift         # NSApplicationDelegate
 │   │   ├── StatusItemController.swift # Menu bar management
 │   │   ├── ContainerStore.swift      # State management
@@ -1529,7 +1529,7 @@ DockerBar/
 │   │   └── Resources/
 │   │       ├── Assets.xcassets
 │   │       └── Localizable.strings
-│   ├── DockerBarCore/                # Business logic (shared)
+│   ├── ContainerBarCore/                # Business logic (shared)
 │   │   ├── Models/
 │   │   │   ├── DockerContainer.swift
 │   │   │   ├── ContainerStats.swift
@@ -1547,15 +1547,15 @@ DockerBar/
 │   │       ├── ContainerFetchStrategy.swift
 │   │       ├── UnixSocketStrategy.swift
 │   │       └── TcpTlsStrategy.swift
-│   └── DockerBarCLI/                 # CLI tool (future)
+│   └── ContainerBarCLI/                 # CLI tool (future)
 │       └── main.swift
 ├── Tests/
-│   ├── DockerBarTests/
+│   ├── ContainerBarTests/
 │   │   ├── ContainerStoreTests.swift
 │   │   ├── DockerAPIClientTests.swift
 │   │   └── Mocks/
 │   │       └── MockDockerAPIClient.swift
-│   └── DockerBarCoreTests/
+│   └── ContainerBarCoreTests/
 │       ├── ContainerParsingTests.swift
 │       └── StatsParsingTests.swift
 ├── Scripts/
@@ -1578,17 +1578,17 @@ set -euo pipefail
 CONFIG="${1:-debug}"
 source "$(dirname "$0")/version.env"
 
-echo "Building DockerBar ($CONFIG)..."
+echo "Building ContainerBar ($CONFIG)..."
 swift build -c "$CONFIG"
 
 echo "Packaging app..."
 ./Scripts/package_app.sh "$CONFIG"
 
 echo "Signing (ad-hoc)..."
-codesign --force --sign - "DockerBar.app"
+codesign --force --sign - "ContainerBar.app"
 
 echo "Launching..."
-open "DockerBar.app"
+open "ContainerBar.app"
 ```
 
 ### version.env
@@ -1607,7 +1607,7 @@ BUNDLE_ID=com.yourcompany.dockerbar
 
 ### Sprint 1: Core Infrastructure
 
-- [ ] Create Swift package structure with DockerBar and DockerBarCore targets
+- [ ] Create Swift package structure with ContainerBar and ContainerBarCore targets
 - [ ] Implement basic menu bar status item with NSStatusItem
 - [ ] Create DockerAPIClient with Unix socket support
 - [ ] Implement container listing (`/containers/json`)
@@ -1795,7 +1795,7 @@ func urlSession(
 
 ## 12.3 App Sandbox Considerations
 
-DockerBar requires:
+ContainerBar requires:
 - Network access (com.apple.security.network.client)
 - Keychain access (automatic for signed apps)
 - File system access for Unix socket (/var/run/docker.sock)
@@ -2039,7 +2039,7 @@ public func fetchAll(for host: DockerHost) async throws -> ContainerFetchResult 
 ### README.md
 
 ```markdown
-# DockerBar
+# ContainerBar
 
 A lightweight macOS menu bar application for Docker container monitoring.
 
@@ -2061,14 +2061,14 @@ brew install --cask dockerbar
 ### Manual
 
 1. Download the latest release from GitHub
-2. Move DockerBar.app to /Applications
+2. Move ContainerBar.app to /Applications
 3. Launch and configure your Docker host
 
 ## Configuration
 
 ### Local Docker
 
-DockerBar automatically connects to `/var/run/docker.sock` for local Docker.
+ContainerBar automatically connects to `/var/run/docker.sock` for local Docker.
 
 ### Remote Docker (TLS)
 
@@ -2125,7 +2125,7 @@ DockerBar automatically connects to `/var/run/docker.sock` for local Docker.
 
 # Appendix A: CodexBar Pattern Mapping Summary
 
-| CodexBar Component | DockerBar Equivalent | Adaptation Notes |
+| CodexBar Component | ContainerBar Equivalent | Adaptation Notes |
 |--------------------|----------------------|------------------|
 | `UsageProvider` enum | `DockerSource` enum | Simplified to Unix/TLS/SSH |
 | `ProviderDescriptor` | `DockerSourceDescriptor` | Same structure, different metadata |
@@ -2170,4 +2170,4 @@ Add header: `Api-Version: 1.43`
 
 **Document End**
 
-This design document provides a complete blueprint for implementing DockerBar. An implementing agent should be able to build the entire application using only this document as reference, following the patterns and specifications described herein.
+This design document provides a complete blueprint for implementing ContainerBar. An implementing agent should be able to build the entire application using only this document as reference, following the patterns and specifications described herein.

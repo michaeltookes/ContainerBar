@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# DockerBar DMG Creation Script
+# ContainerBar DMG Creation Script
 # Creates a styled DMG with app icon and Applications folder shortcut
 
 set -e
 
 # Configuration
-APP_NAME="DockerBar"
+APP_NAME="ContainerBar"
 VERSION="1.0.0"
 
 # Paths
