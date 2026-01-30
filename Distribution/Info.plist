@@ -6,22 +6,22 @@
     <string>en</string>
 
     <key>CFBundleExecutable</key>
-    <string>DockerBar</string>
+    <string>ContainerBar</string>
 
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
 
     <key>CFBundleIdentifier</key>
-    <string>com.tookes.DockerBar</string>
+    <string>com.tookes.ContainerBar</string>
 
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
 
     <key>CFBundleName</key>
-    <string>DockerBar</string>
+    <string>ContainerBar</string>
 
     <key>CFBundleDisplayName</key>
-    <string>DockerBar</string>
+    <string>ContainerBar</string>
 
     <key>CFBundlePackageType</key>
     <string>APPL</string>

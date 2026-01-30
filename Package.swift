@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "DockerBar",
+    name: "ContainerBar",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "DockerBar", targets: ["DockerBar"]),
-        .library(name: "DockerBarCore", targets: ["DockerBarCore"]),
+        .executable(name: "ContainerBar", targets: ["ContainerBar"]),
+        .library(name: "ContainerBarCore", targets: ["ContainerBarCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
@@ -15,9 +15,9 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "DockerBar",
+            name: "ContainerBar",
             dependencies: [
-                "DockerBarCore",
+                "ContainerBarCore",
                 .product(name: "Logging", package: "swift-log"),
                 "KeyboardShortcuts",
                 .product(name: "Sparkle", package: "Sparkle"),
@@ -25,19 +25,19 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
-            name: "DockerBarCore",
+            name: "ContainerBarCore",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
-            name: "DockerBarTests",
-            dependencies: ["DockerBar", "DockerBarCore"]
+            name: "ContainerBarTests",
+            dependencies: ["ContainerBar", "ContainerBarCore"]
         ),
         .testTarget(
-            name: "DockerBarCoreTests",
-            dependencies: ["DockerBarCore"]
+            name: "ContainerBarCoreTests",
+            dependencies: ["ContainerBarCore"]
         ),
     ]
 )

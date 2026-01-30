@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# DockerBar Notarization Script
+# ContainerBar Notarization Script
 # This script notarizes the app with Apple and staples the ticket
 
 set -e
 
 # Configuration
-APP_NAME="DockerBar"
-BUNDLE_ID="com.tookes.DockerBar"
+APP_NAME="ContainerBar"
+BUNDLE_ID="com.tookes.ContainerBar"
 APPLE_ID="tookes92@att.net"
 TEAM_ID="6739LM5834"
 
@@ -65,7 +65,7 @@ store_credentials() {
     echo_step "Checking notarization credentials..."
 
     # Check if credentials are already stored
-    if xcrun notarytool history --keychain-profile "DockerBar-Notarize" &> /dev/null 2>&1; then
+    if xcrun notarytool history --keychain-profile "ContainerBar-Notarize" &> /dev/null 2>&1; then
         echo "  ✓ Credentials already stored"
         return 0
     fi
@@ -75,13 +75,13 @@ store_credentials() {
     echo ""
     echo "You'll need your App-Specific Password from https://appleid.apple.com"
     echo "  1. Go to Sign-In and Security → App-Specific Passwords"
-    echo "  2. Generate a new password named 'DockerBar Notarization'"
+    echo "  2. Generate a new password named 'ContainerBar Notarization'"
     echo ""
     echo "Press Enter when ready, or Ctrl+C to cancel..."
     read
 
     echo_step "Storing credentials in keychain..."
-    xcrun notarytool store-credentials "DockerBar-Notarize" \
+    xcrun notarytool store-credentials "ContainerBar-Notarize" \
         --apple-id "$APPLE_ID" \
         --team-id "$TEAM_ID"
 
@@ -96,7 +96,7 @@ submit_notarization() {
 
     # Submit and wait for completion
     xcrun notarytool submit "$ZIP_FILE" \
-        --keychain-profile "DockerBar-Notarize" \
+        --keychain-profile "ContainerBar-Notarize" \
         --wait
 
     echo ""
@@ -161,7 +161,7 @@ create_dmg() {
     # Notarize the DMG
     echo "  Notarizing DMG..."
     xcrun notarytool submit "$DMG_FILE" \
-        --keychain-profile "DockerBar-Notarize" \
+        --keychain-profile "ContainerBar-Notarize" \
         --wait
 
     # Staple the DMG
@@ -193,7 +193,7 @@ summary() {
 # Main
 main() {
     echo ""
-    echo "DockerBar Notarization"
+    echo "ContainerBar Notarization"
     echo "======================"
     echo ""
 

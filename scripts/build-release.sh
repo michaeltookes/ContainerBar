@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# DockerBar Release Build Script
-# This script builds, signs, and packages DockerBar for distribution
+# ContainerBar Release Build Script
+# This script builds, signs, and packages ContainerBar for distribution
 
 set -e
 
 # Configuration
-APP_NAME="DockerBar"
-BUNDLE_ID="com.tookes.DockerBar"
+APP_NAME="ContainerBar"
+BUNDLE_ID="com.tookes.ContainerBar"
 VERSION="1.0.0"
 BUILD_NUMBER="1"
 
@@ -116,6 +116,9 @@ create_bundle() {
         cp -R "$BUILD_DIR/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/"
     fi
 
+    # Fix rpath so the executable can find Sparkle.framework
+    install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+
     echo "  ✓ Bundle created"
 }
 
@@ -174,7 +177,7 @@ sign() {
     # Sign the main app bundle
     echo "  Signing: $APP_NAME.app"
     codesign --force --options runtime --timestamp \
-        --entitlements "$DIST_DIR/DockerBar.entitlements" \
+        --entitlements "$DIST_DIR/ContainerBar.entitlements" \
         --sign "$SIGNING_IDENTITY" \
         "$APP_BUNDLE"
 
@@ -223,7 +226,7 @@ summary() {
 # Main
 main() {
     echo ""
-    echo "DockerBar Release Build"
+    echo "ContainerBar Release Build"
     echo "======================="
     echo ""
 
