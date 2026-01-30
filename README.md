@@ -32,6 +32,15 @@ ContainerBar was vibe coded using **Claude Opus 4.5**, turning that idea into a 
 
 ## Installation
 
+### Homebrew (Recommended)
+
+```bash
+brew tap michaeltookes/tap
+brew install --cask containerbar
+```
+
+### Direct Download
+
 Download the latest release from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases), open the DMG, and drag ContainerBar to your Applications folder.
 
 ### From Source
