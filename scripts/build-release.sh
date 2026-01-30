@@ -106,6 +106,14 @@ create_bundle() {
         echo_warning "AppIcon.icns not found in Distribution folder"
     fi
 
+    # Copy SPM resource bundles (e.g., KeyboardShortcuts localization)
+    for bundle in "$BUILD_DIR"/*.bundle; do
+        if [ -d "$bundle" ]; then
+            cp -R "$bundle" "$APP_BUNDLE/Contents/Resources/"
+            echo "  ✓ Copied $(basename "$bundle")"
+        fi
+    done
+
     # Update version in Info.plist
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_BUNDLE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
