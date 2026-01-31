@@ -333,9 +333,8 @@ final class StatusItemController: NSObject {
             onSettings: { [weak self] in
                 self?.openSettings()
             },
-            onHosts: { [weak self] in
-                // Open hosts submenu - for now just reopen menu
-                self?.reopenMenu()
+            onQuit: {
+                NSApplication.shared.terminate(nil)
             }
         )
         .environment(containerStore)

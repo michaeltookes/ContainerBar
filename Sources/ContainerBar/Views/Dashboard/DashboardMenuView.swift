@@ -8,7 +8,9 @@ struct DashboardMenuView: View {
 
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
-    let onHosts: () -> Void
+    let onQuit: () -> Void
+
+    @State private var searchText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,44 +35,40 @@ struct DashboardMenuView: View {
 
             Divider()
 
-            // Scrollable content
-            ScrollView {
-                VStack(spacing: 0) {
-                    // General Stats Grid (only if connected with data)
-                    if store.isConnected && !store.containers.isEmpty {
-                        GeneralStatsGrid(
-                            metrics: store.metricsSnapshot,
-                            history: store.metricsHistory
-                        )
-                        .padding(.top, 12)
-                        .padding(.bottom, 12)
-
-                        Divider()
-                            .padding(.horizontal, 16)
-                    }
-
-                    // Container List
-                    ContainerListSection(
-                        containers: displayedContainers,
-                        stats: store.stats,
-                        onAction: onAction
-                    )
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
-                }
-            }
-            .frame(maxHeight: 400)
+            // Search bar
+            SearchBarView(text: $searchText)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
 
             Divider()
 
-            // Quick action bar
-            QuickActionBar(
-                onRefresh: {
-                    Task { await store.refresh(force: true) }
-                },
-                onHosts: onHosts,
-                onSettings: onSettings
-            )
+            // Scrollable container list
+            ScrollView {
+                VStack(spacing: 4) {
+                    ForEach(filteredContainers) { container in
+                        ContainerCardView(
+                            container: container,
+                            stats: store.stats[container.id],
+                            onAction: onAction
+                        )
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+            }
+            .frame(maxHeight: 350)
+
+            Divider()
+
+            // Quit button
+            Button(action: onQuit) {
+                Text("Quit ContainerBar")
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
         .frame(width: 380)
         .background(.regularMaterial)
@@ -90,7 +88,7 @@ struct DashboardMenuView: View {
         store.containers.filter { $0.state == .exited || $0.state == .dead }.count
     }
 
-    private var displayedContainers: [DockerContainer] {
+    private var filteredContainers: [DockerContainer] {
         let sorted = store.containers.sorted { lhs, rhs in
             // Running containers first, then by name
             if lhs.state == .running && rhs.state != .running { return true }
@@ -99,9 +97,50 @@ struct DashboardMenuView: View {
         }
 
         // Filter based on settings
-        return settings.showStoppedContainers
+        let displayed = settings.showStoppedContainers
             ? sorted
             : sorted.filter { $0.state.isActive }
+
+        // Filter by search text
+        if searchText.isEmpty {
+            return displayed
+        }
+        return displayed.filter {
+            $0.displayName.localizedCaseInsensitiveContains(searchText) ||
+            $0.image.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+}
+
+/// Search bar with magnifying glass icon
+struct SearchBarView: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+
+            TextField("Search containers...", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -113,7 +152,7 @@ struct DashboardMenuView: View {
     return DashboardMenuView(
         onAction: { _ in },
         onSettings: {},
-        onHosts: {}
+        onQuit: {}
     )
     .environment(store)
     .environment(settings)
