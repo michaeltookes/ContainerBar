@@ -18,6 +18,7 @@ public final class SettingsStore {
         static let iconStyle = "iconStyle"
         static let dockerHosts = "dockerHosts"
         static let selectedHostId = "selectedHostId"
+        static let containerSections = "containerSections"
     }
 
     // MARK: - Properties
@@ -77,6 +78,9 @@ public final class SettingsStore {
         return hosts.first { $0.id == id }
     }
 
+    /// User-defined container sections
+    public private(set) var sections: [ContainerSection] = []
+
     // MARK: - Initialization
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -101,13 +105,14 @@ public final class SettingsStore {
         }
 
         loadHosts()
+        loadSections()
 
         // Ensure we have at least the local host configured
         if hosts.isEmpty {
             addHost(.local)
         }
 
-        logger.info("SettingsStore initialized with \(hosts.count) host(s)")
+        logger.info("SettingsStore initialized with \(hosts.count) host(s), \(sections.count) section(s)")
     }
 
     // MARK: - Host Management
@@ -177,6 +182,49 @@ public final class SettingsStore {
         saveHosts()
     }
 
+    // MARK: - Section Management
+
+    /// Add a new container section
+    public func addSection(_ section: ContainerSection) {
+        var newSection = section
+        newSection.sortOrder = sections.count
+        sections.append(newSection)
+        saveSections()
+        logger.info("Added section: \(section.name)")
+    }
+
+    /// Update an existing container section
+    public func updateSection(_ section: ContainerSection) {
+        guard let index = sections.firstIndex(where: { $0.id == section.id }) else {
+            logger.warning("Attempted to update non-existent section: \(section.id)")
+            return
+        }
+        sections[index] = section
+        saveSections()
+        logger.info("Updated section: \(section.name)")
+    }
+
+    /// Remove a container section
+    public func removeSection(id: UUID) {
+        sections.removeAll { $0.id == id }
+        // Update sort orders
+        for i in sections.indices {
+            sections[i].sortOrder = i
+        }
+        saveSections()
+        logger.info("Removed section: \(id)")
+    }
+
+    /// Move a section to a new position
+    public func moveSection(from source: IndexSet, to destination: Int) {
+        sections.move(fromOffsets: source, toOffset: destination)
+        // Update sort orders
+        for i in sections.indices {
+            sections[i].sortOrder = i
+        }
+        saveSections()
+    }
+
     // MARK: - Persistence
 
     private func loadHosts() {
@@ -194,6 +242,23 @@ public final class SettingsStore {
             return
         }
         userDefaults.set(data, forKey: Keys.dockerHosts)
+    }
+
+    private func loadSections() {
+        guard let data = userDefaults.data(forKey: Keys.containerSections),
+              let decoded = try? JSONDecoder().decode([ContainerSection].self, from: data) else {
+            logger.info("No saved sections found")
+            return
+        }
+        sections = decoded.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private func saveSections() {
+        guard let data = try? JSONEncoder().encode(sections) else {
+            logger.error("Failed to encode sections for persistence")
+            return
+        }
+        userDefaults.set(data, forKey: Keys.containerSections)
     }
 }
 

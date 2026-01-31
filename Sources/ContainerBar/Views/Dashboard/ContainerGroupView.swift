@@ -103,8 +103,10 @@ struct ContainerGroupView: View {
     }
 }
 
-/// Container list section with grouping
+/// Container list section with grouping based on user-defined sections
 struct ContainerListSection: View {
+    @Environment(SettingsStore.self) private var settings
+
     let containers: [DockerContainer]
     let stats: [String: ContainerStats]
     let onAction: (ContainerAction) -> Void
@@ -123,7 +125,6 @@ struct ContainerListSection: View {
                             stats: stats,
                             onAction: onAction,
                             onAddContainer: {
-                                // TODO: Implement add container to group
                                 onAddContainer?(group.name)
                             }
                         )
@@ -155,55 +156,61 @@ struct ContainerListSection: View {
         .padding(.vertical, 24)
     }
 
-    // MARK: - Grouping Logic
+    // MARK: - Grouping Logic (using custom sections)
 
     private var containerGroups: [ContainerGroup] {
-        groupContainers(containers)
+        groupContainersByCustomSections(containers)
     }
 
-    private func groupContainers(_ containers: [DockerContainer]) -> [ContainerGroup] {
-        var groups: [String: [DockerContainer]] = [:]
+    private func groupContainersByCustomSections(_ containers: [DockerContainer]) -> [ContainerGroup] {
+        let customSections = settings.sections.sorted { $0.sortOrder < $1.sortOrder }
 
-        for container in containers {
-            // Priority 1: Docker Compose project label
-            if let project = container.labels["com.docker.compose.project"] {
-                groups[project, default: []].append(container)
-                continue
+        var groups: [ContainerGroup] = []
+        var assignedContainerIds: Set<String> = []
+
+        // Match containers to custom sections
+        for section in customSections {
+            var sectionContainers: [DockerContainer] = []
+
+            for container in containers {
+                // Skip if already assigned
+                guard !assignedContainerIds.contains(container.id) else { continue }
+
+                // Check if container matches this section
+                if section.matches(
+                    containerName: container.displayName,
+                    image: container.image,
+                    labels: container.labels
+                ) {
+                    sectionContainers.append(container)
+                    assignedContainerIds.insert(container.id)
+                }
             }
 
-            // Priority 2: Group by image prefix (before first /)
-            let imagePrefix = extractImagePrefix(container.image)
-            groups[imagePrefix, default: []].append(container)
-        }
-
-        // Sort containers within each group (running first, then by name)
-        return groups.map { key, containers in
-            let sorted = containers.sorted { lhs, rhs in
-                if lhs.state == .running && rhs.state != .running { return true }
-                if lhs.state != .running && rhs.state == .running { return false }
-                return lhs.displayName < rhs.displayName
+            // Only add group if it has containers
+            if !sectionContainers.isEmpty {
+                let sorted = sortContainers(sectionContainers)
+                groups.append(ContainerGroup(id: section.id.uuidString, name: section.name, containers: sorted))
             }
-            return ContainerGroup(id: key, name: formatGroupName(key), containers: sorted)
-        }
-        .sorted { $0.runningCount > $1.runningCount } // Groups with more running containers first
-    }
-
-    private func extractImagePrefix(_ image: String) -> String {
-        // Remove tag (after :)
-        let imageName = image.split(separator: ":").first.map(String.init) ?? image
-
-        // If contains /, use the first part as group
-        if let slashIndex = imageName.firstIndex(of: "/") {
-            return String(imageName[..<slashIndex])
         }
 
-        // Otherwise use "Other"
-        return "Other"
+        // Add "Other" group for unassigned containers
+        let unassignedContainers = containers.filter { !assignedContainerIds.contains($0.id) }
+        if !unassignedContainers.isEmpty {
+            let sorted = sortContainers(unassignedContainers)
+            groups.append(ContainerGroup(id: "other", name: "Other", containers: sorted))
+        }
+
+        return groups
     }
 
-    private func formatGroupName(_ name: String) -> String {
-        // Capitalize first letter
-        name.prefix(1).uppercased() + name.dropFirst()
+    private func sortContainers(_ containers: [DockerContainer]) -> [DockerContainer] {
+        containers.sorted { lhs, rhs in
+            // Running containers first, then by name
+            if lhs.state == .running && rhs.state != .running { return true }
+            if lhs.state != .running && rhs.state == .running { return false }
+            return lhs.displayName < rhs.displayName
+        }
     }
 }
 
