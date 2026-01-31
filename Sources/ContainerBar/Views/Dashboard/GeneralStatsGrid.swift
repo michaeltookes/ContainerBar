@@ -1,7 +1,7 @@
 import SwiftUI
 import ContainerBarCore
 
-/// 4-column grid of prominent metric sparkline cards
+/// 4-column grid of prominent metric sparkline cards in a recessed container
 struct GeneralStatsGrid: View {
     let metrics: ContainerMetricsSnapshot?
     let history: AggregatedMetricsHistory
@@ -14,42 +14,73 @@ struct GeneralStatsGrid: View {
     ]
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            MetricSparklineCard(
-                title: "CPU",
-                value: formatPercent(metrics?.totalCPUPercent ?? 0),
-                history: history.cpu,
-                tint: .blue,
-                icon: "cpu"
-            )
+        VStack(alignment: .leading, spacing: 8) {
+            // Section header
+            HStack {
+                Text("GENERAL STATS")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.5)
 
-            MetricSparklineCard(
-                title: "RAM",
-                value: formatMemory(metrics?.totalMemoryUsedMB ?? 0),
-                subtitle: formatMemoryLimit(metrics),
-                history: history.memory,
-                tint: .purple,
-                icon: "memorychip"
-            )
+                Spacer()
 
-            MetricSparklineCard(
-                title: "Network",
-                value: formatRate(history.networkRxRate.latest ?? 0),
-                subtitle: "KB/s",
-                history: history.networkRxRate,
-                tint: .green,
-                icon: "network"
-            )
+                // Menu button
+                Button {
+                    // TODO: Show stats menu
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
 
-            MetricSparklineCard(
-                title: "Disk",
-                value: formatRate(history.diskReadRate.latest ?? 0),
-                subtitle: "KB/s",
-                history: history.diskReadRate,
-                tint: .orange,
-                icon: "externaldrive"
-            )
+            // Stats grid
+            LazyVGrid(columns: columns, spacing: 8) {
+                MetricSparklineCard(
+                    title: "CPU",
+                    value: formatPercent(metrics?.totalCPUPercent ?? 0),
+                    history: history.cpu,
+                    tint: .blue,
+                    icon: "cpu"
+                )
+
+                MetricSparklineCard(
+                    title: "RAM",
+                    value: formatMemory(metrics?.totalMemoryUsedMB ?? 0),
+                    subtitle: formatMemoryLimit(metrics),
+                    history: history.memory,
+                    tint: .purple,
+                    icon: "memorychip"
+                )
+
+                MetricSparklineCard(
+                    title: "Network",
+                    value: formatRate(history.networkRxRate.latest ?? 0),
+                    subtitle: "KB/s",
+                    history: history.networkRxRate,
+                    tint: .green,
+                    icon: "network"
+                )
+
+                MetricSparklineCard(
+                    title: "Disk",
+                    value: formatRate(history.diskReadRate.latest ?? 0),
+                    subtitle: "KB/s",
+                    history: history.diskReadRate,
+                    tint: .orange,
+                    icon: "externaldrive"
+                )
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
         }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.15))
+        )
         .padding(.horizontal, 12)
     }
 
