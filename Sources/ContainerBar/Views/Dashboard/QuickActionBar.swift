@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Bottom action bar with quick action buttons
 struct QuickActionBar: View {
+    var isHostsActive: Bool = false
     let onRefresh: () -> Void
     let onHosts: () -> Void
     let onLogs: () -> Void
@@ -22,6 +23,7 @@ struct QuickActionBar: View {
             ActionBarButton(
                 title: "Hosts",
                 icon: "server.rack",
+                isActive: isHostsActive,
                 action: onHosts
             )
             .frame(maxWidth: .infinity)
@@ -55,6 +57,7 @@ struct QuickActionBar: View {
 struct ActionBarButton: View {
     let title: String
     let icon: String
+    var isActive: Bool = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -68,12 +71,12 @@ struct ActionBarButton: View {
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(.primary.opacity(isHovered ? 1.0 : 0.8))
+            .foregroundStyle(isActive ? .white : .primary.opacity(isHovered ? 1.0 : 0.8))
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                    .fill(backgroundColor)
             )
         }
         .buttonStyle(.plain)
@@ -81,6 +84,16 @@ struct ActionBarButton: View {
             withAnimation(.easeOut(duration: 0.1)) {
                 isHovered = hovering
             }
+        }
+    }
+
+    private var backgroundColor: Color {
+        if isActive {
+            return .accentColor
+        } else if isHovered {
+            return Color.primary.opacity(0.1)
+        } else {
+            return .clear
         }
     }
 }

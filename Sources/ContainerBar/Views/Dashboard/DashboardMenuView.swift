@@ -9,11 +9,12 @@ struct DashboardMenuView: View {
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
     var onQuit: (() -> Void)? = nil
-    var onHosts: (() -> Void)? = nil
     var onLogs: (() -> Void)? = nil
+    var onHostChanged: (() -> Void)? = nil
 
     @State private var isSearching = false
     @State private var searchText = ""
+    @State private var isHostPanelOpen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,17 +86,39 @@ struct DashboardMenuView: View {
 
             // Quick action bar
             QuickActionBar(
+                isHostsActive: isHostPanelOpen,
                 onRefresh: {
                     Task { await store.refresh(force: true) }
                 },
                 onHosts: {
-                    onHosts?()
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHostPanelOpen.toggle()
+                    }
                 },
                 onLogs: {
                     onLogs?()
                 },
                 onSettings: onSettings
             )
+
+            // Host panel (slides out below action bar)
+            if isHostPanelOpen {
+                HostPanelView(
+                    onSelectHost: { hostId in
+                        settings.selectedHostId = hostId
+                        onHostChanged?()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isHostPanelOpen = false
+                        }
+                    },
+                    onClose: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isHostPanelOpen = false
+                        }
+                    }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .frame(width: 400)
         .background(.regularMaterial)
@@ -178,6 +201,265 @@ struct SearchBarView: View {
     }
 }
 
+/// Host selection and management panel
+struct HostPanelView: View {
+    @Environment(SettingsStore.self) private var settings
+
+    let onSelectHost: (UUID) -> Void
+    let onClose: () -> Void
+
+    @State private var isAddingHost = false
+    @State private var newHostName = ""
+    @State private var newHostAddress = ""
+    @State private var newHostUser = "root"
+    @State private var newHostPort = "22"
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Select Host")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            if isAddingHost {
+                // Add host form
+                addHostForm
+            } else {
+                // Host list
+                hostList
+            }
+        }
+        .background(Color.primary.opacity(0.03))
+    }
+
+    private var hostList: some View {
+        VStack(spacing: 0) {
+            ForEach(settings.hosts) { host in
+                HostListRowView(
+                    host: host,
+                    isSelected: settings.selectedHostId == host.id,
+                    onSelect: {
+                        onSelectHost(host.id)
+                    }
+                )
+            }
+
+            Divider()
+                .padding(.vertical, 4)
+
+            // Add host button
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isAddingHost = true
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.accentColor)
+
+                    Text("Add Remote Host")
+                        .font(.system(size: 12, weight: .medium))
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var addHostForm: some View {
+        VStack(spacing: 12) {
+            // Name field
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Name")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("My Server", text: $newHostName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+            }
+
+            // Host/IP field
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Host (IP or hostname)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("192.168.1.100", text: $newHostAddress)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+            }
+
+            // SSH User and Port
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SSH User")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    TextField("root", text: $newHostUser)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Port")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    TextField("22", text: $newHostPort)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .frame(width: 60)
+                }
+            }
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        resetForm()
+                        isAddingHost = false
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Button("Save") {
+                    saveNewHost()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(newHostAddress.isEmpty)
+            }
+            .padding(.top, 4)
+        }
+        .padding(16)
+    }
+
+    private func saveNewHost() {
+        let name = newHostName.isEmpty ? "Remote Host" : newHostName
+        let port = Int(newHostPort) ?? 22
+
+        let newHost = DockerHost(
+            name: name,
+            connectionType: .ssh,
+            isDefault: false,
+            host: newHostAddress,
+            sshUser: newHostUser.isEmpty ? "root" : newHostUser,
+            sshPort: port
+        )
+
+        settings.addHost(newHost)
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            resetForm()
+            isAddingHost = false
+        }
+
+        // Select the new host
+        onSelectHost(newHost.id)
+    }
+
+    private func resetForm() {
+        newHostName = ""
+        newHostAddress = ""
+        newHostUser = "root"
+        newHostPort = "22"
+    }
+}
+
+/// Individual host row in the list
+struct HostListRowView: View {
+    let host: DockerHost
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                // Connection type icon
+                Image(systemName: iconName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(host.name)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                        .foregroundStyle(.primary)
+
+                    Text(hostDescription)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                    .padding(.horizontal, 8)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+
+    private var iconName: String {
+        switch host.connectionType {
+        case .unixSocket: return "laptopcomputer"
+        case .tcpTLS: return "lock.shield"
+        case .ssh: return "network"
+        }
+    }
+
+    private var hostDescription: String {
+        switch host.connectionType {
+        case .unixSocket:
+            return "Local Docker"
+        case .tcpTLS:
+            return "\(host.host ?? ""):\(host.port ?? 2376)"
+        case .ssh:
+            return "\(host.sshUser ?? "root")@\(host.host ?? ""):\(host.sshPort ?? 22)"
+        }
+    }
+}
+
 #if DEBUG
 #Preview {
     let store = ContainerStore(settings: SettingsStore())
@@ -187,8 +469,8 @@ struct SearchBarView: View {
         onAction: { _ in },
         onSettings: {},
         onQuit: {},
-        onHosts: {},
-        onLogs: {}
+        onLogs: {},
+        onHostChanged: {}
     )
     .environment(store)
     .environment(settings)
