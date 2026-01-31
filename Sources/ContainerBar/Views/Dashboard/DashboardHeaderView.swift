@@ -6,7 +6,7 @@ struct DashboardHeaderView: View {
     let isRefreshing: Bool
     let onRefresh: () -> Void
     let onSearch: () -> Void
-    let onAdd: () -> Void
+    let onQuit: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
@@ -40,10 +40,10 @@ struct DashboardHeaderView: View {
                 .help("Search containers")
 
                 HeaderButton(
-                    icon: "plus",
-                    action: onAdd
+                    icon: "power",
+                    action: onQuit
                 )
-                .help("New container")
+                .help("Quit ContainerBar")
 
                 HeaderButton(
                     icon: "gear",
@@ -110,7 +110,7 @@ struct HeaderButton: View {
             isRefreshing: false,
             onRefresh: {},
             onSearch: {},
-            onAdd: {},
+            onQuit: {},
             onSettings: {}
         )
         .background(.regularMaterial)
@@ -119,7 +119,7 @@ struct HeaderButton: View {
             isRefreshing: true,
             onRefresh: {},
             onSearch: {},
-            onAdd: {},
+            onQuit: {},
             onSettings: {}
         )
         .background(.regularMaterial)

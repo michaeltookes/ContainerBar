@@ -186,19 +186,9 @@ final class StatusItemController: NSObject {
 
         menu.removeAllItems()
 
-        // Main content card (SwiftUI)
+        // Main content card (SwiftUI) - this is the only menu item now
         let cardItem = createCardMenuItem()
         menu.addItem(cardItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Container actions submenu
-        addContainerActionsSubmenu(to: menu)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Actions section
-        addActionItems(to: menu)
     }
 
     private func addContainerActionsSubmenu(to menu: NSMenu) {
@@ -333,20 +323,19 @@ final class StatusItemController: NSObject {
             onSettings: { [weak self] in
                 self?.openSettings()
             },
-            onHosts: { [weak self] in
-                // Open hosts submenu - for now just reopen menu
-                self?.reopenMenu()
-            },
             onSearch: { [weak self] in
                 // TODO: Implement search functionality
                 self?.logger.info("Search button tapped")
             },
-            onAdd: { [weak self] in
-                // TODO: Implement add container functionality
-                self?.logger.info("Add container button tapped")
+            onQuit: {
+                NSApp.terminate(nil)
+            },
+            onHosts: { [weak self] in
+                // TODO: Implement hosts selection
+                self?.logger.info("Hosts button tapped")
             },
             onLogs: { [weak self] in
-                // TODO: Implement logs view functionality
+                // TODO: Implement logs view
                 self?.logger.info("Logs button tapped")
             }
         )

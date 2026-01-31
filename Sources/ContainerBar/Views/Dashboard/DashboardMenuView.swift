@@ -8,9 +8,9 @@ struct DashboardMenuView: View {
 
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
-    let onHosts: () -> Void
     var onSearch: (() -> Void)? = nil
-    var onAdd: (() -> Void)? = nil
+    var onQuit: (() -> Void)? = nil
+    var onHosts: (() -> Void)? = nil
     var onLogs: (() -> Void)? = nil
 
     var body: some View {
@@ -25,9 +25,8 @@ struct DashboardMenuView: View {
                     // TODO: Implement search functionality
                     onSearch?()
                 },
-                onAdd: {
-                    // TODO: Implement add container functionality
-                    onAdd?()
+                onQuit: {
+                    onQuit?()
                 },
                 onSettings: onSettings
             )
@@ -74,9 +73,10 @@ struct DashboardMenuView: View {
                 onRefresh: {
                     Task { await store.refresh(force: true) }
                 },
-                onHosts: onHosts,
+                onHosts: {
+                    onHosts?()
+                },
                 onLogs: {
-                    // TODO: Implement logs view functionality
                     onLogs?()
                 },
                 onSettings: onSettings
@@ -123,9 +123,9 @@ struct DashboardMenuView: View {
     return DashboardMenuView(
         onAction: { _ in },
         onSettings: {},
-        onHosts: {},
         onSearch: {},
-        onAdd: {},
+        onQuit: {},
+        onHosts: {},
         onLogs: {}
     )
     .environment(store)
