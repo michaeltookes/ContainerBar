@@ -14,8 +14,6 @@ Works seamlessly with **Docker Desktop** on your local machine or connects to **
 
 This project was inspired by [Peter Steinberger's](https://github.com/steipete) excellent [CodexBar](https://github.com/steipete/CodexBar) application. After seeing CodexBar in action, I thought: *what if I could do something similar for my Docker containers on my homelab server?* Instead of constantly opening Portainer or SSH-ing into my server just to check container status, I wanted that information right in my menu bar — one click away.
 
-ContainerBar was vibe coded using **Claude Opus 4.5**, turning that idea into a fully functional macOS app.
-
 ## Features
 
 - **Menu Bar Access**: View container status at a glance from your menu bar
@@ -75,15 +73,6 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 
 > **Note**: SSH key-based authentication must be configured for remote connections.
 
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd + R` | Refresh container list |
-| `Cmd + ,` | Open Settings |
-| `Cmd + Q` | Quit ContainerBar |
-
-You can also set a custom global hotkey in Settings.
 
 ## Development
 
