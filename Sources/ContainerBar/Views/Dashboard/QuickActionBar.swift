@@ -4,33 +4,38 @@ import SwiftUI
 struct QuickActionBar: View {
     let onRefresh: () -> Void
     let onHosts: () -> Void
-    let onLogs: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             ActionBarButton(
                 title: "Refresh",
                 icon: "arrow.clockwise",
                 action: onRefresh
             )
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .frame(height: 20)
 
             ActionBarButton(
                 title: "Hosts",
                 icon: "server.rack",
                 action: onHosts
             )
+            .frame(maxWidth: .infinity)
 
-            Spacer()
+            Divider()
+                .frame(height: 20)
 
             ActionBarButton(
                 title: "Settings",
                 icon: "gear",
                 action: onSettings
             )
+            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(.ultraThinMaterial)
     }
 }
@@ -74,7 +79,6 @@ struct ActionBarButton: View {
         QuickActionBar(
             onRefresh: {},
             onHosts: {},
-            onLogs: {},
             onSettings: {}
         )
     }

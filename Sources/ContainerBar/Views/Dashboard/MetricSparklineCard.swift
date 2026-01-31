@@ -28,40 +28,40 @@ struct MetricSparklineCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             // Header with icon and title
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                     .foregroundStyle(tint)
 
                 Text(title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
 
             // Value display
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(value)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
 
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 9))
+                        .font(.system(size: 8))
                         .foregroundStyle(.tertiary)
                 }
             }
 
             // Sparkline chart
             sparklineChart
-                .frame(height: 24)
+                .frame(height: 20)
         }
-        .padding(10)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
     }

@@ -7,8 +7,10 @@ struct GeneralStatsGrid: View {
     let history: AggregatedMetricsHistory
 
     private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6)
     ]
 
     var body: some View {
@@ -23,8 +25,8 @@ struct GeneralStatsGrid: View {
                 Spacer()
             }
 
-            // 2x2 Grid of metric cards
-            LazyVGrid(columns: columns, spacing: 8) {
+            // 4-column horizontal grid of metric cards
+            LazyVGrid(columns: columns, spacing: 6) {
                 MetricSparklineCard(
                     title: "CPU",
                     value: formatPercent(metrics?.totalCPUPercent ?? 0),

@@ -35,7 +35,7 @@ struct DashboardMenuView: View {
 
             // Scrollable content
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 0) {
                     // General Stats Grid (only if connected with data)
                     if store.isConnected && !store.containers.isEmpty {
                         GeneralStatsGrid(
@@ -43,6 +43,10 @@ struct DashboardMenuView: View {
                             history: store.metricsHistory
                         )
                         .padding(.top, 12)
+                        .padding(.bottom, 12)
+
+                        Divider()
+                            .padding(.horizontal, 16)
                     }
 
                     // Container List
@@ -51,6 +55,7 @@ struct DashboardMenuView: View {
                         stats: store.stats,
                         onAction: onAction
                     )
+                    .padding(.top, 12)
                     .padding(.bottom, 12)
                 }
             }
@@ -64,7 +69,6 @@ struct DashboardMenuView: View {
                     Task { await store.refresh(force: true) }
                 },
                 onHosts: onHosts,
-                onLogs: {},
                 onSettings: onSettings
             )
         }
