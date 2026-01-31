@@ -165,6 +165,9 @@ struct ContainerListSection: View {
     private func groupContainersByCustomSections(_ containers: [DockerContainer]) -> [ContainerGroup] {
         let customSections = settings.sections.sorted { $0.sortOrder < $1.sortOrder }
 
+        // If no sections configured, return empty (no groups shown)
+        guard !customSections.isEmpty else { return [] }
+
         var groups: [ContainerGroup] = []
         var assignedContainerIds: Set<String> = []
 
@@ -192,13 +195,6 @@ struct ContainerListSection: View {
                 let sorted = sortContainers(sectionContainers)
                 groups.append(ContainerGroup(id: section.id.uuidString, name: section.name, containers: sorted))
             }
-        }
-
-        // Add "Other" group for unassigned containers
-        let unassignedContainers = containers.filter { !assignedContainerIds.contains($0.id) }
-        if !unassignedContainers.isEmpty {
-            let sorted = sortContainers(unassignedContainers)
-            groups.append(ContainerGroup(id: "other", name: "Other", containers: sorted))
         }
 
         return groups
