@@ -1,14 +1,22 @@
 import SwiftUI
+import AppKit
 
 /// About pane showing app information
 struct AboutPane: View {
+    private var appIcon: NSImage {
+        if let icon = NSImage(named: NSImage.applicationIconName) {
+            return icon
+        }
+        return NSApp.applicationIconImage
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             // App icon and name
             VStack(spacing: 12) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.blue)
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .frame(width: 96, height: 96)
 
                 Text("ContainerBar")
                     .font(.largeTitle)
@@ -30,7 +38,7 @@ struct AboutPane: View {
 
             // Links
             VStack(spacing: 12) {
-                Link(destination: URL(string: "https://github.com")!) {
+                Link(destination: URL(string: "https://github.com/michaeltookes/ContainerBar")!) {
                     HStack {
                         Image(systemName: "link")
                         Text("GitHub Repository")

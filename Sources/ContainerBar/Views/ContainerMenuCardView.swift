@@ -122,10 +122,13 @@ struct ContainerMenuCardView: View {
                 .padding(8)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(showMetricsPopover ? 0.1 : 0))
+                        .fill(Color.blue.opacity(showMetricsPopover ? 0.15 : 0))
                 )
+                .clipShape(RoundedRectangle(cornerRadius: 6))
                 .onHover { hovering in
-                    showMetricsPopover = hovering
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        showMetricsPopover = hovering
+                    }
                 }
                 .popover(isPresented: $showMetricsPopover, arrowEdge: .trailing) {
                     MetricsGaugePopover(
