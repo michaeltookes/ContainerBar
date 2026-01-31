@@ -9,6 +9,9 @@ struct DashboardMenuView: View {
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
     let onHosts: () -> Void
+    var onSearch: (() -> Void)? = nil
+    var onAdd: (() -> Void)? = nil
+    var onLogs: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,6 +20,14 @@ struct DashboardMenuView: View {
                 isRefreshing: store.isRefreshing,
                 onRefresh: {
                     Task { await store.refresh(force: true) }
+                },
+                onSearch: {
+                    // TODO: Implement search functionality
+                    onSearch?()
+                },
+                onAdd: {
+                    // TODO: Implement add container functionality
+                    onAdd?()
                 },
                 onSettings: onSettings
             )
@@ -31,8 +42,6 @@ struct DashboardMenuView: View {
                 stoppedCount: stoppedCount
             )
 
-            Divider()
-
             // Scrollable content
             ScrollView {
                 VStack(spacing: 0) {
@@ -44,9 +53,6 @@ struct DashboardMenuView: View {
                         )
                         .padding(.top, 12)
                         .padding(.bottom, 12)
-
-                        Divider()
-                            .padding(.horizontal, 16)
                     }
 
                     // Container List
@@ -55,11 +61,11 @@ struct DashboardMenuView: View {
                         stats: store.stats,
                         onAction: onAction
                     )
-                    .padding(.top, 12)
+                    .padding(.top, 8)
                     .padding(.bottom, 12)
                 }
             }
-            .frame(maxHeight: 400)
+            .frame(maxHeight: 420)
 
             Divider()
 
@@ -69,10 +75,14 @@ struct DashboardMenuView: View {
                     Task { await store.refresh(force: true) }
                 },
                 onHosts: onHosts,
+                onLogs: {
+                    // TODO: Implement logs view functionality
+                    onLogs?()
+                },
                 onSettings: onSettings
             )
         }
-        .frame(width: 380)
+        .frame(width: 400)
         .background(.regularMaterial)
     }
 
@@ -113,7 +123,10 @@ struct DashboardMenuView: View {
     return DashboardMenuView(
         onAction: { _ in },
         onSettings: {},
-        onHosts: {}
+        onHosts: {},
+        onSearch: {},
+        onAdd: {},
+        onLogs: {}
     )
     .environment(store)
     .environment(settings)

@@ -14,9 +14,11 @@ struct ConnectionStatusBar: View {
                 Circle()
                     .fill(isConnected ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
+                    .shadow(color: isConnected ? .green.opacity(0.5) : .red.opacity(0.5), radius: 3)
 
                 Text(isConnected ? "Connected to \(hostName)" : "Disconnected")
-                    .font(.subheadline)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.9))
                     .lineLimit(1)
             }
 
@@ -24,10 +26,10 @@ struct ConnectionStatusBar: View {
 
             // Status badges
             if isConnected {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     StatusPill(count: runningCount, label: "Running", color: .green)
                     if stoppedCount > 0 {
-                        StatusPill(count: stoppedCount, label: "Stopped", color: .secondary)
+                        StatusPill(count: stoppedCount, label: "Stopped", color: .orange)
                     }
                 }
             }
@@ -46,19 +48,17 @@ struct StatusPill: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-
             Text("\(count)")
-                .font(.system(.caption, weight: .semibold))
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(color)
 
             Text(label)
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.8))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(color.opacity(0.12))
+        .background(color.opacity(0.15))
         .clipShape(Capsule())
     }
 }

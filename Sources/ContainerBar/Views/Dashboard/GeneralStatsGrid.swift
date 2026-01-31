@@ -1,69 +1,56 @@
 import SwiftUI
 import ContainerBarCore
 
-/// 2x2 grid of metric sparkline cards
+/// 4-column grid of prominent metric sparkline cards
 struct GeneralStatsGrid: View {
     let metrics: ContainerMetricsSnapshot?
     let history: AggregatedMetricsHistory
 
     private let columns = [
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6)
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Section header
-            HStack {
-                Text("GENERAL STATS")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .tracking(0.5)
+        LazyVGrid(columns: columns, spacing: 8) {
+            MetricSparklineCard(
+                title: "CPU",
+                value: formatPercent(metrics?.totalCPUPercent ?? 0),
+                history: history.cpu,
+                tint: .blue,
+                icon: "cpu"
+            )
 
-                Spacer()
-            }
+            MetricSparklineCard(
+                title: "RAM",
+                value: formatMemory(metrics?.totalMemoryUsedMB ?? 0),
+                subtitle: formatMemoryLimit(metrics),
+                history: history.memory,
+                tint: .purple,
+                icon: "memorychip"
+            )
 
-            // 4-column horizontal grid of metric cards
-            LazyVGrid(columns: columns, spacing: 6) {
-                MetricSparklineCard(
-                    title: "CPU",
-                    value: formatPercent(metrics?.totalCPUPercent ?? 0),
-                    history: history.cpu,
-                    tint: .blue,
-                    icon: "cpu"
-                )
+            MetricSparklineCard(
+                title: "Network",
+                value: formatRate(history.networkRxRate.latest ?? 0),
+                subtitle: "KB/s",
+                history: history.networkRxRate,
+                tint: .green,
+                icon: "network"
+            )
 
-                MetricSparklineCard(
-                    title: "RAM",
-                    value: formatMemory(metrics?.totalMemoryUsedMB ?? 0),
-                    subtitle: formatMemoryLimit(metrics),
-                    history: history.memory,
-                    tint: .purple,
-                    icon: "memorychip"
-                )
-
-                MetricSparklineCard(
-                    title: "Network",
-                    value: formatRate(history.networkRxRate.latest ?? 0),
-                    subtitle: "KB/s",
-                    history: history.networkRxRate,
-                    tint: .green,
-                    icon: "network"
-                )
-
-                MetricSparklineCard(
-                    title: "Disk",
-                    value: formatRate(history.diskReadRate.latest ?? 0),
-                    subtitle: "KB/s",
-                    history: history.diskReadRate,
-                    tint: .orange,
-                    icon: "externaldrive"
-                )
-            }
+            MetricSparklineCard(
+                title: "Disk",
+                value: formatRate(history.diskReadRate.latest ?? 0),
+                subtitle: "KB/s",
+                history: history.diskReadRate,
+                tint: .orange,
+                icon: "externaldrive"
+            )
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
     }
 
     // MARK: - Formatters

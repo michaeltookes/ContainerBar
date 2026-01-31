@@ -336,6 +336,18 @@ final class StatusItemController: NSObject {
             onHosts: { [weak self] in
                 // Open hosts submenu - for now just reopen menu
                 self?.reopenMenu()
+            },
+            onSearch: { [weak self] in
+                // TODO: Implement search functionality
+                self?.logger.info("Search button tapped")
+            },
+            onAdd: { [weak self] in
+                // TODO: Implement add container functionality
+                self?.logger.info("Add container button tapped")
+            },
+            onLogs: { [weak self] in
+                // TODO: Implement logs view functionality
+                self?.logger.info("Logs button tapped")
             }
         )
         .environment(containerStore)
@@ -344,13 +356,13 @@ final class StatusItemController: NSObject {
         let hostingView = NSHostingView(rootView: dashboardView)
 
         // Calculate height based on content
-        // Base: header(~50) + status bar(~50) + stats grid(~140) + container section(~200) + action bar(~50)
-        let baseHeight: CGFloat = 490
-        // Adjust based on container count (max 400pt for scroll area)
+        // Base: header(~50) + status bar(~50) + stats grid(~120) + container section(~250) + action bar(~50)
+        let baseHeight: CGFloat = 520
+        // Adjust based on container count (max 420pt for scroll area)
         let containerCount = containerStore.containers.count
-        let adjustedHeight = containerCount == 0 ? 350 : min(baseHeight, 550)
+        let adjustedHeight = containerCount == 0 ? 360 : min(baseHeight, 580)
 
-        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: adjustedHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: adjustedHeight)
 
         item.view = hostingView
         return item

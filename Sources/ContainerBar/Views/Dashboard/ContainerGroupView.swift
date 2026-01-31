@@ -21,43 +21,73 @@ struct ContainerGroupView: View {
     let group: ContainerGroup
     let stats: [String: ContainerStats]
     let onAction: (ContainerAction) -> Void
+    var onAddContainer: (() -> Void)? = nil
 
     @State private var isExpanded = true
+    @State private var isAddHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Group header
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
+            HStack(spacing: 8) {
+                // Collapse/expand button
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 12)
+
+                        Text(group.name)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.primary)
+
+                        // Count badge
+                        Text("\(group.runningCount)/\(group.totalCount)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.primary.opacity(0.06))
+                            .clipShape(Capsule())
+                    }
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                // Add button
+                Button {
+                    onAddContainer?()
+                } label: {
+                    Image(systemName: "plus")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 12)
-
-                    Text(group.name)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-
-                    // Count badge
-                    Text("\(group.runningCount)/\(group.totalCount)")
-                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(
+                            Circle()
+                                .fill(isAddHovered ? Color.primary.opacity(0.1) : Color.clear)
+                        )
                 }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 4)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.1)) {
+                        isAddHovered = hovering
+                    }
+                }
+                .help("Add container to \(group.name)")
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
 
             // Container cards
             if isExpanded {
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     ForEach(group.containers) { container in
                         ContainerCardView(
                             container: container,
@@ -78,34 +108,24 @@ struct ContainerListSection: View {
     let containers: [DockerContainer]
     let stats: [String: ContainerStats]
     let onAction: (ContainerAction) -> Void
+    var onAddContainer: ((String) -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Section header
-            HStack {
-                Text("CONTAINERS")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .tracking(0.5)
-
-                Spacer()
-
-                Text("\(containers.count) total")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-
+        VStack(alignment: .leading, spacing: 8) {
             if containers.isEmpty {
                 emptyState
             } else {
                 // Grouped containers
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     ForEach(containerGroups) { group in
                         ContainerGroupView(
                             group: group,
                             stats: stats,
-                            onAction: onAction
+                            onAction: onAction,
+                            onAddContainer: {
+                                // TODO: Implement add container to group
+                                onAddContainer?(group.name)
+                            }
                         )
                     }
                 }

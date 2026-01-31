@@ -5,6 +5,8 @@ import AppKit
 struct DashboardHeaderView: View {
     let isRefreshing: Bool
     let onRefresh: () -> Void
+    let onSearch: () -> Void
+    let onAdd: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
@@ -13,16 +15,16 @@ struct DashboardHeaderView: View {
             HStack(spacing: 8) {
                 Image(nsImage: appIcon)
                     .resizable()
-                    .frame(width: 24, height: 24)
+                    .frame(width: 28, height: 28)
 
                 Text("ContainerBar")
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
             }
 
             Spacer()
 
             // Action buttons
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 HeaderButton(
                     icon: "arrow.clockwise",
                     isSpinning: isRefreshing,
@@ -30,6 +32,18 @@ struct DashboardHeaderView: View {
                 )
                 .disabled(isRefreshing)
                 .help("Refresh")
+
+                HeaderButton(
+                    icon: "magnifyingglass",
+                    action: onSearch
+                )
+                .help("Search containers")
+
+                HeaderButton(
+                    icon: "plus",
+                    action: onAdd
+                )
+                .help("New container")
 
                 HeaderButton(
                     icon: "gear",
@@ -43,6 +57,12 @@ struct DashboardHeaderView: View {
     }
 
     private var appIcon: NSImage {
+        // Try to load custom logo from bundle resources
+        if let logoURL = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+           let logo = NSImage(contentsOf: logoURL) {
+            return logo
+        }
+        // Fallback to app icon
         if let icon = NSImage(named: NSImage.applicationIconName) {
             return icon
         }
@@ -62,10 +82,11 @@ struct HeaderButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
-                .frame(width: 24, height: 24)
+                .foregroundStyle(.primary.opacity(0.8))
+                .frame(width: 28, height: 28)
                 .background(
                     Circle()
-                        .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                        .fill(isHovered ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05))
                 )
                 .rotationEffect(.degrees(isSpinning ? 360 : 0))
                 .animation(
@@ -75,7 +96,9 @@ struct HeaderButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeOut(duration: 0.15)) {
+                isHovered = hovering
+            }
         }
     }
 }
@@ -86,6 +109,8 @@ struct HeaderButton: View {
         DashboardHeaderView(
             isRefreshing: false,
             onRefresh: {},
+            onSearch: {},
+            onAdd: {},
             onSettings: {}
         )
         .background(.regularMaterial)
@@ -93,6 +118,8 @@ struct HeaderButton: View {
         DashboardHeaderView(
             isRefreshing: true,
             onRefresh: {},
+            onSearch: {},
+            onAdd: {},
             onSettings: {}
         )
         .background(.regularMaterial)

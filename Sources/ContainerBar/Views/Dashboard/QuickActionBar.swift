@@ -4,6 +4,7 @@ import SwiftUI
 struct QuickActionBar: View {
     let onRefresh: () -> Void
     let onHosts: () -> Void
+    let onLogs: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
@@ -16,7 +17,7 @@ struct QuickActionBar: View {
             .frame(maxWidth: .infinity)
 
             Divider()
-                .frame(height: 20)
+                .frame(height: 24)
 
             ActionBarButton(
                 title: "Hosts",
@@ -26,7 +27,17 @@ struct QuickActionBar: View {
             .frame(maxWidth: .infinity)
 
             Divider()
-                .frame(height: 20)
+                .frame(height: 24)
+
+            ActionBarButton(
+                title: "Logs",
+                icon: "doc.text",
+                action: onLogs
+            )
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .frame(height: 24)
 
             ActionBarButton(
                 title: "Settings",
@@ -35,7 +46,7 @@ struct QuickActionBar: View {
             )
             .frame(maxWidth: .infinity)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(.ultraThinMaterial)
     }
 }
@@ -50,23 +61,26 @@ struct ActionBarButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .medium))
 
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .foregroundStyle(.primary.opacity(isHovered ? 1.0 : 0.8))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isHovered ? Color.primary.opacity(0.1) : Color.primary.opacity(0.05))
+                    .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
             )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeOut(duration: 0.1)) {
+                isHovered = hovering
+            }
         }
     }
 }
@@ -79,6 +93,7 @@ struct ActionBarButton: View {
         QuickActionBar(
             onRefresh: {},
             onHosts: {},
+            onLogs: {},
             onSettings: {}
         )
     }

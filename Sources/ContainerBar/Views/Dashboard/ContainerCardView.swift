@@ -1,7 +1,7 @@
 import SwiftUI
 import ContainerBarCore
 
-/// Individual container card with hover effects
+/// Individual container card with hover effects - Docker Desktop style
 struct ContainerCardView: View {
     let container: DockerContainer
     let stats: ContainerStats?
@@ -16,59 +16,92 @@ struct ContainerCardView: View {
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
+                .shadow(color: statusColor.opacity(0.4), radius: 2)
 
             // Container info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
+                // Row 1: Name and status chip
                 HStack {
                     Text(container.displayName)
-                        .font(.system(.body, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .lineLimit(1)
 
                     Spacer()
 
-                    // Status badge for non-running
-                    if container.state != .running {
-                        Text(container.state.rawValue.capitalized)
-                            .font(.system(size: 9, weight: .medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(statusColor.opacity(0.15))
-                            .foregroundStyle(statusColor)
-                            .clipShape(Capsule())
-                    }
+                    // Status chip (always shown)
+                    Text(container.state.rawValue.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.3)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(statusColor.opacity(container.state == .running ? 0.15 : 0.12))
+                        .foregroundStyle(statusColor)
+                        .clipShape(Capsule())
                 }
 
-                // Stats or status
+                // Row 2: CPU and Memory stats
                 if container.state == .running, let stats {
-                    HStack(spacing: 12) {
-                        Label(formatPercent(stats.cpuPercent), systemImage: "cpu")
-                        Label(formatMemory(stats.memoryUsedMB), systemImage: "memorychip")
-                        Spacer()
-                        Text(container.uptimeString)
-                            .foregroundStyle(.tertiary)
+                    HStack(spacing: 16) {
+                        HStack(spacing: 3) {
+                            Text("CPU")
+                                .foregroundStyle(.tertiary)
+                            Text(formatPercent(stats.cpuPercent))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 3) {
+                            Text("MEM")
+                                .foregroundStyle(.tertiary)
+                            Text(formatMemory(stats.memoryUsedMB))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                } else {
-                    Text(container.status)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                }
+
+                // Row 3: Uptime and Ports
+                HStack {
+                    if container.state == .running {
+                        Text(container.uptimeString)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Text(container.status)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    // Ports (if available)
+                    if !container.ports.isEmpty {
+                        portsLabel
+                    }
                 }
             }
 
-            // Quick action button (visible on hover)
+            // Quick action button (visible on hover) or chevron
             if isHovered {
                 quickActionButton
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(hoverColor)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackground)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovered ? statusColor.opacity(0.3) : Color.primary.opacity(0.06), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(isHovered ? 0.06 : 0.02), radius: isHovered ? 4 : 2, y: 1)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
                 isHovered = hovering
@@ -83,6 +116,41 @@ struct ContainerCardView: View {
                 onAction(action)
             }
         }
+    }
+
+    // MARK: - Ports Label
+
+    private var portsLabel: some View {
+        let portText = formatPorts()
+        return Text(portText)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
+    private func formatPorts() -> String {
+        let publicPorts = container.ports.compactMap { $0.publicPort }
+        if publicPorts.isEmpty {
+            return ""
+        } else if publicPorts.count == 1 {
+            return ":\(publicPorts[0])"
+        } else if publicPorts.count <= 2 {
+            return publicPorts.map { ":\($0)" }.joined(separator: " ")
+        } else {
+            return ":\(publicPorts[0]) +\(publicPorts.count - 1)"
+        }
+    }
+
+    // MARK: - Card Background
+
+    private var cardBackground: Color {
+        if isHovered {
+            return statusColor.opacity(0.08)
+        }
+        return Color.primary.opacity(0.03)
     }
 
     // MARK: - Quick Action Button
@@ -127,19 +195,6 @@ struct ContainerCardView: View {
         case .restarting: return .orange
         case .exited, .dead: return .red
         case .created, .removing: return .gray
-        }
-    }
-
-    private var hoverColor: Color {
-        guard isHovered else { return .clear }
-
-        switch container.state {
-        case .running:
-            return Color.green.opacity(0.1)
-        case .paused, .restarting:
-            return Color.yellow.opacity(0.1)
-        case .exited, .dead, .created, .removing:
-            return Color.red.opacity(0.1)
         }
     }
 
