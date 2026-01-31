@@ -69,7 +69,7 @@ ContainerBar follows a layered architecture inspired by CodexBar's modular desig
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            ContainerBar Application                            │
+│                            ContainerBar Application                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -91,7 +91,7 @@ ContainerBar follows a layered architecture inspired by CodexBar's modular desig
 │                                      │                                      │
 │                                      ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        Service Layer (ContainerBarCore)                │    │
+│  │                        Service Layer (ContainerBarCore)             │    │
 │  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐   │    │
 │  │  │ContainerFetcher  │  │DockerAPIClient   │  │CredentialManager │   │    │
 │  │  │(Strategy-based)  │  │(HTTP/Socket)     │  │(Keychain)        │   │    │

@@ -2,60 +2,78 @@
 
 A lightweight macOS menu bar application for Docker container monitoring and management.
 
+![ContainerBar Screenshot](docs/images/full-view.png)
+
 ## Overview
 
 ContainerBar provides instant access to Docker container status directly from your macOS menu bar. Monitor running containers, view real-time CPU and memory metrics, and perform quick management actions—all without opening a browser or terminal.
 
+Works seamlessly with **Docker Desktop** on your local machine or connects to **remote Docker hosts** via SSH.
+
+## Why ContainerBar?
+
+This project was inspired by [Peter Steinberger's](https://github.com/steipete) excellent [CodexBar](https://github.com/steipete/CodexBar) application. After seeing CodexBar in action, I thought: *what if I could do something similar for my Docker containers on my homelab server?* Instead of constantly opening Portainer or SSH-ing into my server just to check container status, I wanted that information right in my menu bar — one click away.
+
+ContainerBar was vibe coded using **Claude Opus 4.5**, turning that idea into a fully functional macOS app.
+
 ## Features
 
 - **Menu Bar Access**: View container status at a glance from your menu bar
-- **Real-time Metrics**: Monitor CPU, memory, and network I/O statistics
-- **Quick Actions**: Start, stop, and restart containers with one click
-- **Multiple Hosts**: Connect to local or remote Docker daemons
-- **Secure Connections**: Support for TLS-encrypted remote connections
-- **Native Experience**: Built with Swift for a true macOS-native feel
+- **Real-time Metrics**: Monitor CPU, memory usage across all containers
+- **Quick Actions**: Start, stop, restart, view logs, and remove containers with one click
+- **Multiple Hosts**: Connect to local Docker Desktop or remote Docker hosts via SSH
+- **Container Details**: View image, ports, network, and resource usage per container
+- **Native Experience**: Built with Swift and SwiftUI for a true macOS-native feel
 
 ## Requirements
 
 - macOS 14 (Sonoma) or later
-- Docker Desktop or Docker daemon accessible via Unix socket
-- For remote connections: Docker daemon with TLS enabled
+- Docker Desktop (for local containers) or a remote Docker host accessible via SSH
 
 ## Installation
+
+### Homebrew (Recommended)
+
+```bash
+brew tap michaeltookes/tap
+brew install --cask containerbar
+```
+
+### Direct Download
+
+Download the latest release from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases), open the DMG, and drag ContainerBar to your Applications folder.
 
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ContainerBar.git
+git clone https://github.com/michaeltookes/ContainerBar.git
 cd ContainerBar
 
-# Build the application
-swift build -c release
+# Build the release
+./scripts/build-release.sh
 
-# Run
-swift run ContainerBar
+# The app will be at dist/ContainerBar.app
 ```
 
-### Homebrew (Coming Soon)
+## Getting Started
 
-```bash
-brew install --cask dockerbar
-```
+For a complete walkthrough with screenshots, see the **[Getting Started Guide](docs/GETTING_STARTED.md)**.
 
-## Usage
+### Quick Start
 
-### Local Docker
+1. Launch ContainerBar — the icon appears in your menu bar
+2. If Docker Desktop is running, ContainerBar connects automatically
+3. Click the menu bar icon to see your containers
 
-ContainerBar automatically connects to the local Docker daemon via `/var/run/docker.sock`. Simply launch the app and your containers will appear in the menu bar dropdown.
+### Adding a Remote Host
 
-### Remote Docker (TLS)
+1. Click the ContainerBar icon in your menu bar
+2. Hover over **Hosts** → click **Add Host...**
+3. Enter a name, hostname/IP, and SSH user
+4. Click **Add**
 
-1. Open Settings (`Cmd + ,`)
-2. Click "Add Host"
-3. Enter connection details and TLS certificates
-4. Click "Test Connection" to verify
-5. Save and select the host
+> **Note**: SSH key-based authentication must be configured for remote connections.
 
 ### Keyboard Shortcuts
 
@@ -65,14 +83,14 @@ ContainerBar automatically connects to the local Docker daemon via `/var/run/doc
 | `Cmd + ,` | Open Settings |
 | `Cmd + Q` | Quit ContainerBar |
 
+You can also set a custom global hotkey in Settings.
+
 ## Development
 
 ### Prerequisites
 
 - Xcode 15.0+ (for Swift 6.0)
 - Swift 6.0+
-- SwiftLint (recommended)
-- SwiftFormat (recommended)
 
 ### Building
 
@@ -85,52 +103,38 @@ swift build -c release
 
 # Run tests
 swift test
-
-# Run tests with coverage
-swift test --enable-code-coverage
 ```
 
 ### Project Structure
 
 ```
 ContainerBar/
-├── Package.swift                 # Swift Package Manager configuration
-├── Sources/
-│   ├── ContainerBar/               # macOS application
-│   │   ├── ContainerBarApp.swift   # App entry point
-│   │   ├── AppDelegate.swift    # Application delegate
+├── Package.swift                       # Swift Package Manager configuration
+├── Sources/      
+│   ├── ContainerBar/                   # macOS application
+│   │   ├── ContainerBarApp.swift       # App entry point
+│   │   ├── AppDelegate.swift           # Application delegate
 │   │   ├── StatusItemController.swift  # Menu bar management
-│   │   ├── Stores/              # State management
-│   │   └── Views/               # SwiftUI views
-│   └── ContainerBarCore/           # Business logic library
-│       ├── Models/              # Data structures
-│       ├── API/                 # Docker API client
-│       ├── Services/            # Business services
-│       └── Strategies/          # Connection strategies
-├── Tests/
-│   ├── ContainerBarTests/          # App tests
-│   └── ContainerBarCoreTests/      # Core library tests
-└── docs/
-    └── DESIGN_DOCUMENT.md       # Technical specification
+│   │   ├── Stores/                     # State management
+│   │   └── Views/                      # SwiftUI views
+│   └── ContainerBarCore/               # Business logic library
+│       ├── Models/                     # Data structures
+│       ├── API/                        # Docker API client
+│       └── Services/                   # Connection services
+├── Tests/                              # Unit tests
+├── Distribution/                       # Release assets (icons, entitlements)
+├── scripts/                            # Build and release scripts
+├── docs/
+│   ├── GETTING_STARTED.md              # User guide
+│   └── images/                         # Documentation screenshots
+└── .claude/agents/                     # Claude Code agent documentation
+    ├── DESIGN_DOCUMENT.md              # Technical specification
+    └── PROJECT_ORCHESTRATION.md        # Project orchestration guide
 ```
-
-## Architecture
-
-ContainerBar follows a layered architecture:
-
-- **UI Layer**: SwiftUI views + AppKit for menu bar integration
-- **State Layer**: `@Observable` stores for reactive state management
-- **Service Layer**: Business logic and Docker API abstraction
-- **API Layer**: Direct Docker Engine API communication
-
-Key patterns used:
-- Provider Descriptor pattern for connection management
-- Strategy pattern for different connection types
-- Consecutive Failure Gate for error resilience
 
 ## Contributing
 
-Contributions are welcome! Please read the design document at `docs/DESIGN_DOCUMENT.md` before submitting changes.
+Contributions are welcome! Please read the design document at `.claude/agents/DESIGN_DOCUMENT.md` before submitting changes.
 
 1. Fork the repository
 2. Create a feature branch
@@ -144,5 +148,8 @@ Contributions are welcome! Please read the design document at `docs/DESIGN_DOCUM
 
 ## Acknowledgments
 
-- Inspired by CodexBar's elegant menu bar architecture
+- Inspired by [CodexBar](https://github.com/steipete/CodexBar) by [Peter Steinberger](https://github.com/steipete)
+- Vibe coded with [Claude Opus 4.5](https://www.anthropic.com/claude) by Anthropic
 - Built with Swift 6 and modern Apple frameworks
+- Uses [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) for global hotkey support
+- Uses [Sparkle](https://sparkle-project.org/) for automatic updates
