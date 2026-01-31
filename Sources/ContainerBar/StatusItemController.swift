@@ -326,23 +326,31 @@ final class StatusItemController: NSObject {
     private func createCardMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
 
-        let cardView = ContainerMenuCardView { [weak self] action in
-            self?.handleContainerAction(action)
-        }
+        let dashboardView = DashboardMenuView(
+            onAction: { [weak self] action in
+                self?.handleContainerAction(action)
+            },
+            onSettings: { [weak self] in
+                self?.openSettings()
+            },
+            onHosts: { [weak self] in
+                // Open hosts submenu - for now just reopen menu
+                self?.reopenMenu()
+            }
+        )
         .environment(containerStore)
         .environment(settingsStore)
 
-        let hostingView = NSHostingView(rootView: cardView)
+        let hostingView = NSHostingView(rootView: dashboardView)
 
         // Calculate height based on content
-        // Base height: header(~30) + connection(~50) + overview(~80) + section header(~20) + padding(32)
-        let baseHeight: CGFloat = 212
-        // Container rows: ~44pt each, max 8 visible
-        let containerCount = min(containerStore.containers.count, 8)
-        let containerHeight = CGFloat(max(containerCount, 1)) * 44
-        let totalHeight = baseHeight + containerHeight
+        // Base: header(~50) + status bar(~50) + stats grid(~140) + container section(~200) + action bar(~50)
+        let baseHeight: CGFloat = 490
+        // Adjust based on container count (max 400pt for scroll area)
+        let containerCount = containerStore.containers.count
+        let adjustedHeight = containerCount == 0 ? 350 : min(baseHeight, 550)
 
-        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: totalHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 380, height: adjustedHeight)
 
         item.view = hostingView
         return item
