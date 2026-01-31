@@ -326,10 +326,6 @@ final class StatusItemController: NSObject {
             onQuit: {
                 NSApp.terminate(nil)
             },
-            onLogs: { [weak self] in
-                // TODO: Implement logs view
-                self?.logger.info("Logs button tapped")
-            },
             onHostChanged: { [weak self] in
                 guard let self else { return }
                 self.logger.info("Host changed, reinitializing fetcher")

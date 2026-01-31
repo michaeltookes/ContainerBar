@@ -3,6 +3,7 @@ import SwiftUI
 /// Bottom action bar with quick action buttons
 struct QuickActionBar: View {
     var isHostsActive: Bool = false
+    var isLogsActive: Bool = false
     let onRefresh: () -> Void
     let onHosts: () -> Void
     let onLogs: () -> Void
@@ -34,6 +35,7 @@ struct QuickActionBar: View {
             ActionBarButton(
                 title: "Logs",
                 icon: "doc.text",
+                isActive: isLogsActive,
                 action: onLogs
             )
             .frame(maxWidth: .infinity)
