@@ -4,6 +4,7 @@ import AppKit
 /// Dashboard header with logo and action buttons
 struct DashboardHeaderView: View {
     let isRefreshing: Bool
+    var isSearching: Bool = false
     let onRefresh: () -> Void
     let onSearch: () -> Void
     let onQuit: () -> Void
@@ -35,9 +36,10 @@ struct DashboardHeaderView: View {
 
                 HeaderButton(
                     icon: "magnifyingglass",
+                    isActive: isSearching,
                     action: onSearch
                 )
-                .help("Search containers")
+                .help(isSearching ? "Close search" : "Search containers")
 
                 HeaderButton(
                     icon: "power",
@@ -74,6 +76,7 @@ struct DashboardHeaderView: View {
 struct HeaderButton: View {
     let icon: String
     var isSpinning: Bool = false
+    var isActive: Bool = false
     let action: () -> Void
 
     @State private var isHovered = false
@@ -82,11 +85,11 @@ struct HeaderButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.8))
+                .foregroundStyle(isActive ? .white : .primary.opacity(0.8))
                 .frame(width: 28, height: 28)
                 .background(
                     Circle()
-                        .fill(isHovered ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05))
+                        .fill(backgroundColor)
                 )
                 .rotationEffect(.degrees(isSpinning ? 360 : 0))
                 .animation(
@@ -101,6 +104,16 @@ struct HeaderButton: View {
             }
         }
     }
+
+    private var backgroundColor: Color {
+        if isActive {
+            return .accentColor
+        } else if isHovered {
+            return Color.primary.opacity(0.12)
+        } else {
+            return Color.primary.opacity(0.05)
+        }
+    }
 }
 
 #if DEBUG
@@ -108,6 +121,7 @@ struct HeaderButton: View {
     VStack {
         DashboardHeaderView(
             isRefreshing: false,
+            isSearching: false,
             onRefresh: {},
             onSearch: {},
             onQuit: {},
@@ -116,7 +130,8 @@ struct HeaderButton: View {
         .background(.regularMaterial)
 
         DashboardHeaderView(
-            isRefreshing: true,
+            isRefreshing: false,
+            isSearching: true,
             onRefresh: {},
             onSearch: {},
             onQuit: {},

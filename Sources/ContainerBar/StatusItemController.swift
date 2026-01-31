@@ -323,10 +323,6 @@ final class StatusItemController: NSObject {
             onSettings: { [weak self] in
                 self?.openSettings()
             },
-            onSearch: { [weak self] in
-                // TODO: Implement search functionality
-                self?.logger.info("Search button tapped")
-            },
             onQuit: {
                 NSApp.terminate(nil)
             },
