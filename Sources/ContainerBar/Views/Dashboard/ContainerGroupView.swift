@@ -117,9 +117,11 @@ struct ContainerListSection: View {
             if containers.isEmpty {
                 emptyState
             } else {
-                // Grouped containers
+                let (groups, ungrouped) = groupedAndUngroupedContainers
+
                 VStack(spacing: 12) {
-                    ForEach(containerGroups) { group in
+                    // Custom sections with grouped containers
+                    ForEach(groups) { group in
                         ContainerGroupView(
                             group: group,
                             stats: stats,
@@ -128,6 +130,19 @@ struct ContainerListSection: View {
                                 onAddContainer?(group.name)
                             }
                         )
+                    }
+
+                    // Ungrouped containers (flat list, no section header)
+                    if !ungrouped.isEmpty {
+                        VStack(spacing: 6) {
+                            ForEach(ungrouped) { container in
+                                ContainerCardView(
+                                    container: container,
+                                    stats: stats[container.id],
+                                    onAction: onAction
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 12)
@@ -158,15 +173,12 @@ struct ContainerListSection: View {
 
     // MARK: - Grouping Logic (using custom sections)
 
-    private var containerGroups: [ContainerGroup] {
+    private var groupedAndUngroupedContainers: ([ContainerGroup], [DockerContainer]) {
         groupContainersByCustomSections(containers)
     }
 
-    private func groupContainersByCustomSections(_ containers: [DockerContainer]) -> [ContainerGroup] {
+    private func groupContainersByCustomSections(_ containers: [DockerContainer]) -> ([ContainerGroup], [DockerContainer]) {
         let customSections = settings.sections.sorted { $0.sortOrder < $1.sortOrder }
-
-        // If no sections configured, return empty (no groups shown)
-        guard !customSections.isEmpty else { return [] }
 
         var groups: [ContainerGroup] = []
         var assignedContainerIds: Set<String> = []
@@ -197,7 +209,10 @@ struct ContainerListSection: View {
             }
         }
 
-        return groups
+        // Get ungrouped containers (not matching any section)
+        let ungrouped = sortContainers(containers.filter { !assignedContainerIds.contains($0.id) })
+
+        return (groups, ungrouped)
     }
 
     private func sortContainers(_ containers: [DockerContainer]) -> [DockerContainer] {
