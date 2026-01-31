@@ -345,11 +345,11 @@ final class StatusItemController: NSObject {
         let hostingView = NSHostingView(rootView: dashboardView)
 
         // Calculate height based on content
-        // Base: header(~50) + status bar(~50) + stats grid(~120) + container section(~250) + action bar(~50)
-        let baseHeight: CGFloat = 520
-        // Adjust based on container count (max 420pt for scroll area)
+        // Base: header(~50) + status bar(~50) + stats grid(~120) + container section(~350) + action bar(~50)
+        let baseHeight: CGFloat = 620
+        // Adjust based on container count (max 500pt for scroll area)
         let containerCount = containerStore.containers.count
-        let adjustedHeight = containerCount == 0 ? 360 : min(baseHeight, 580)
+        let adjustedHeight = containerCount == 0 ? 420 : min(baseHeight, 680)
 
         hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: adjustedHeight)
 
