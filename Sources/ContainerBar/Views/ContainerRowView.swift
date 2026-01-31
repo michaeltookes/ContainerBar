@@ -46,7 +46,7 @@ struct ContainerRowView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+        .background(isHovered ? hoverColor : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
@@ -82,6 +82,18 @@ struct ContainerRowView: View {
         case .restarting: return .orange
         case .exited, .dead: return .red
         case .created, .removing: return .gray
+        }
+    }
+
+    /// Hover background color based on container state
+    private var hoverColor: Color {
+        switch container.state {
+        case .running:
+            return Color.green.opacity(0.15)
+        case .paused, .restarting:
+            return Color.yellow.opacity(0.15)
+        case .exited, .dead, .created, .removing:
+            return Color.red.opacity(0.15)
         }
     }
 
