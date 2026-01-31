@@ -57,8 +57,10 @@ struct ContainerRowView: View {
             showDetailPopover.toggle()
         }
         .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
-            // Pass nil for onAction since buttons don't work in NSMenu context
-            ContainerDetailPopover(container: container, stats: stats, onAction: nil)
+            ContainerDetailPopover(container: container, stats: stats) { action in
+                showDetailPopover = false
+                onAction(action)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
