@@ -40,7 +40,7 @@ struct MetricSparklineCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Value display
+            // Value display with fixed height to ensure consistency
             VStack(alignment: .leading, spacing: 1) {
                 Text(value)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -52,6 +52,7 @@ struct MetricSparklineCard: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            .frame(height: 32, alignment: .top) // Fixed height for value section
 
             // Sparkline chart
             sparklineChart
@@ -65,6 +66,16 @@ struct MetricSparklineCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
+        .overlay(alignment: .bottom) {
+            // Glowing colored bar at bottom
+            RoundedRectangle(cornerRadius: 2)
+                .fill(tint)
+                .frame(height: 3)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6)
+                .shadow(color: tint.opacity(0.6), radius: 4, y: 0)
+                .shadow(color: tint.opacity(0.3), radius: 8, y: 0)
+        }
         .shadow(color: .black.opacity(0.03), radius: 2, y: 1)
     }
 
