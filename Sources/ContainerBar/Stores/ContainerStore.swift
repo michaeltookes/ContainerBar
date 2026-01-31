@@ -20,6 +20,9 @@ public final class ContainerStore {
     /// Aggregated metrics snapshot
     public private(set) var metricsSnapshot: ContainerMetricsSnapshot?
 
+    /// Rolling history for sparkline charts
+    public private(set) var metricsHistory: AggregatedMetricsHistory = AggregatedMetricsHistory()
+
     // MARK: - Connection State
 
     /// Whether we have an active connection to Docker
@@ -52,6 +55,23 @@ public final class ContainerStore {
 
     @ObservationIgnored
     private let logger = Logger(label: "com.containerbar.store.container")
+
+    // MARK: - Rate Calculation State
+
+    @ObservationIgnored
+    private var previousNetworkRx: UInt64 = 0
+
+    @ObservationIgnored
+    private var previousNetworkTx: UInt64 = 0
+
+    @ObservationIgnored
+    private var previousBlockRead: UInt64 = 0
+
+    @ObservationIgnored
+    private var previousBlockWrite: UInt64 = 0
+
+    @ObservationIgnored
+    private var previousTimestamp: Date?
 
     // MARK: - Initialization
 
@@ -88,9 +108,17 @@ public final class ContainerStore {
         containers = []
         stats = [:]
         metricsSnapshot = nil
+        metricsHistory.clearAll()
         isConnected = false
         connectionError = nil
         lastRefreshAt = nil
+
+        // Reset rate calculation state
+        previousNetworkRx = 0
+        previousNetworkTx = 0
+        previousBlockRead = 0
+        previousBlockWrite = 0
+        previousTimestamp = nil
 
         // Reset the fetcher
         fetcher = nil
@@ -139,6 +167,9 @@ public final class ContainerStore {
             self.connectionError = nil
             self.lastRefreshAt = Date()
 
+            // Update sparkline history
+            updateMetricsHistory(from: result.metrics, stats: result.stats)
+
             logger.info("Refresh complete: \(result.containers.count) containers")
         } catch {
             logger.error("Refresh failed: \(error.localizedDescription)")
@@ -148,6 +179,47 @@ public final class ContainerStore {
             self.connectionError = userMessage
             self.isConnected = false
         }
+    }
+
+    // MARK: - Metrics History
+
+    /// Update sparkline history with latest metrics
+    private func updateMetricsHistory(from metrics: ContainerMetricsSnapshot, stats: [String: ContainerStats]) {
+        let now = Date()
+
+        // Update CPU and memory history
+        metricsHistory.cpu.append(metrics.totalCPUPercent)
+        metricsHistory.memory.append(metrics.memoryUsagePercent)
+
+        // Calculate network rates (KB/s)
+        let totalNetworkRx = stats.values.reduce(0) { $0 + $1.networkRxBytes }
+        let totalNetworkTx = stats.values.reduce(0) { $0 + $1.networkTxBytes }
+        let totalBlockRead = stats.values.reduce(0) { $0 + $1.blockReadBytes }
+        let totalBlockWrite = stats.values.reduce(0) { $0 + $1.blockWriteBytes }
+
+        if let prevTime = previousTimestamp {
+            let elapsed = now.timeIntervalSince(prevTime)
+            if elapsed > 0 {
+                // Calculate rates in KB/s
+                let rxRate = Double(totalNetworkRx - previousNetworkRx) / elapsed / 1024.0
+                let txRate = Double(totalNetworkTx - previousNetworkTx) / elapsed / 1024.0
+                let readRate = Double(totalBlockRead - previousBlockRead) / elapsed / 1024.0
+                let writeRate = Double(totalBlockWrite - previousBlockWrite) / elapsed / 1024.0
+
+                // Only append positive rates (avoid negative values from container restarts)
+                metricsHistory.networkRxRate.append(max(0, rxRate))
+                metricsHistory.networkTxRate.append(max(0, txRate))
+                metricsHistory.diskReadRate.append(max(0, readRate))
+                metricsHistory.diskWriteRate.append(max(0, writeRate))
+            }
+        }
+
+        // Store current values for next calculation
+        previousNetworkRx = totalNetworkRx
+        previousNetworkTx = totalNetworkTx
+        previousBlockRead = totalBlockRead
+        previousBlockWrite = totalBlockWrite
+        previousTimestamp = now
     }
 
     // MARK: - Container Actions
