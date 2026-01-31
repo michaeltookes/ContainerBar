@@ -72,24 +72,26 @@ struct MetricSparklineCard: View {
     private var sparklineChart: some View {
         if history.hasData {
             Chart(history.values) { point in
+                // Shadow/gradient area under the line
                 AreaMark(
                     x: .value("Time", point.timestamp),
                     y: .value("Value", point.value)
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [tint.opacity(0.3), tint.opacity(0.05)],
+                        colors: [tint.opacity(0.5), tint.opacity(0.2), tint.opacity(0.0)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
 
+                // The line itself
                 LineMark(
                     x: .value("Time", point.timestamp),
                     y: .value("Value", point.value)
                 )
                 .foregroundStyle(tint)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
