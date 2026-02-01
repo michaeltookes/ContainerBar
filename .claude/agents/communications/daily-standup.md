@@ -158,6 +158,28 @@ Ready to proceed with Day 3-4 tasks: Menu Bar UI implementation.
 - Created MockDockerAPIClient.swift for testing
 - Added comprehensive unit tests:
   - DockerAPITests (5 tests) - Error handling, HTTP request/response
+
+---
+
+## January 31, 2026 - @BUILD_LEAD
+
+### Completed
+
+- Reviewed AGENTS.md, PROJECT_ORCHESTRATION.md, and DESIGN_DOCUMENT.md in `.claude/agents/`
+- Investigated "View Logs" action from the container detail popover
+- Converted the "View Logs" control from a `Label` with `onTapGesture` to a real `Button` for reliable click handling
+- Close the menu before opening the log viewer window to avoid menu tracking swallowing clicks
+- Replaced container detail popovers with a dedicated detail window to avoid NSMenu popover click suppression
+- Restored menu-closing behavior when opening logs so the log window appears without the menu staying open
+- Removed "View Logs" button from the container detail popover to avoid unreliable popover interaction
+
+### In Progress
+
+- Waiting on user verification of the "View Logs" fix
+
+### Blockers
+
+- None
   - MockDockerAPIClientTests (4 tests) - Mock behavior
   - RetryConfigTests (2 tests) - Retry configuration
   - DockerRawStatsTests (2 tests) - Stats parsing
