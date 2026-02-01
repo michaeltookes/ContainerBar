@@ -8,8 +8,6 @@ set -e
 # Configuration
 APP_NAME="ContainerBar"
 BUNDLE_ID="com.tookes.ContainerBar"
-VERSION="1.0.0"
-BUILD_NUMBER="1"
 
 # Signing identity - Developer ID Application certificate
 SIGNING_IDENTITY="Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
@@ -18,10 +16,14 @@ TEAM_ID="6739LM5834"
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/.build/release"
+BUILD_DIR="$PROJECT_ROOT/.build/arm64-apple-macosx/release"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
+
+# Read version from Info.plist (single source of truth)
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DIST_DIR/Info.plist")
+BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$DIST_DIR/Info.plist")
 
 # Colors for output
 RED='\033[0;31m'
@@ -114,9 +116,8 @@ create_bundle() {
         fi
     done
 
-    # Update version in Info.plist
-    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_BUNDLE/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP_BUNDLE/Contents/Info.plist"
+    # Note: Version already set in Info.plist (source of truth)
+    echo "  ✓ Version: $VERSION (Build $BUILD_NUMBER)"
 
     # Copy any frameworks if needed (Sparkle, etc.)
     if [ -d "$BUILD_DIR/Sparkle.framework" ]; then
@@ -236,6 +237,7 @@ main() {
     echo ""
     echo "ContainerBar Release Build"
     echo "======================="
+    echo "Version: $VERSION (Build $BUILD_NUMBER)"
     echo ""
 
     check_requirements
