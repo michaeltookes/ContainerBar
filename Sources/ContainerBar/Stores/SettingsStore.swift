@@ -72,10 +72,11 @@ public final class SettingsStore {
 
     /// The currently selected Docker host
     public var selectedHost: DockerHost? {
-        guard let id = selectedHostId else {
-            return hosts.first { $0.isDefault } ?? hosts.first
+        if let id = selectedHostId,
+           let host = hosts.first(where: { $0.id == id }) {
+            return host
         }
-        return hosts.first { $0.id == id }
+        return hosts.first { $0.isDefault } ?? hosts.first
     }
 
     /// User-defined container sections
@@ -106,6 +107,11 @@ public final class SettingsStore {
 
         loadHosts()
         loadSections()
+
+        // Clear invalid selection if saved host no longer exists
+        if let id = selectedHostId, !hosts.contains(where: { $0.id == id }) {
+            selectedHostId = nil
+        }
 
         // Ensure we have at least the local host configured
         if hosts.isEmpty {

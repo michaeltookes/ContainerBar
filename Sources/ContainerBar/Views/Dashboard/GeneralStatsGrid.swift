@@ -110,10 +110,7 @@ struct GeneralStatsGrid: View {
     }
 
     private func formatRate(_ kbPerSec: Double) -> String {
-        if kbPerSec >= 1024 {
-            return String(format: "%.1f", kbPerSec / 1024)
-        }
-        return String(format: "%.0f", kbPerSec)
+        String(format: kbPerSec >= 100 ? "%.0f" : "%.1f", kbPerSec)
     }
 }
 

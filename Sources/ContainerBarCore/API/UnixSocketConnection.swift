@@ -91,12 +91,26 @@ final class UnixSocketConnection: @unchecked Sendable {
         }
 
         // Send request
-        let bytesSent = requestData.withUnsafeBytes { buffer in
-            Darwin.send(socketFD, buffer.baseAddress!, buffer.count, 0)
-        }
+        var totalSent = 0
+        try requestData.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else {
+                throw DockerAPIError.invalidConfiguration("Could not access request data")
+            }
 
-        guard bytesSent == requestData.count else {
-            throw DockerAPIError.connectionFailed
+            while totalSent < buffer.count {
+                let sent = Darwin.send(
+                    socketFD,
+                    baseAddress.advanced(by: totalSent),
+                    buffer.count - totalSent,
+                    0
+                )
+
+                if sent <= 0 {
+                    throw DockerAPIError.connectionFailed
+                }
+
+                totalSent += sent
+            }
         }
 
         // Receive response
@@ -148,7 +162,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         // Determine how to read body
         var bodyData = Data(responseData[headerEndIndex...])
 
-        if let contentLength = headers["Content-Length"],
+        if let contentLength = headers["content-length"],
            let length = Int(contentLength) {
             // Read until we have content-length bytes
             while bodyData.count < length {
@@ -156,7 +170,7 @@ final class UnixSocketConnection: @unchecked Sendable {
                 if bytesRead <= 0 { break }
                 bodyData.append(contentsOf: buffer[0..<bytesRead])
             }
-        } else if headers["Transfer-Encoding"]?.lowercased() == "chunked" {
+        } else if headers["transfer-encoding"]?.lowercased() == "chunked" {
             // Read chunked response
             bodyData = try readChunkedBody(initialData: bodyData)
         }
@@ -184,7 +198,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             if let colonIndex = line.firstIndex(of: ":") {
                 let key = String(line[..<colonIndex]).trimmingCharacters(in: .whitespaces)
                 let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
-                headers[key] = value
+                headers[key.lowercased()] = value
             }
         }
 

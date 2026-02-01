@@ -51,6 +51,9 @@ public final class ContainerStore {
     private var timerTask: Task<Void, Never>?
 
     @ObservationIgnored
+    private var settingsObservationTask: Task<Void, Never>?
+
+    @ObservationIgnored
     private let settings: SettingsStore
 
     @ObservationIgnored
@@ -79,10 +82,12 @@ public final class ContainerStore {
         self.settings = settings
         initializeFetcher()
         startTimer()
+        startSettingsObservation()
     }
 
     deinit {
         timerTask?.cancel()
+        settingsObservationTask?.cancel()
     }
 
     // MARK: - Fetcher Initialization
@@ -338,6 +343,29 @@ public final class ContainerStore {
     /// Restart the refresh timer with current settings
     public func restartTimer() {
         startTimer()
+    }
+
+    // MARK: - Settings Observation
+
+    private func startSettingsObservation() {
+        settingsObservationTask?.cancel()
+
+        settingsObservationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { break }
+
+                withObservationTracking {
+                    _ = self.settings.refreshInterval
+                } onChange: {
+                    Task { @MainActor [weak self] in
+                        self?.restartTimer()
+                    }
+                }
+
+                // Small delay to coalesce changes
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
     }
 
     // MARK: - Error Handling

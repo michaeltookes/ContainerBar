@@ -169,7 +169,7 @@ struct MetricSparklineCard: View {
             MetricSparklineCard(
                 title: "Disk",
                 value: "1.2",
-                subtitle: "MB/s",
+                subtitle: "KB/s",
                 history: history,
                 tint: .orange,
                 icon: "externaldrive"

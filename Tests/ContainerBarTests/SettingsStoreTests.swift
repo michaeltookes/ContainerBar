@@ -65,6 +65,19 @@ struct SettingsStoreTests {
         #expect(store.selectedHost?.isDefault == true)
     }
 
+    @Test("Invalid selected host ID is cleared")
+    @MainActor
+    func invalidSelectedHostCleared() {
+        let defaults = UserDefaults(suiteName: "TestSettingsStoreInvalidSelection")!
+        defaults.removePersistentDomain(forName: "TestSettingsStoreInvalidSelection")
+        defaults.set(UUID().uuidString, forKey: "selectedHostId")
+
+        let store = SettingsStore(userDefaults: defaults)
+
+        #expect(store.selectedHostId == nil)
+        #expect(store.selectedHost?.isDefault == true)
+    }
+
     @Test("Refresh interval seconds are correct")
     func refreshIntervalSeconds() {
         #expect(RefreshInterval.seconds5.seconds == 5)
