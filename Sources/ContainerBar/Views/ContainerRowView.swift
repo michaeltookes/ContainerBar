@@ -57,10 +57,7 @@ struct ContainerRowView: View {
             showDetailPopover.toggle()
         }
         .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
-            ContainerDetailPopover(container: container, stats: stats) { action in
-                showDetailPopover = false
-                onAction(action)
-            }
+            ContainerDetailPopover(container: container, stats: stats)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)

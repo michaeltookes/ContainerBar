@@ -124,6 +124,11 @@ final class StatusItemController: NSObject {
         }
     }
 
+    private func closeMenuIfOpen() {
+        statusItem.menu?.cancelTracking()
+    }
+
+
     // MARK: - Icon Updates
 
     private func updateIcon() {
@@ -186,19 +191,9 @@ final class StatusItemController: NSObject {
 
         menu.removeAllItems()
 
-        // Main content card (SwiftUI)
+        // Main content card (SwiftUI) - this is the only menu item now
         let cardItem = createCardMenuItem()
         menu.addItem(cardItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Container actions submenu
-        addContainerActionsSubmenu(to: menu)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Actions section
-        addActionItems(to: menu)
     }
 
     private func addContainerActionsSubmenu(to menu: NSMenu) {
@@ -326,23 +321,38 @@ final class StatusItemController: NSObject {
     private func createCardMenuItem() -> NSMenuItem {
         let item = NSMenuItem()
 
-        let cardView = ContainerMenuCardView { [weak self] action in
-            self?.handleContainerAction(action)
-        }
+        let dashboardView = DashboardMenuView(
+            onAction: { [weak self] action in
+                self?.handleContainerAction(action)
+            },
+            onSettings: { [weak self] in
+                self?.openSettings()
+            },
+            onQuit: {
+                NSApp.terminate(nil)
+            },
+            onHostChanged: { [weak self] in
+                guard let self else { return }
+                self.logger.info("Host changed, reinitializing fetcher")
+                self.containerStore.reinitializeFetcher()
+                Task {
+                    await self.containerStore.refresh(force: true)
+                }
+            }
+        )
         .environment(containerStore)
         .environment(settingsStore)
 
-        let hostingView = NSHostingView(rootView: cardView)
+        let hostingView = NSHostingView(rootView: dashboardView)
 
         // Calculate height based on content
-        // Base height: header(~30) + connection(~50) + overview(~80) + section header(~20) + padding(32)
-        let baseHeight: CGFloat = 212
-        // Container rows: ~44pt each, max 8 visible
-        let containerCount = min(containerStore.containers.count, 8)
-        let containerHeight = CGFloat(max(containerCount, 1)) * 44
-        let totalHeight = baseHeight + containerHeight
+        // Base: header(~50) + status bar(~50) + stats grid(~120) + container section(~350) + action bar(~50)
+        let baseHeight: CGFloat = 620
+        // Adjust based on container count (max 500pt for scroll area)
+        let containerCount = containerStore.containers.count
+        let adjustedHeight = containerCount == 0 ? 420 : min(baseHeight, 680)
 
-        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: totalHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: adjustedHeight)
 
         item.view = hostingView
         return item
@@ -531,24 +541,28 @@ final class StatusItemController: NSObject {
     // MARK: - Container Actions
 
     private func handleContainerAction(_ action: ContainerAction) {
+        logger.debug("Handling container action: \(action)")
         switch action {
         case .start(let id):
             logger.info("Starting container: \(id)")
             Task {
                 await containerStore.startContainer(id: id)
             }
+            reopenMenu()
 
         case .stop(let id):
             logger.info("Stopping container: \(id)")
             Task {
                 await containerStore.stopContainer(id: id)
             }
+            reopenMenu()
 
         case .restart(let id):
             logger.info("Restarting container: \(id)")
             Task {
                 await containerStore.restartContainer(id: id)
             }
+            reopenMenu()
 
         case .remove(let id):
             logger.info("Remove requested for container: \(id)")
@@ -561,6 +575,7 @@ final class StatusItemController: NSObject {
 
         case .viewLogs(let id):
             logger.info("View logs requested for container: \(id)")
+            closeMenuIfOpen()
             showLogViewer(for: id)
         }
     }
@@ -602,6 +617,7 @@ final class StatusItemController: NSObject {
     }
 
     private func showLogViewer(for containerId: String) {
+        logger.debug("Opening log viewer for container: \(containerId)")
         guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
             logger.warning("Container not found for log viewer: \(containerId)")
             return

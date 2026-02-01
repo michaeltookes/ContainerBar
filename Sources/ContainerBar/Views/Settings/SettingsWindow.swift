@@ -5,6 +5,7 @@ import ContainerBarCore
 /// Settings tab enumeration
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general = "General"
+    case sections = "Sections"
     case connections = "Connections"
     case about = "About"
 
@@ -13,6 +14,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: return "gear"
+        case .sections: return "folder"
         case .connections: return "network"
         case .about: return "info.circle"
         }
@@ -35,13 +37,15 @@ struct SettingsContentView: View {
             switch selectedTab {
             case .general:
                 GeneralSettingsPane()
+            case .sections:
+                SectionsSettingsPane()
             case .connections:
                 ConnectionSettingsPane()
             case .about:
                 AboutPane()
             }
         }
-        .frame(width: 550, height: 350)
+        .frame(width: 550, height: 400)
         .environment(settings)
         .environment(containerStore)
     }

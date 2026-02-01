@@ -4,6 +4,12 @@ import AppKit
 /// About pane showing app information
 struct AboutPane: View {
     private var appIcon: NSImage {
+        // Try to load App Icon Version from bundle resources
+        if let logoURL = Bundle.module.url(forResource: "AppIconLogo", withExtension: "png"),
+           let logo = NSImage(contentsOf: logoURL) {
+            return logo
+        }
+        // Fallback to app icon
         if let icon = NSImage(named: NSImage.applicationIconName) {
             return icon
         }

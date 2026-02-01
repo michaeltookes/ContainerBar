@@ -18,6 +18,7 @@ public final class SettingsStore {
         static let iconStyle = "iconStyle"
         static let dockerHosts = "dockerHosts"
         static let selectedHostId = "selectedHostId"
+        static let containerSections = "containerSections"
     }
 
     // MARK: - Properties
@@ -71,11 +72,15 @@ public final class SettingsStore {
 
     /// The currently selected Docker host
     public var selectedHost: DockerHost? {
-        guard let id = selectedHostId else {
-            return hosts.first { $0.isDefault } ?? hosts.first
+        if let id = selectedHostId,
+           let host = hosts.first(where: { $0.id == id }) {
+            return host
         }
-        return hosts.first { $0.id == id }
+        return hosts.first { $0.isDefault } ?? hosts.first
     }
+
+    /// User-defined container sections
+    public private(set) var sections: [ContainerSection] = []
 
     // MARK: - Initialization
 
@@ -101,13 +106,19 @@ public final class SettingsStore {
         }
 
         loadHosts()
+        loadSections()
+
+        // Clear invalid selection if saved host no longer exists
+        if let id = selectedHostId, !hosts.contains(where: { $0.id == id }) {
+            selectedHostId = nil
+        }
 
         // Ensure we have at least the local host configured
         if hosts.isEmpty {
             addHost(.local)
         }
 
-        logger.info("SettingsStore initialized with \(hosts.count) host(s)")
+        logger.info("SettingsStore initialized with \(hosts.count) host(s), \(sections.count) section(s)")
     }
 
     // MARK: - Host Management
@@ -177,6 +188,61 @@ public final class SettingsStore {
         saveHosts()
     }
 
+    // MARK: - Section Management
+
+    /// Add a new container section
+    public func addSection(_ section: ContainerSection) {
+        var newSection = section
+        newSection.sortOrder = sections.count
+        sections.append(newSection)
+        saveSections()
+        logger.info("Added section: \(section.name)")
+    }
+
+    /// Update an existing container section
+    public func updateSection(_ section: ContainerSection) {
+        guard let index = sections.firstIndex(where: { $0.id == section.id }) else {
+            logger.warning("Attempted to update non-existent section: \(section.id)")
+            return
+        }
+        sections[index] = section
+        saveSections()
+        logger.info("Updated section: \(section.name)")
+    }
+
+    /// Remove a container section
+    public func removeSection(id: UUID) {
+        sections.removeAll { $0.id == id }
+        // Update sort orders
+        for i in sections.indices {
+            sections[i].sortOrder = i
+        }
+        saveSections()
+        logger.info("Removed section: \(id)")
+    }
+
+    /// Move a section to a new position
+    public func moveSection(from source: IndexSet, to destination: Int) {
+        // Manual reorder implementation (avoids SwiftUI dependency)
+        var itemsToMove: [ContainerSection] = []
+        for index in source.sorted().reversed() {
+            itemsToMove.insert(sections.remove(at: index), at: 0)
+        }
+
+        // Adjust destination for removed items
+        let adjustedDestination = destination - source.filter { $0 < destination }.count
+
+        for (offset, item) in itemsToMove.enumerated() {
+            sections.insert(item, at: adjustedDestination + offset)
+        }
+
+        // Update sort orders
+        for i in sections.indices {
+            sections[i].sortOrder = i
+        }
+        saveSections()
+    }
+
     // MARK: - Persistence
 
     private func loadHosts() {
@@ -194,6 +260,29 @@ public final class SettingsStore {
             return
         }
         userDefaults.set(data, forKey: Keys.dockerHosts)
+    }
+
+    private func loadSections() {
+        guard let data = userDefaults.data(forKey: Keys.containerSections) else {
+            logger.info("No saved sections found")
+            return
+        }
+
+        do {
+            let decoded = try JSONDecoder().decode([ContainerSection].self, from: data)
+            sections = decoded.sorted { $0.sortOrder < $1.sortOrder }
+        } catch {
+            logger.error("Failed to decode sections (key: \(Keys.containerSections), dataLength: \(data.count)): \(error)")
+        }
+    }
+
+    private func saveSections() {
+        do {
+            let data = try JSONEncoder().encode(sections)
+            userDefaults.set(data, forKey: Keys.containerSections)
+        } catch {
+            logger.error("Failed to encode sections (count: \(sections.count)): \(error)")
+        }
     }
 }
 

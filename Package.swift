@@ -22,6 +22,9 @@ let package = Package(
                 "KeyboardShortcuts",
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
+            resources: [
+                .process("Resources")
+            ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .target(
