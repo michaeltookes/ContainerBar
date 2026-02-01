@@ -5,6 +5,36 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-31
+
+### Added
+- **New Dashboard UI**: Completely redesigned menu interface with modern card-based layout
+- **Real-time Metrics Sparklines**: Visual history graphs for CPU, memory, network, and disk I/O using Swift Charts
+- **Container Search**: Quick search functionality to filter containers by name, image, or ID
+- **Slide-out Logs Panel**: Easy access to container logs from the bottom action bar
+- **Slide-out Host Panel**: Quick host switching without navigating to settings
+- **Custom Container Sections**: Organize containers into custom groups with drag-and-drop reordering
+- **Connection Status Bar**: Visual indicator showing current host and container counts
+- **Quick Action Bar**: Bottom toolbar with Refresh, Hosts, Logs, and Settings buttons
+- **Container Cards**: Rich container display with hover effects, inline stats, and quick actions
+- **New App Logo**: Fresh branding with updated application icon
+
+### Changed
+- Redesigned Settings window with native macOS toolbar style
+- Container detail popover is now info-only (actions moved to hover buttons and panels)
+- Menu stays open when performing Start/Stop/Restart actions
+- Improved color-coded hover effects for container state indication
+- Enhanced metrics tracking with historical data for sparkline visualizations
+
+### Fixed
+- Container action buttons now work reliably (moved from popover to card hover)
+- Fixed potential counter underflow when calculating network/disk rates
+- Improved JSON error handling in settings persistence
+- Added proper accessibility labels to header buttons
+- Fixed inconsistent memory limit formatting in stats display
+- Added input validation for host configuration form
+- Handle paused and restarting container states correctly in quick actions
+
 ## [1.0.0] - 2025-01-30
 
 ### Added
@@ -21,4 +51,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
+[1.1.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.1.0
 [1.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.0.0
