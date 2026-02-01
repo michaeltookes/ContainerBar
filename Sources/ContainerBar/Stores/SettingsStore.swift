@@ -217,7 +217,19 @@ public final class SettingsStore {
 
     /// Move a section to a new position
     public func moveSection(from source: IndexSet, to destination: Int) {
-        sections.move(fromOffsets: source, toOffset: destination)
+        // Manual reorder implementation (avoids SwiftUI dependency)
+        var itemsToMove: [ContainerSection] = []
+        for index in source.sorted().reversed() {
+            itemsToMove.insert(sections.remove(at: index), at: 0)
+        }
+
+        // Adjust destination for removed items
+        let adjustedDestination = destination - source.filter { $0 < destination }.count
+
+        for (offset, item) in itemsToMove.enumerated() {
+            sections.insert(item, at: adjustedDestination + offset)
+        }
+
         // Update sort orders
         for i in sections.indices {
             sections[i].sortOrder = i
@@ -245,20 +257,26 @@ public final class SettingsStore {
     }
 
     private func loadSections() {
-        guard let data = userDefaults.data(forKey: Keys.containerSections),
-              let decoded = try? JSONDecoder().decode([ContainerSection].self, from: data) else {
+        guard let data = userDefaults.data(forKey: Keys.containerSections) else {
             logger.info("No saved sections found")
             return
         }
-        sections = decoded.sorted { $0.sortOrder < $1.sortOrder }
+
+        do {
+            let decoded = try JSONDecoder().decode([ContainerSection].self, from: data)
+            sections = decoded.sorted { $0.sortOrder < $1.sortOrder }
+        } catch {
+            logger.error("Failed to decode sections (key: \(Keys.containerSections), dataLength: \(data.count)): \(error)")
+        }
     }
 
     private func saveSections() {
-        guard let data = try? JSONEncoder().encode(sections) else {
-            logger.error("Failed to encode sections for persistence")
-            return
+        do {
+            let data = try JSONEncoder().encode(sections)
+            userDefaults.set(data, forKey: Keys.containerSections)
+        } catch {
+            logger.error("Failed to encode sections (count: \(sections.count)): \(error)")
         }
-        userDefaults.set(data, forKey: Keys.containerSections)
     }
 }
 

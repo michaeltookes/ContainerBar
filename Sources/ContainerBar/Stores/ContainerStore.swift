@@ -200,13 +200,19 @@ public final class ContainerStore {
         if let prevTime = previousTimestamp {
             let elapsed = now.timeIntervalSince(prevTime)
             if elapsed > 0 {
-                // Calculate rates in KB/s
-                let rxRate = Double(totalNetworkRx - previousNetworkRx) / elapsed / 1024.0
-                let txRate = Double(totalNetworkTx - previousNetworkTx) / elapsed / 1024.0
-                let readRate = Double(totalBlockRead - previousBlockRead) / elapsed / 1024.0
-                let writeRate = Double(totalBlockWrite - previousBlockWrite) / elapsed / 1024.0
+                // Safe subtraction to handle counter resets (saturating to 0)
+                let rxDelta = totalNetworkRx >= previousNetworkRx ? totalNetworkRx - previousNetworkRx : 0
+                let txDelta = totalNetworkTx >= previousNetworkTx ? totalNetworkTx - previousNetworkTx : 0
+                let readDelta = totalBlockRead >= previousBlockRead ? totalBlockRead - previousBlockRead : 0
+                let writeDelta = totalBlockWrite >= previousBlockWrite ? totalBlockWrite - previousBlockWrite : 0
 
-                // Only append positive rates (avoid negative values from container restarts)
+                // Calculate rates in KB/s
+                let rxRate = Double(rxDelta) / elapsed / 1024.0
+                let txRate = Double(txDelta) / elapsed / 1024.0
+                let readRate = Double(readDelta) / elapsed / 1024.0
+                let writeRate = Double(writeDelta) / elapsed / 1024.0
+
+                // Append rates (guaranteed non-negative due to saturating subtraction)
                 metricsHistory.networkRxRate.append(max(0, rxRate))
                 metricsHistory.networkTxRate.append(max(0, txRate))
                 metricsHistory.diskReadRate.append(max(0, readRate))

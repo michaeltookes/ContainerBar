@@ -541,7 +541,7 @@ final class StatusItemController: NSObject {
     // MARK: - Container Actions
 
     private func handleContainerAction(_ action: ContainerAction) {
-        print("StatusItemController: handleContainerAction called with \(action)")
+        logger.debug("Handling container action: \(action)")
         switch action {
         case .start(let id):
             logger.info("Starting container: \(id)")
@@ -575,7 +575,6 @@ final class StatusItemController: NSObject {
 
         case .viewLogs(let id):
             logger.info("View logs requested for container: \(id)")
-            print("StatusItemController: About to show logs for \(id)")
             closeMenuIfOpen()
             showLogViewer(for: id)
         }
@@ -618,10 +617,9 @@ final class StatusItemController: NSObject {
     }
 
     private func showLogViewer(for containerId: String) {
-        print("StatusItemController: showLogViewer called with \(containerId)")
+        logger.debug("Opening log viewer for container: \(containerId)")
         guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
             logger.warning("Container not found for log viewer: \(containerId)")
-            print("StatusItemController: container not found for \(containerId)")
             return
         }
 

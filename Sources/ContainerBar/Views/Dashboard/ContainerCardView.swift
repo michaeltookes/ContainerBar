@@ -62,9 +62,10 @@ struct ContainerCardView: View {
                 // Row 3: Uptime and Ports
                 HStack {
                     if container.state == .running {
-                        Text(container.uptimeString)
+                        Text(container.uptimeString.isEmpty ? container.status : container.uptimeString)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
+                            .lineLimit(1)
                     } else {
                         Text(container.status)
                             .font(.system(size: 10))
@@ -74,9 +75,9 @@ struct ContainerCardView: View {
 
                     Spacer()
 
-                    // Ports (if available)
-                    if !container.ports.isEmpty {
-                        portsLabel
+                    // Ports (if available and has public ports)
+                    if let portText = formattedPorts, !portText.isEmpty {
+                        portsLabelView(portText)
                     }
                 }
             }
@@ -117,21 +118,10 @@ struct ContainerCardView: View {
 
     // MARK: - Ports Label
 
-    private var portsLabel: some View {
-        let portText = formatPorts()
-        return Text(portText)
-            .font(.system(size: 10, design: .monospaced))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.primary.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-    }
-
-    private func formatPorts() -> String {
+    private var formattedPorts: String? {
         let publicPorts = container.ports.compactMap { $0.publicPort }
         if publicPorts.isEmpty {
-            return ""
+            return nil
         } else if publicPorts.count == 1 {
             return ":\(publicPorts[0])"
         } else if publicPorts.count <= 2 {
@@ -139,6 +129,16 @@ struct ContainerCardView: View {
         } else {
             return ":\(publicPorts[0]) +\(publicPorts.count - 1)"
         }
+    }
+
+    private func portsLabelView(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.primary.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 
     // MARK: - Card Background
@@ -154,7 +154,8 @@ struct ContainerCardView: View {
 
     @ViewBuilder
     private var quickActionButton: some View {
-        if container.state == .running {
+        switch container.state {
+        case .running:
             Button {
                 onAction(.stop(container.id))
             } label: {
@@ -167,7 +168,28 @@ struct ContainerCardView: View {
             }
             .buttonStyle(.plain)
             .help("Stop container")
-        } else {
+
+        case .paused:
+            // Paused containers need unpause - show disabled button until unpause is implemented
+            Image(systemName: "playpause.fill")
+                .font(.system(size: 10))
+                .frame(width: 24, height: 24)
+                .background(Color.yellow.opacity(0.15))
+                .foregroundStyle(.yellow.opacity(0.5))
+                .clipShape(Circle())
+                .help("Container is paused")
+
+        case .restarting:
+            // Container is restarting - show loading indicator
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 10))
+                .frame(width: 24, height: 24)
+                .background(Color.orange.opacity(0.15))
+                .foregroundStyle(.orange.opacity(0.5))
+                .clipShape(Circle())
+                .help("Container is restarting")
+
+        case .exited, .dead, .created, .removing:
             Button {
                 onAction(.start(container.id))
             } label: {

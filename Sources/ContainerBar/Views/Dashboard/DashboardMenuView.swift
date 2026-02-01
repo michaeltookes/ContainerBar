@@ -375,23 +375,44 @@ struct HostPanelView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(newHostAddress.isEmpty)
+                .disabled(!isNewHostValid)
             }
             .padding(.top, 4)
         }
         .padding(16)
     }
 
+    private var isNewHostValid: Bool {
+        let trimmedHost = newHostAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPort = newHostPort.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Host must be non-empty
+        guard !trimmedHost.isEmpty else { return false }
+
+        // Port must be valid if provided
+        if !trimmedPort.isEmpty {
+            guard let port = Int(trimmedPort), (1...65535).contains(port) else { return false }
+        }
+
+        return true
+    }
+
     private func saveNewHost() {
-        let name = newHostName.isEmpty ? "Remote Host" : newHostName
-        let port = Int(newHostPort) ?? 22
+        let trimmedName = newHostName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedHost = newHostAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUser = newHostUser.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPort = newHostPort.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let name = trimmedName.isEmpty ? "Remote Host" : trimmedName
+        let port = trimmedPort.isEmpty ? 22 : (Int(trimmedPort) ?? 22)
+        let user = trimmedUser.isEmpty ? "root" : trimmedUser
 
         let newHost = DockerHost(
             name: name,
             connectionType: .ssh,
             isDefault: false,
-            host: newHostAddress,
-            sshUser: newHostUser.isEmpty ? "root" : newHostUser,
+            host: trimmedHost,
+            sshUser: user,
             sshPort: port
         )
 

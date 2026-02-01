@@ -100,12 +100,13 @@ struct GeneralStatsGrid: View {
     private func formatMemoryLimit(_ metrics: ContainerMetricsSnapshot?) -> String? {
         guard let metrics, metrics.totalMemoryLimitMB > 0 else { return nil }
 
-        let limitGB = metrics.totalMemoryLimitMB / 1024
-
+        // Use GB if used memory is >= 1 GB, otherwise use MB
         if metrics.totalMemoryUsedMB >= 1024 {
+            let limitGB = metrics.totalMemoryLimitMB / 1024
             return String(format: "GB / %.0f GB", limitGB)
+        } else {
+            return String(format: "MB / %.0f MB", metrics.totalMemoryLimitMB)
         }
-        return "MB"
     }
 
     private func formatRate(_ kbPerSec: Double) -> String {

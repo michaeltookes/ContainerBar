@@ -29,6 +29,7 @@ struct DashboardHeaderView: View {
                 HeaderButton(
                     icon: "arrow.clockwise",
                     isSpinning: isRefreshing,
+                    accessibilityLabel: "Refresh containers",
                     action: onRefresh
                 )
                 .disabled(isRefreshing)
@@ -37,18 +38,21 @@ struct DashboardHeaderView: View {
                 HeaderButton(
                     icon: "magnifyingglass",
                     isActive: isSearching,
+                    accessibilityLabel: isSearching ? "Close search" : "Search containers",
                     action: onSearch
                 )
                 .help(isSearching ? "Close search" : "Search containers")
 
                 HeaderButton(
                     icon: "power",
+                    accessibilityLabel: "Quit ContainerBar",
                     action: onQuit
                 )
                 .help("Quit ContainerBar")
 
                 HeaderButton(
                     icon: "gear",
+                    accessibilityLabel: "Settings",
                     action: onSettings
                 )
                 .help("Settings")
@@ -77,6 +81,7 @@ struct HeaderButton: View {
     let icon: String
     var isSpinning: Bool = false
     var isActive: Bool = false
+    var accessibilityLabel: String = ""
     let action: () -> Void
 
     @State private var isHovered = false
@@ -98,6 +103,7 @@ struct HeaderButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
                 isHovered = hovering
