@@ -124,6 +124,11 @@ final class StatusItemController: NSObject {
         }
     }
 
+    private func closeMenuIfOpen() {
+        statusItem.menu?.cancelTracking()
+    }
+
+
     // MARK: - Icon Updates
 
     private func updateIcon() {
@@ -536,24 +541,28 @@ final class StatusItemController: NSObject {
     // MARK: - Container Actions
 
     private func handleContainerAction(_ action: ContainerAction) {
+        print("StatusItemController: handleContainerAction called with \(action)")
         switch action {
         case .start(let id):
             logger.info("Starting container: \(id)")
             Task {
                 await containerStore.startContainer(id: id)
             }
+            reopenMenu()
 
         case .stop(let id):
             logger.info("Stopping container: \(id)")
             Task {
                 await containerStore.stopContainer(id: id)
             }
+            reopenMenu()
 
         case .restart(let id):
             logger.info("Restarting container: \(id)")
             Task {
                 await containerStore.restartContainer(id: id)
             }
+            reopenMenu()
 
         case .remove(let id):
             logger.info("Remove requested for container: \(id)")
@@ -566,6 +575,8 @@ final class StatusItemController: NSObject {
 
         case .viewLogs(let id):
             logger.info("View logs requested for container: \(id)")
+            print("StatusItemController: About to show logs for \(id)")
+            closeMenuIfOpen()
             showLogViewer(for: id)
         }
     }
@@ -607,8 +618,10 @@ final class StatusItemController: NSObject {
     }
 
     private func showLogViewer(for containerId: String) {
+        print("StatusItemController: showLogViewer called with \(containerId)")
         guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
             logger.warning("Container not found for log viewer: \(containerId)")
+            print("StatusItemController: container not found for \(containerId)")
             return
         }
 
