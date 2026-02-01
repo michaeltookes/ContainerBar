@@ -32,7 +32,7 @@ struct MetricSparklineCard: View {
             // Header with icon and title
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 10, weight: .light))
                     .foregroundStyle(tint)
 
                 Text(title)
@@ -70,7 +70,7 @@ struct MetricSparklineCard: View {
             // Glowing colored bar at bottom
             RoundedRectangle(cornerRadius: 2)
                 .fill(tint)
-                .frame(height: 3)
+                .frame(height: 2)
                 .padding(.horizontal, 8)
                 .padding(.bottom, 6)
                 .shadow(color: tint.opacity(0.6), radius: 4, y: 0)
@@ -102,7 +102,7 @@ struct MetricSparklineCard: View {
                     y: .value("Value", point.value)
                 )
                 .foregroundStyle(tint)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .lineStyle(StrokeStyle(lineWidth: 0.8, lineCap: .round, lineJoin: .round))
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
