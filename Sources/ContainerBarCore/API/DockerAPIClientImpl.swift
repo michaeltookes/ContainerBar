@@ -46,8 +46,19 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             }
             let sshPort = host.sshPort ?? 22
 
-            // Create SSH tunnel
-            let tunnel = SSHTunnelConnection(host: remoteHost, user: sshUser, port: sshPort)
+            // Determine the remote socket path based on runtime
+            // Use configured socketPath if provided, otherwise use runtime default for Linux servers
+            let remoteSocketPath = (host.socketPath?.isEmpty == false)
+                ? host.socketPath!
+                : host.runtime.defaultRemoteSocketPath
+
+            // Create SSH tunnel to the remote socket
+            let tunnel = SSHTunnelConnection(
+                host: remoteHost,
+                user: sshUser,
+                port: sshPort,
+                remoteSocketPath: remoteSocketPath
+            )
             let localSocket = try tunnel.connect()
 
             self.sshTunnel = tunnel

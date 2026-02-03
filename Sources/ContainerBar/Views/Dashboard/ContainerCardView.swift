@@ -12,11 +12,13 @@ struct ContainerCardView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .shadow(color: statusColor.opacity(0.4), radius: 2)
+            // Service icon with status indicator
+            ServiceIcon(
+                container: container,
+                size: 28,
+                showStatusIndicator: true,
+                showRuntimeBadge: container.runtime == .podman
+            )
 
             // Container info
             VStack(alignment: .leading, spacing: 4) {
@@ -248,20 +250,34 @@ extension DockerContainer {
 #Preview {
     VStack(spacing: 4) {
         ContainerCardView(
-            container: .mock(name: "nginx-proxy", state: .running),
+            container: .mock(name: "nginx-proxy", image: "nginx:alpine", state: .running),
             stats: .mock(cpuPercent: 2.3, memoryUsageBytes: 134_217_728),
             onAction: { _ in }
         )
 
         ContainerCardView(
-            container: .mock(name: "postgres-db", state: .running),
+            container: .mock(name: "grafana", image: "grafana/grafana:latest", state: .running),
             stats: .mock(cpuPercent: 15.2, memoryUsageBytes: 512_000_000),
             onAction: { _ in }
         )
 
+        // Podman container example with service icon
         ContainerCardView(
-            container: .mock(name: "backup-service", state: .exited, status: "Exited (0) 2 hours ago"),
+            container: .mock(name: "traefik-proxy", image: "traefik:v2.10", state: .running, runtime: .podman),
+            stats: .mock(cpuPercent: 5.1, memoryUsageBytes: 256_000_000),
+            onAction: { _ in }
+        )
+
+        ContainerCardView(
+            container: .mock(name: "plex-media", image: "linuxserver/plex:latest", state: .exited, status: "Exited (0) 2 hours ago"),
             stats: nil,
+            onAction: { _ in }
+        )
+
+        // Generic container without known icon
+        ContainerCardView(
+            container: .mock(name: "custom-app", image: "mycompany/myapp:v1", state: .running),
+            stats: .mock(cpuPercent: 1.2, memoryUsageBytes: 64_000_000),
             onAction: { _ in }
         )
     }

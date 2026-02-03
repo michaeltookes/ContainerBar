@@ -14,8 +14,13 @@ struct ContainerRowView: View {
         VStack(alignment: .leading, spacing: 4) {
             // Main row
             HStack(spacing: 8) {
-                // Status indicator
-                statusIndicator
+                // Service icon with status
+                ServiceIcon(
+                    container: container,
+                    size: 20,
+                    showStatusIndicator: true,
+                    showRuntimeBadge: container.runtime == .podman
+                )
 
                 // Container name
                 Text(container.displayName)
@@ -64,25 +69,7 @@ struct ContainerRowView: View {
         .accessibilityHint("Click for details, use Container Actions menu for controls")
     }
 
-    // MARK: - Subviews
-
-    private var statusIndicator: some View {
-        Circle()
-            .fill(statusColor)
-            .frame(width: 8, height: 8)
-    }
-
     // MARK: - Computed Properties
-
-    private var statusColor: Color {
-        switch container.state {
-        case .running: return .green
-        case .paused: return .yellow
-        case .restarting: return .orange
-        case .exited, .dead: return .red
-        case .created, .removing: return .gray
-        }
-    }
 
     /// Hover background color based on container state
     private var hoverColor: Color {
@@ -119,6 +106,24 @@ struct ContainerRowView: View {
 }
 
 // MARK: - Supporting Views
+
+/// Runtime badge showing Docker or Podman icon
+struct RuntimeBadge: View {
+    let runtime: ContainerRuntime
+
+    var body: some View {
+        Image(systemName: runtime.badgeIconName)
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(badgeColor)
+    }
+
+    private var badgeColor: Color {
+        switch runtime {
+        case .docker: return .blue
+        case .podman: return .purple
+        }
+    }
+}
 
 /// Container state badge
 struct StatusBadge: View {
