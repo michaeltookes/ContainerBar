@@ -89,14 +89,8 @@ struct ServiceIcon: View {
     // MARK: - Icon Loading
 
     private func loadServiceIcon(named name: String) -> NSImage? {
-        // Try to load from bundle resources
-        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "ServiceIcons"),
-           let image = NSImage(contentsOf: url) {
-            return image
-        }
-
-        // Try without subdirectory (flat Resources folder after processing)
-        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+        // Load from SPM bundle (resources are flattened by .process())
+        if let url = Bundle.module.url(forResource: name, withExtension: "png"),
            let image = NSImage(contentsOf: url) {
             return image
         }

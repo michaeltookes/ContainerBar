@@ -17,8 +17,8 @@ struct ServiceIconResolver {
     // MARK: - Initialization
 
     private init() {
-        // Load mappings from bundled JSON
-        if let url = Bundle.main.url(forResource: "service-icons", withExtension: "json"),
+        // Load mappings from bundled JSON (using Bundle.module for SPM resources)
+        if let url = Bundle.module.url(forResource: "service-icons", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             self.serviceMappings = json["services"] as? [String: String] ?? [:]
@@ -67,9 +67,8 @@ struct ServiceIconResolver {
 
     /// Check if a service icon exists in the bundle
     func hasIcon(named name: String) -> Bool {
-        // Check if we have this icon in our assets
-        return Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "ServiceIcons") != nil
-            || NSImage(named: name) != nil
+        // Check if we have this icon in our assets (using Bundle.module for SPM resources)
+        return Bundle.module.url(forResource: name, withExtension: "png") != nil
     }
 
     // MARK: - Private Helpers

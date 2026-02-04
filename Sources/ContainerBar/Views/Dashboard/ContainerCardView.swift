@@ -15,7 +15,7 @@ struct ContainerCardView: View {
             // Service icon with status indicator
             ServiceIcon(
                 container: container,
-                size: 28,
+                size: 20,
                 showStatusIndicator: true,
                 showRuntimeBadge: container.runtime == .podman
             )
