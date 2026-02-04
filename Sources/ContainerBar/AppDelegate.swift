@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import ContainerBarCore
 import Logging
+import Darwin
 
 /// Application delegate managing the menu bar status item and core services
 @MainActor
@@ -26,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("ContainerBar starting up")
+
+        // Ignore SIGPIPE to prevent crashes when socket connections break
+        // This is essential for network/socket operations
+        signal(SIGPIPE, SIG_IGN)
 
         // Hide dock icon - we're a menu bar app
         NSApp.setActivationPolicy(.accessory)

@@ -49,7 +49,8 @@ public enum ContainerRuntime: String, Codable, CaseIterable, Sendable, Equatable
         case .docker:
             return "/var/run/docker.sock"
         case .podman:
-            return "/run/podman/podman.sock"
+            // Rootless Podman socket (most common for non-root SSH users)
+            return "/run/user/1000/podman/podman.sock"
         }
     }
 
