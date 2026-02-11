@@ -15,5 +15,9 @@
     <!-- Allow DYLD environment variables (needed for some frameworks) -->
     <key>com.apple.security.cs.disable-library-validation</key>
     <false/>
+
+    <!-- Allow outbound network connections (needed for Sparkle auto-updates) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
 </dict>
 </plist>
