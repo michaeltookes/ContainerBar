@@ -1,10 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
     <channel>
         <title>ContainerBar Updates</title>
         <link>https://michaeltookes.github.io/ContainerBar/appcast.xml</link>
         <description>Most recent changes with links to updates for ContainerBar.</description>
         <language>en</language>
         <!-- Release entries will be added here by generate-appcast.sh -->
+        <item>
+            <title>2.0.0</title>
+            <pubDate>Thu, 12 Feb 2026 14:50:48 -0600</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.0/ContainerBar.zip" length="7212447" type="application/octet-stream" sparkle:edSignature="/D6g06IyS7uc6HfEaLU0xajimHeI1JBYrR7SvQ8LIInl96IKIMtl+c7FZVRVwAQkfbb5L9ZZVYqO3ywxfk6NAA=="/>
+        </item>
     </channel>
 </rss>
