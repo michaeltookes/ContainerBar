@@ -138,7 +138,7 @@ Contributions are welcome! Please read the design document at `.claude/agents/DE
 
 ## License
 
-[License to be determined]
+This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
