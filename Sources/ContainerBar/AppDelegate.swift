@@ -2,12 +2,17 @@ import AppKit
 import SwiftUI
 import ContainerBarCore
 import Logging
+import Darwin
+@preconcurrency import Sparkle
 
 /// Application delegate managing the menu bar status item and core services
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Status bar item controller
     private var statusItemController: StatusItemController?
+
+    /// Sparkle auto-update controller
+    private var updaterController: UpdaterController?
 
     /// Container state management
     let containerStore: ContainerStore
@@ -27,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("ContainerBar starting up")
 
+        // Ignore SIGPIPE to prevent crashes when socket connections break
+        // This is essential for network/socket operations
+        signal(SIGPIPE, SIG_IGN)
+
         // Hide dock icon - we're a menu bar app
         NSApp.setActivationPolicy(.accessory)
 
@@ -35,6 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             containerStore: containerStore,
             settingsStore: settingsStore
         )
+
+        // Initialize Sparkle auto-updater
+        updaterController = UpdaterController.shared
 
         // Start initial container fetch
         Task {

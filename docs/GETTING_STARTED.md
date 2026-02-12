@@ -1,13 +1,14 @@
 # Getting Started with ContainerBar
 
-ContainerBar is a lightweight macOS menu bar application for monitoring and managing Docker containers. It works with Docker Desktop on your local machine or connects to remote Docker hosts via SSH.
+ContainerBar is a lightweight macOS menu bar application for monitoring and managing Docker and Podman containers. It works with Docker Desktop or Podman on your local machine, or connects to remote Docker/Podman hosts via SSH.
 
 ## Table of Contents
 
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Connecting to Docker](#connecting-to-docker)
+- [Connecting to Docker or Podman](#connecting-to-docker-or-podman)
   - [Local Docker (Docker Desktop)](#local-docker-docker-desktop)
+  - [Local Podman](#local-podman)
   - [Adding a Remote Host](#adding-a-remote-host)
 - [Using ContainerBar](#using-containerbar)
   - [Menu Bar Icon](#menu-bar-icon)
@@ -22,7 +23,7 @@ ContainerBar is a lightweight macOS menu bar application for monitoring and mana
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
-- Docker Desktop (for local containers) or a remote Docker host accessible via SSH
+- Docker Desktop or Podman (for local containers), or a remote Docker/Podman host accessible via SSH
 
 ## Installation
 
@@ -33,11 +34,23 @@ ContainerBar is a lightweight macOS menu bar application for monitoring and mana
 
 ---
 
-## Connecting to Docker
+## Connecting to Docker or Podman
 
 ### Local Docker (Docker Desktop)
 
 ContainerBar automatically connects to your local Docker Desktop installation. Simply ensure Docker Desktop is running, and ContainerBar will detect it using the default Unix socket (`/var/run/docker.sock`).
+
+### Local Podman
+
+ContainerBar also supports Podman. When adding a local Podman host:
+
+1. Open **Settings** > **Connections**
+2. Click **Add Host**
+3. Select **Podman** as the runtime
+4. The socket path defaults to `~/.local/share/containers/podman/machine/podman.sock`
+5. Click **Add**
+
+ContainerBar automatically uses the correct socket path and API compatibility layer for Podman.
 
 ### Adding a Remote Host
 
@@ -49,19 +62,24 @@ To monitor containers on a remote server:
 
 ![Hosts Menu](images/hosts-menu.png)
 
-4. Fill in your server details:
+4. Select the **Runtime** (Docker or Podman)
+5. Fill in your server details:
    - **Name**: A friendly name for this host (e.g., "My Server")
    - **Host**: The IP address or hostname (e.g., `192.168.1.100` or `myserver.local`)
    - **SSH User**: The SSH username (defaults to `root`)
 
 ![Add Remote Host](images/add-remote-host.png)
 
-5. Click **Add** to save the host
+6. Click **Add** to save the host
+
+The remote socket path is set automatically based on the selected runtime:
+- **Docker**: `/var/run/docker.sock`
+- **Podman**: `/run/user/1000/podman/podman.sock`
 
 ContainerBar connects via SSH tunnel, so ensure:
 - SSH is enabled on the remote host
 - Your SSH keys are configured for passwordless authentication
-- Docker is installed and running on the remote host
+- Docker or Podman is installed and running on the remote host
 
 ---
 
@@ -184,13 +202,15 @@ You can also set a custom global hotkey in Settings to quickly toggle the menu f
 ## Troubleshooting
 
 **ContainerBar shows "Not Connected"**
-- Ensure Docker Desktop is running (for local connections)
-- For remote hosts, verify SSH connectivity and that Docker is running
+- Ensure Docker Desktop or Podman is running (for local connections)
+- For remote hosts, verify SSH connectivity and that Docker/Podman is running
+- Verify the correct runtime is selected in host configuration
 
 **Cannot connect to remote host**
 - Verify SSH keys are set up for passwordless authentication
-- Check that Docker is installed and the Docker daemon is running
+- Check that Docker or Podman is installed and the daemon is running
 - Ensure port 22 (SSH) is accessible
+- For Podman: ensure the Podman socket is enabled (`systemctl --user enable --now podman.socket`)
 
 **Container actions not working**
 - Some actions require the container to be in a specific state (e.g., can't stop an already stopped container)

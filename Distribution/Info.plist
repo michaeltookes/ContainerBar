@@ -49,5 +49,11 @@
 
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+
+    <key>SUFeedURL</key>
+    <string>https://michaeltookes.github.io/ContainerBar/appcast.xml</string>
+
+    <key>SUPublicEDKey</key>
+    <string>juNano3Eeq4XsPnbiSyqQ0mk48luI+lIyureRMZmJnI=</string>
 </dict>
 </plist>

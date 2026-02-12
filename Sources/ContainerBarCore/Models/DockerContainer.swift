@@ -1,6 +1,6 @@
 import Foundation
 
-/// Represents a Docker container from the Docker API
+/// Represents a Docker/Podman container from the API
 public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
     public let id: String
     public let names: [String]
@@ -14,9 +14,23 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
     public let labels: [String: String]
     public let networkMode: String?
 
+    /// The runtime this container belongs to (Docker or Podman)
+    public var runtime: ContainerRuntime
+
+    /// The host ID this container belongs to
+    public var hostId: String
+
     /// Primary container name (without leading slash)
     public var displayName: String {
         names.first?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? String(id.prefix(12))
+    }
+
+    /// Returns a copy of this container with the specified runtime and host ID
+    public func with(runtime: ContainerRuntime, hostId: String) -> DockerContainer {
+        var copy = self
+        copy.runtime = runtime
+        copy.hostId = hostId
+        return copy
     }
 
     public init(
@@ -30,7 +44,9 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
         status: String,
         ports: [PortMapping],
         labels: [String: String],
-        networkMode: String?
+        networkMode: String?,
+        runtime: ContainerRuntime = .docker,
+        hostId: String = ""
     ) {
         self.id = id
         self.names = names
@@ -43,6 +59,8 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
         self.ports = ports
         self.labels = labels
         self.networkMode = networkMode
+        self.runtime = runtime
+        self.hostId = hostId
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -57,6 +75,9 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
         case ports = "Ports"
         case labels = "Labels"
         case networkMode = "HostConfig"
+        // These are not from Docker API, but used for local storage
+        case runtime
+        case hostId
     }
 
     public init(from decoder: Decoder) throws {
@@ -83,6 +104,10 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
         } else {
             networkMode = nil
         }
+
+        // Runtime and hostId are set after decoding from API, provide defaults
+        runtime = try container.decodeIfPresent(ContainerRuntime.self, forKey: .runtime) ?? .docker
+        hostId = try container.decodeIfPresent(String.self, forKey: .hostId) ?? ""
     }
 
     private enum HostConfigKeys: String, CodingKey {
@@ -101,6 +126,8 @@ public struct DockerContainer: Codable, Sendable, Identifiable, Equatable {
         try container.encode(status, forKey: .status)
         try container.encode(ports, forKey: .ports)
         try container.encode(labels, forKey: .labels)
+        try container.encode(runtime, forKey: .runtime)
+        try container.encode(hostId, forKey: .hostId)
     }
 }
 
@@ -159,7 +186,9 @@ extension DockerContainer {
         name: String = "test-container",
         image: String = "nginx:latest",
         state: ContainerState = .running,
-        status: String = "Up 2 hours"
+        status: String = "Up 2 hours",
+        runtime: ContainerRuntime = .docker,
+        hostId: String = ""
     ) -> DockerContainer {
         DockerContainer(
             id: id,
@@ -172,7 +201,9 @@ extension DockerContainer {
             status: status,
             ports: [PortMapping(privatePort: 80, publicPort: 8080, type: "tcp", ip: "0.0.0.0")],
             labels: [:],
-            networkMode: "bridge"
+            networkMode: "bridge",
+            runtime: runtime,
+            hostId: hostId
         )
     }
 }

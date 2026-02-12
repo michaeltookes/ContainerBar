@@ -27,5 +27,8 @@ Package.resolved
 .vscode/
 .idea/
 
+# Python
+__pycache__/
+
 # Distribution (if contains signed builds)
 # Distribution/

@@ -1,9 +1,9 @@
 import Foundation
 import Logging
 
-/// Manages SSH tunnel connections to remote Docker hosts
+/// Manages SSH tunnel connections to remote Docker/Podman hosts
 ///
-/// Creates an SSH tunnel that forwards the remote Docker socket to a local socket,
+/// Creates an SSH tunnel that forwards the remote container socket to a local socket,
 /// allowing the standard Unix socket connection to work with remote hosts.
 public final class SSHTunnelConnection: @unchecked Sendable {
 
@@ -12,6 +12,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     private let host: String
     private let user: String
     private let port: Int
+    private let remoteSocketPath: String
     private let logger = Logger(label: "com.containerbar.ssh")
 
     private var tunnelProcess: Process?
@@ -19,10 +20,17 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
     // MARK: - Initialization
 
-    public init(host: String, user: String, port: Int = 22) {
+    /// Creates an SSH tunnel connection
+    /// - Parameters:
+    ///   - host: Remote host address
+    ///   - user: SSH username
+    ///   - port: SSH port (default: 22)
+    ///   - remoteSocketPath: Path to container socket on remote host (default: /var/run/docker.sock)
+    public init(host: String, user: String, port: Int = 22, remoteSocketPath: String = "/var/run/docker.sock") {
         self.host = host
         self.user = user
         self.port = port
+        self.remoteSocketPath = remoteSocketPath
     }
 
     deinit {
@@ -42,10 +50,10 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         // Remove existing socket if present
         try? FileManager.default.removeItem(atPath: localSocket)
 
-        logger.info("Creating SSH tunnel to \(user)@\(host):\(port)")
+        logger.info("Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)")
 
         // Build SSH command for socket forwarding
-        // ssh -nNT -L /local/socket:/var/run/docker.sock user@host
+        // ssh -nNT -L /local/socket:/remote/socket user@host
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = [
@@ -56,7 +64,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             "-o", "ServerAliveInterval=30",           // Keep alive
             "-o", "ServerAliveCountMax=3",
             "-p", String(port),
-            "-L", "\(localSocket):/var/run/docker.sock",
+            "-L", "\(localSocket):\(remoteSocketPath)",
             "\(user)@\(host)"
         ]
 

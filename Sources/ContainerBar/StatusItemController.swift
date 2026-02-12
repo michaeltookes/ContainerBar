@@ -191,7 +191,7 @@ final class StatusItemController: NSObject {
 
         menu.removeAllItems()
 
-        // Main content card (SwiftUI) - this is the only menu item now
+        // Main content card (SwiftUI)
         let cardItem = createCardMenuItem()
         menu.addItem(cardItem)
     }

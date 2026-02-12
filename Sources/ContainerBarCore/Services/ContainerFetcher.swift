@@ -13,6 +13,9 @@ public actor ContainerFetcher {
     private let failureGate: ConsecutiveFailureGate
     private let logger = Logger(label: "com.containerbar.fetcher")
 
+    /// The host this fetcher is connected to
+    public let host: DockerHost
+
     private var lastFetchResult: ContainerFetchResult?
     private var lastFetchTime: Date?
 
@@ -26,8 +29,9 @@ public actor ContainerFetcher {
 
     // MARK: - Initialization
 
-    public init(client: DockerAPIClient) {
+    public init(client: DockerAPIClient, host: DockerHost) {
         self.client = client
+        self.host = host
         self.failureGate = ConsecutiveFailureGate(threshold: 2)
     }
 
@@ -35,14 +39,15 @@ public actor ContainerFetcher {
 
     /// Create a fetcher for the local Docker daemon
     public static func local() throws -> ContainerFetcher {
+        let host = DockerHost.local
         let client = try DockerAPIClientImpl.local()
-        return ContainerFetcher(client: client)
+        return ContainerFetcher(client: client, host: host)
     }
 
     /// Create a fetcher for a specific Docker host
     public static func forHost(_ host: DockerHost) throws -> ContainerFetcher {
         let client = try DockerAPIClientImpl(host: host)
-        return ContainerFetcher(client: client)
+        return ContainerFetcher(client: client, host: host)
     }
 
     // MARK: - Fetching
@@ -62,11 +67,16 @@ public actor ContainerFetcher {
             }
         }
 
-        logger.info("Fetching containers (all=\(all), includeStats=\(includeStats))")
+        logger.info("Fetching containers (all=\(all), includeStats=\(includeStats)) from \(host.name) (\(host.runtime.displayName))")
 
         do {
             // Fetch container list
-            let containers = try await client.listContainers(all: all)
+            let rawContainers = try await client.listContainers(all: all)
+
+            // Tag containers with runtime and host information
+            let containers = rawContainers.map { container in
+                container.with(runtime: host.runtime, hostId: host.id.uuidString)
+            }
 
             // Fetch stats for running containers
             var stats: [String: ContainerStats] = [:]

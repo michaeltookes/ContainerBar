@@ -45,6 +45,18 @@ struct DashboardMenuView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
+            // Host picker (shown when multiple hosts configured)
+            if settings.hosts.count > 1 {
+                HostPickerView(
+                    hosts: settings.hosts,
+                    selectedHostId: settings.selectedHostId,
+                    onSelectHost: { hostId in
+                        settings.selectedHostId = hostId
+                        onHostChanged?()
+                    }
+                )
+            }
+
             Divider()
 
             // Connection status bar (hidden when searching)

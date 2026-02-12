@@ -5,6 +5,9 @@ import Testing
 @Suite("ContainerFetcher Tests")
 struct ContainerFetcherTests {
 
+    /// Test host for use in tests
+    private static let testHost = DockerHost.local
+
     @Test("Fetcher returns containers from client")
     func fetchReturnsContainers() async throws {
         let mock = MockDockerAPIClient()
@@ -14,7 +17,7 @@ struct ContainerFetcherTests {
             DockerContainer.mock(id: "test3", name: "postgres", state: .exited),
         ]
 
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
         let result = try await fetcher.fetch(includeStats: false, all: true)
 
         #expect(result.containers.count == 3)
@@ -32,7 +35,7 @@ struct ContainerFetcherTests {
         ]
         mock.mockStats["running1"] = ContainerStats.mock(containerId: "running1", cpuPercent: 5.0)
 
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
         let result = try await fetcher.fetch(includeStats: true, all: true)
 
         #expect(result.stats.count == 1)
@@ -62,7 +65,7 @@ struct ContainerFetcherTests {
             memoryLimitBytes: 500_000_000
         )
 
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
         let result = try await fetcher.fetch(includeStats: true, all: true)
 
         #expect(result.metrics.runningCount == 2)
@@ -75,7 +78,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher start container calls client")
     func startContainerCallsClient() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         try await fetcher.startContainer(id: "test123")
 
@@ -86,7 +89,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher stop container calls client")
     func stopContainerCallsClient() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         try await fetcher.stopContainer(id: "test123")
 
@@ -96,7 +99,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher restart container calls client")
     func restartContainerCallsClient() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         try await fetcher.restartContainer(id: "test123")
 
@@ -106,7 +109,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher remove container calls client")
     func removeContainerCallsClient() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         try await fetcher.removeContainer(id: "test123", force: true)
 
@@ -116,7 +119,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher get logs calls client")
     func getLogsCallsClient() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         let logs = try await fetcher.getContainerLogs(id: "test123", tail: 100)
 
@@ -127,7 +130,7 @@ struct ContainerFetcherTests {
     @Test("Fetcher test connection calls ping")
     func testConnectionCallsPing() async throws {
         let mock = MockDockerAPIClient()
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         try await fetcher.testConnection()
 
@@ -140,7 +143,7 @@ struct ContainerFetcherTests {
         mock.shouldFail = true
         mock.failureError = DockerAPIError.connectionFailed
 
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         do {
             _ = try await fetcher.fetch(includeStats: false, all: true)
@@ -157,7 +160,7 @@ struct ContainerFetcherTests {
             DockerContainer.mock(id: "test1", name: "nginx", state: .running)
         ]
 
-        let fetcher = ContainerFetcher(client: mock)
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
 
         // First fetch
         _ = try await fetcher.fetch(includeStats: false, all: true)

@@ -59,6 +59,15 @@ struct AboutPane: View {
                 }
             }
 
+            Divider()
+                .frame(maxWidth: 200)
+
+            Button("Check for Updates...") {
+                UpdaterController.shared.checkForUpdates()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+
             Spacer()
                 .frame(minHeight: 20)
 

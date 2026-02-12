@@ -1,10 +1,11 @@
 import Foundation
 
-/// Docker host connection configuration
+/// Docker/Podman host connection configuration
 public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
     public let id: UUID
     public var name: String
     public var connectionType: ConnectionType
+    public var runtime: ContainerRuntime
     public var isDefault: Bool
 
     // Connection details vary by type
@@ -19,6 +20,7 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         id: UUID = UUID(),
         name: String,
         connectionType: ConnectionType,
+        runtime: ContainerRuntime = .docker,
         isDefault: Bool = false,
         socketPath: String? = nil,
         host: String? = nil,
@@ -30,8 +32,9 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         self.id = id
         self.name = name
         self.connectionType = connectionType
+        self.runtime = runtime
         self.isDefault = isDefault
-        self.socketPath = socketPath ?? (connectionType == .unixSocket ? "/var/run/docker.sock" : nil)
+        self.socketPath = socketPath ?? (connectionType == .unixSocket ? runtime.defaultSocketPath : nil)
         self.host = host
         self.port = port
         self.tlsEnabled = tlsEnabled || connectionType == .tcpTLS
@@ -44,8 +47,20 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         DockerHost(
             name: "Local Docker",
             connectionType: .unixSocket,
+            runtime: .docker,
             isDefault: true,
-            socketPath: "/var/run/docker.sock"
+            socketPath: ContainerRuntime.docker.defaultSocketPath
+        )
+    }
+
+    /// Creates a default local Podman host configuration
+    public static var localPodman: DockerHost {
+        DockerHost(
+            name: "Local Podman",
+            connectionType: .unixSocket,
+            runtime: .podman,
+            isDefault: false,
+            socketPath: ContainerRuntime.podman.defaultSocketPath
         )
     }
 }
@@ -111,11 +126,13 @@ extension DockerHost {
     public static func mockRemote(
         name: String = "Remote Server",
         host: String = "192.168.1.100",
-        port: Int = 2376
+        port: Int = 2376,
+        runtime: ContainerRuntime = .docker
     ) -> DockerHost {
         DockerHost(
             name: name,
             connectionType: .tcpTLS,
+            runtime: runtime,
             isDefault: false,
             host: host,
             port: port,

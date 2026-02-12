@@ -69,10 +69,19 @@ struct GeneralSettingsPane: View {
                         .font(.caption)
                     }
                 }
+
+                Toggle("Automatically Check for Updates", isOn: Binding(
+                    get: { UpdaterController.shared.automaticallyChecksForUpdates },
+                    set: { UpdaterController.shared.automaticallyChecksForUpdates = $0 }
+                ))
+
+                Button("Check for Updates...") {
+                    UpdaterController.shared.checkForUpdates()
+                }
             } header: {
                 Text("Startup")
             } footer: {
-                Text("Automatically start ContainerBar when you log in to your Mac.")
+                Text("ContainerBar can start at login and check for updates automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
