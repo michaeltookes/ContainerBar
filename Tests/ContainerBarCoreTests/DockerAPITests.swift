@@ -78,6 +78,48 @@ struct DockerAPITests {
         let serverError = HTTPResponse(statusCode: 500, headers: [:], body: Data())
         #expect(serverError.isSuccess == false)
     }
+
+    @Test("Remote socket path sanitization validates configured SSH socket path")
+    func remoteSocketPathSanitization() {
+        let fallback = "/var/run/docker.sock"
+
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: nil,
+                fallbackPath: fallback
+            ) == fallback
+        )
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: "   ",
+                fallbackPath: fallback
+            ) == fallback
+        )
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: " /run/user/1000/podman/podman.sock ",
+                fallbackPath: fallback
+            ) == "/run/user/1000/podman/podman.sock"
+        )
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: "var/run/docker.sock",
+                fallbackPath: fallback
+            ) == fallback
+        )
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: "/var/run/../docker.sock",
+                fallbackPath: fallback
+            ) == fallback
+        )
+        #expect(
+            DockerAPIClientImpl.validatedRemoteSocketPath(
+                configuredPath: "/var/run/docker.sock\0evil",
+                fallbackPath: fallback
+            ) == fallback
+        )
+    }
 }
 
 @Suite("Mock Docker API Client Tests")

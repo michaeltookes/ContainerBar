@@ -20,6 +20,30 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Initialization
 
+    static func validatedRemoteSocketPath(configuredPath: String?, fallbackPath: String) -> String {
+        guard let configuredPath else {
+            return fallbackPath
+        }
+
+        let trimmedPath = configuredPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            return fallbackPath
+        }
+        guard trimmedPath.hasPrefix("/") else {
+            return fallbackPath
+        }
+        guard !trimmedPath.contains("\0") else {
+            return fallbackPath
+        }
+
+        let pathSegments = trimmedPath.split(separator: "/", omittingEmptySubsequences: true)
+        guard !pathSegments.contains(where: { $0 == ".." }) else {
+            return fallbackPath
+        }
+
+        return trimmedPath
+    }
+
     public init(host: DockerHost) throws {
         self.host = host
 
@@ -46,14 +70,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             }
             let sshPort = host.sshPort ?? 22
 
-            // Determine the remote socket path based on runtime
-            // Use configured socketPath if provided, otherwise use runtime default for Linux servers
-            let remoteSocketPath: String
-            if let configuredPath = host.socketPath, !configuredPath.isEmpty {
-                remoteSocketPath = configuredPath
-            } else {
-                remoteSocketPath = host.runtime.defaultRemoteSocketPath
-            }
+            let remoteSocketPath = Self.validatedRemoteSocketPath(
+                configuredPath: host.socketPath,
+                fallbackPath: host.runtime.defaultRemoteSocketPath
+            )
 
             // Create SSH tunnel to the remote socket
             let tunnel = SSHTunnelConnection(

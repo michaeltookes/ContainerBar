@@ -67,6 +67,7 @@ private struct HostPillButton: View {
         switch host.runtime {
         case .docker: return .blue
         case .podman: return .purple
+        @unknown default: return .secondary
         }
     }
 }

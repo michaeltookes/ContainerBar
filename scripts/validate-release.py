@@ -74,8 +74,9 @@ def check_changelog(version):
 def check_git_tag(version):
     """Verify git tag exists locally."""
     tag = f"v{version}"
-    rc, _ = run(f"git tag -l {tag}")
-    _, tags = run(f"git tag -l {tag}")
+    rc, tags = run(f"git tag -l {tag}")
+    if rc != 0:
+        tags = ""
     check("Git tag exists", tag in tags.split("\n"), tag)
 
 
@@ -127,7 +128,6 @@ def check_notarization():
         check("App notarization valid", False, f"app not found: {APP_BUNDLE}")
         return
 
-    rc, output = run(f'spctl --assess --verbose=2 "{APP_BUNDLE}"')
     # spctl outputs to stderr
     result = subprocess.run(
         ["spctl", "--assess", "--verbose=2", APP_BUNDLE],
