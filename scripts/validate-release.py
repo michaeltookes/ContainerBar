@@ -121,14 +121,19 @@ def check_appcast(version):
 
         root = ET.fromstring(data)
         namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
-        sparkle_short_version_attr = f"{{{namespaces['sparkle']}}}shortVersionString"
+        sparkle_ns = namespaces["sparkle"]
 
         found = False
-        for enclosure in root.findall(".//enclosure"):
-            short_version = enclosure.get(sparkle_short_version_attr)
-            if short_version == version:
+        # Check both child elements and enclosure attributes
+        for item in root.findall(".//item"):
+            svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
+            if svs_elem is not None and svs_elem.text == version:
                 found = True
                 break
+            for enclosure in item.findall("enclosure"):
+                if enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
+                    found = True
+                    break
 
         check("Appcast contains version", found, f"v{version}")
     except Exception as e:
