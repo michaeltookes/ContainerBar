@@ -40,8 +40,10 @@ def check(label, condition, detail=""):
 
 
 def run(cmd):
-    """Run a shell command, return (returncode, stdout)."""
-    result = subprocess.run(cmd, capture_output=True, text=True, shell=isinstance(cmd, str))
+    """Run a command argv sequence without a shell, return (returncode, stdout)."""
+    if isinstance(cmd, str):
+        raise TypeError("run() expects an argv sequence, not a shell command string")
+    result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
     return result.returncode, result.stdout.strip()
 
 
@@ -74,7 +76,7 @@ def check_changelog(version):
 def check_git_tag(version):
     """Verify git tag exists locally."""
     tag = f"v{version}"
-    rc, tags = run(f"git tag -l {tag}")
+    rc, tags = run(["git", "tag", "-l", tag])
     if rc != 0:
         tags = ""
     check("Git tag exists", tag in tags.split("\n"), tag)
@@ -97,11 +99,13 @@ def check_homebrew_cask(version):
 def check_github_release(version):
     """Verify GitHub release exists and has the zip asset."""
     tag = f"v{version}"
-    rc, output = run(f"gh release view {tag} --repo {GITHUB_REPO}")
+    rc, _ = run(["gh", "release", "view", tag, "--repo", GITHUB_REPO])
     check("GitHub release exists", rc == 0, tag)
 
     if rc == 0:
-        rc2, assets = run(f"gh release view {tag} --repo {GITHUB_REPO} --json assets -q '.assets[].name'")
+        _, assets = run(
+            ["gh", "release", "view", tag, "--repo", GITHUB_REPO, "--json", "assets", "-q", ".assets[].name"]
+        )
         has_zip = "ContainerBar.zip" in assets
         check("Release asset ContainerBar.zip uploaded", has_zip)
     else:
@@ -113,10 +117,19 @@ def check_appcast(version):
     try:
         req = urllib.request.Request(APPCAST_URL, headers={"User-Agent": "validate-release/1.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
-            data = resp.read().decode("utf-8")
+            data = resp.read()
 
-        # Sparkle uses sparkle:shortVersionString attribute in enclosure elements
-        found = version in data
+        root = ET.fromstring(data)
+        namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+        sparkle_short_version_attr = f"{{{namespaces['sparkle']}}}shortVersionString"
+
+        found = False
+        for enclosure in root.findall(".//enclosure"):
+            short_version = enclosure.get(sparkle_short_version_attr)
+            if short_version == version:
+                found = True
+                break
+
         check("Appcast contains version", found, f"v{version}")
     except Exception as e:
         check("Appcast contains version", False, str(e))
