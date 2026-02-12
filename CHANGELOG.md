@@ -5,6 +5,28 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Podman Support**: Full Podman container runtime support alongside Docker
+  - Auto-detection of runtime-specific defaults (socket paths, API compatibility)
+  - Runtime selector in host configuration for Docker or Podman
+  - SSH connections use correct remote socket path per runtime
+- **Service Icons**: Visual service type icons (database, web server, cache, etc.) displayed on container cards
+- **Host Picker**: Quick host switching directly from the dashboard without navigating to Settings
+- **Sparkle Auto-Updates**: Automatic update checking with in-app update notifications
+
+### Changed
+- "Check for Updates" moved from dropdown menu to Settings > General
+- Connection settings now support runtime-specific socket path defaults
+- Host configuration saves SSH socket path correctly per runtime
+
+### Fixed
+- Service icon loading from bundled resources
+- Reduced icon sizes for better visual consistency
+- SSH socket path saving now persists correctly between sessions
+- Force unwrap replaced with safe optional binding in SSH connection setup
+
 ## [1.1.0] - 2025-01-31
 
 ### Added

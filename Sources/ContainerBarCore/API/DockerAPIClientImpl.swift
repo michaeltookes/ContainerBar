@@ -48,9 +48,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
             // Determine the remote socket path based on runtime
             // Use configured socketPath if provided, otherwise use runtime default for Linux servers
-            let remoteSocketPath = (host.socketPath?.isEmpty == false)
-                ? host.socketPath!
-                : host.runtime.defaultRemoteSocketPath
+            let remoteSocketPath: String
+            if let configuredPath = host.socketPath, !configuredPath.isEmpty {
+                remoteSocketPath = configuredPath
+            } else {
+                remoteSocketPath = host.runtime.defaultRemoteSocketPath
+            }
 
             // Create SSH tunnel to the remote socket
             let tunnel = SSHTunnelConnection(

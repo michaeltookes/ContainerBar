@@ -1,14 +1,14 @@
 # ContainerBar
 
-A lightweight macOS menu bar application for Docker container monitoring and management.
+A lightweight macOS menu bar application for Docker and Podman container monitoring and management.
 
 ![ContainerBar Screenshot](docs/images/full-view.png)
 
 ## Overview
 
-ContainerBar provides instant access to Docker container status directly from your macOS menu bar. Monitor running containers, view real-time CPU and memory metrics, and perform quick management actions—all without opening a browser or terminal.
+ContainerBar provides instant access to Docker and Podman container status directly from your macOS menu bar. Monitor running containers, view real-time CPU and memory metrics, and perform quick management actions—all without opening a browser or terminal.
 
-Works seamlessly with **Docker Desktop** on your local machine or connects to **remote Docker hosts** via SSH.
+Works seamlessly with **Docker Desktop** or **Podman** on your local machine, or connects to **remote Docker/Podman hosts** via SSH.
 
 ## Why ContainerBar?
 
@@ -17,16 +17,20 @@ This project was inspired by [Peter Steinberger's](https://github.com/steipete) 
 ## Features
 
 - **Menu Bar Access**: View container status at a glance from your menu bar
+- **Docker & Podman**: Full support for both container runtimes with automatic defaults
 - **Real-time Metrics**: Monitor CPU, memory usage across all containers
+- **Service Icons**: Visual icons identifying container types (databases, web servers, caches, etc.)
 - **Quick Actions**: Start, stop, restart, view logs, and remove containers with one click
-- **Multiple Hosts**: Connect to local Docker Desktop or remote Docker hosts via SSH
+- **Multiple Hosts**: Connect to local Docker Desktop/Podman or remote hosts via SSH
+- **Host Picker**: Quickly switch between hosts directly from the dashboard
 - **Container Details**: View image, ports, network, and resource usage per container
+- **Auto-Updates**: Built-in update checking via Sparkle
 - **Native Experience**: Built with Swift and SwiftUI for a true macOS-native feel
 
 ## Requirements
 
 - macOS 14 (Sonoma) or later
-- Docker Desktop (for local containers) or a remote Docker host accessible via SSH
+- Docker Desktop or Podman (for local containers), or a remote Docker/Podman host accessible via SSH
 
 ## Installation
 
@@ -61,17 +65,18 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 ### Quick Start
 
 1. Launch ContainerBar — the icon appears in your menu bar
-2. If Docker Desktop is running, ContainerBar connects automatically
+2. If Docker Desktop or Podman is running, ContainerBar connects automatically
 3. Click the menu bar icon to see your containers
 
 ### Adding a Remote Host
 
 1. Click the ContainerBar icon in your menu bar
 2. Hover over **Hosts** → click **Add Host...**
-3. Enter a name, hostname/IP, and SSH user
-4. Click **Add**
+3. Select the runtime (**Docker** or **Podman**)
+4. Enter a name, hostname/IP, and SSH user
+5. Click **Add**
 
-> **Note**: SSH key-based authentication must be configured for remote connections.
+> **Note**: SSH key-based authentication must be configured for remote connections. The correct remote socket path is set automatically based on the selected runtime.
 
 
 ## Development
