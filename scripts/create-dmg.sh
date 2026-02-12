@@ -7,13 +7,15 @@ set -e
 
 # Configuration
 APP_NAME="ContainerBar"
-VERSION="1.0.0"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
+
+# Read version from Info.plist (single source of truth)
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DIST_DIR/Info.plist")
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
 DMG_OUTPUT="$OUTPUT_DIR/$APP_NAME.dmg"
 BACKGROUND_IMG="$DIST_DIR/dmg-background.png"

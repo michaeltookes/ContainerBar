@@ -214,6 +214,19 @@ create_zip() {
     echo "  ✓ Created: $OUTPUT_DIR/$APP_NAME.zip"
 }
 
+# Create a DMG for distribution
+create_dmg() {
+    echo_step "Creating DMG for distribution..."
+
+    if ! command -v create-dmg &> /dev/null; then
+        echo_warning "create-dmg not installed (brew install create-dmg). Skipping DMG creation."
+        return
+    fi
+
+    "$SCRIPT_DIR/create-dmg.sh"
+    echo "  ✓ Created: $OUTPUT_DIR/$APP_NAME.dmg"
+}
+
 # Print summary
 summary() {
     echo ""
@@ -224,6 +237,9 @@ summary() {
     echo "Output files:"
     echo "  App Bundle: $APP_BUNDLE"
     echo "  Zip File:   $OUTPUT_DIR/$APP_NAME.zip"
+    if [ -f "$OUTPUT_DIR/$APP_NAME.dmg" ]; then
+        echo "  DMG File:   $OUTPUT_DIR/$APP_NAME.dmg"
+    fi
     echo ""
     echo "Next steps:"
     echo "  1. Run: ./scripts/notarize.sh"
@@ -247,6 +263,7 @@ main() {
     sign
     verify
     create_zip
+    create_dmg
     summary
 }
 

@@ -13,10 +13,11 @@ swift test               # run test suite
 
 ## Project Structure
 
-- `Sources/ContainerBar/` — macOS app (views, stores, controllers)
+- `Sources/ContainerBar/` — macOS app (views, stores, controllers, services)
 - `Sources/ContainerBarCore/` — business logic library (API, models, services)
+- `Tests/` — unit tests (Swift Testing + XCTest)
 - `Distribution/` — Info.plist, entitlements, app icon
-- `scripts/` — build, notarize, DMG, appcast scripts
+- `scripts/` — build, notarize, appcast, validation scripts
 - `docs/` — user guide, appcast.xml (GitHub Pages)
 
 ## Architecture
@@ -30,6 +31,7 @@ UI (SwiftUI/AppKit) -> ContainerStore (@Observable) -> ContainerFetcher (actor) 
 - Protocol-based abstractions for API clients
 - NSHostingView for embedding SwiftUI in AppKit menus
 - Keep files under 300 lines
+- Never hardcode values that can be read dynamically (versions, paths, config)
 
 ## Branch Strategy
 
