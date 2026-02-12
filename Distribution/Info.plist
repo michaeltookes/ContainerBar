@@ -2,58 +2,41 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-
-    <key>CFBundleExecutable</key>
-    <string>ContainerBar</string>
-
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-
-    <key>CFBundleIdentifier</key>
-    <string>com.tookes.ContainerBar</string>
-
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-
-    <key>CFBundleName</key>
-    <string>ContainerBar</string>
-
-    <key>CFBundleDisplayName</key>
-    <string>ContainerBar</string>
-
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-
-    <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
-
-    <key>CFBundleVersion</key>
-    <string>2</string>
-
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.developer-tools</string>
-
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-
-    <key>LSUIElement</key>
-    <true/>
-
-    <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024 Michael Tookes. All rights reserved.</string>
-
-    <key>NSHighResolutionCapable</key>
-    <true/>
-
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-
-    <key>SUFeedURL</key>
-    <string>https://michaeltookes.github.io/ContainerBar/appcast.xml</string>
-
-    <key>SUPublicEDKey</key>
-    <string>juNano3Eeq4XsPnbiSyqQ0mk48luI+lIyureRMZmJnI=</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>ContainerBar</string>
+	<key>CFBundleExecutable</key>
+	<string>ContainerBar</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.tookes.ContainerBar</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>ContainerBar</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>3</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 Michael Tookes. All rights reserved.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://michaeltookes.github.io/ContainerBar/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>juNano3Eeq4XsPnbiSyqQ0mk48luI+lIyureRMZmJnI=</string>
 </dict>
 </plist>

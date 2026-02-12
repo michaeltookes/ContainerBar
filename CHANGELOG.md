@@ -5,7 +5,7 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2025-02-11
 
 ### Added
 - **Podman Support**: Full Podman container runtime support alongside Docker
@@ -15,17 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Service Icons**: Visual service type icons (database, web server, cache, etc.) displayed on container cards
 - **Host Picker**: Quick host switching directly from the dashboard without navigating to Settings
 - **Sparkle Auto-Updates**: Automatic update checking with in-app update notifications
+- **MIT License**: Project is now open source under the MIT License
 
 ### Changed
 - "Check for Updates" moved from dropdown menu to Settings > General
 - Connection settings now support runtime-specific socket path defaults
-- Host configuration saves SSH socket path correctly per runtime
+- Updated General Stats card styling
+- Documentation updated to reflect Docker and Podman support
 
 ### Fixed
 - Service icon loading from bundled resources
 - Reduced icon sizes for better visual consistency
 - SSH socket path saving now persists correctly between sessions
 - Force unwrap replaced with safe optional binding in SSH connection setup
+- Sparkle updater disabled in debug builds to prevent signing errors
 
 ## [1.1.0] - 2025-01-31
 
@@ -73,5 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
+[2.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v2.0.0
 [1.1.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.1.0
 [1.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.0.0
