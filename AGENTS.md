@@ -4,9 +4,9 @@
 
 # ContainerBar Project - Master Agent Coordinator
 
-**Version**: 2.0  
+**Version**: 2.1  
 **Project**: ContainerBar - macOS Menu Bar Docker/Podman Monitor  
-**Last Updated**: February 11, 2026
+**Last Updated**: February 12, 2026
 
 ---
 
@@ -21,7 +21,8 @@ ContainerBar is no longer in initial scaffolding. This repo is in active product
 - Architecture is implemented across `ContainerBar` (app) and `ContainerBarCore` (library)
 - Shipping features include local Unix socket + remote SSH tunnel connectivity
 - Sparkle update and release automation scripts are present
-- `CHANGELOG.md` shows public releases through `1.1.0`
+- Current stable release baseline: `2.0.0` (build `3`)
+- `CHANGELOG.md` shows public releases through `2.0.0`
 - Test suite is active via `swift test`
 
 ## Canonical References
@@ -130,6 +131,7 @@ If needed for a task, create additional logs in this folder (for example `securi
 - Keep responsibilities narrow and code readable
 - Keep files reasonably small (target: under ~300 lines unless justified)
 - Comments explain intent/why, not obvious mechanics
+- Do not hard-code values when they can be sourced dynamically from configuration, metadata, environment, or system APIs
 
 ---
 
@@ -162,6 +164,12 @@ If needed for a task, create additional logs in this folder (for example `securi
 - Appcast file: `docs/appcast.xml`
 - Validation script: `./scripts/validate-release.py`
 
+### Current Release Baseline
+
+- Latest released version: `2.0.0`
+- Release date: `2025-02-11`
+- Current bundle build number: `3`
+
 ---
 
 ## Working Agreement
@@ -173,4 +181,3 @@ All agents commit to:
 3. Preserve existing user-visible behavior unless change is explicit.
 4. Never trade away security for convenience.
 5. Test changes and document material decisions.
-
