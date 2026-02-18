@@ -67,3 +67,19 @@ Referenced by the `/release-prep` skill:
 | Homebrew cask URL template | `https://github.com/michaeltookes/ContainerBar/releases/download/v{VERSION}/ContainerBar.zip` |
 | Notarization keychain profile | `ContainerBar-Notarize` |
 | Validation script | `./scripts/validate-release.py` |
+
+## Backlog Management
+
+This project's backlog is tracked at: `/Users/michaeltookes/Desktop/Backlogs/projects/containerbar-backlog.md`
+
+When you complete work that corresponds to a backlog item:
+- Read the backlog file and find the matching item
+- Move it to the `## Completed` section with the date: `(completed: YYYY-MM-DD)`
+- Re-number remaining items if needed
+
+When you discover new bugs, tech debt, or feature opportunities:
+- Read the backlog file
+- Add the item to the appropriate priority tier (High / Medium / Low)
+- Use the existing format: numbered, bold title, indented description
+
+If the backlog file doesn't exist yet, create it in the `projects/` folder using the template at `/Users/michaeltookes/Desktop/Backlogs/backlog-template.md`.

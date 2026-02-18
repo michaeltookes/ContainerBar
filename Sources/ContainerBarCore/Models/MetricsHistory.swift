@@ -2,12 +2,12 @@ import Foundation
 
 /// A single data point for sparkline charts
 public struct MetricsDataPoint: Sendable, Identifiable {
-    public let id: UUID
+    public let id: Int
     public let timestamp: Date
     public let value: Double
 
-    public init(value: Double, timestamp: Date = Date()) {
-        self.id = UUID()
+    public init(id: Int, value: Double, timestamp: Date = Date()) {
+        self.id = id
         self.timestamp = timestamp
         self.value = value
     }
@@ -16,6 +16,7 @@ public struct MetricsDataPoint: Sendable, Identifiable {
 /// Rolling history of metric values for sparkline display
 public struct MetricsHistory: Sendable {
     private var points: [MetricsDataPoint]
+    private var nextId: Int = 0
     public let maxPoints: Int
 
     public init(maxPoints: Int = 30) {
@@ -25,7 +26,8 @@ public struct MetricsHistory: Sendable {
 
     /// Append a new value, removing oldest if at capacity
     public mutating func append(_ value: Double) {
-        let point = MetricsDataPoint(value: value)
+        let point = MetricsDataPoint(id: nextId, value: value)
+        nextId += 1
         points.append(point)
 
         if points.count > maxPoints {

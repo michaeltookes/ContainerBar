@@ -345,14 +345,9 @@ final class StatusItemController: NSObject {
 
         let hostingView = NSHostingView(rootView: dashboardView)
 
-        // Calculate height based on content
-        // Base: header(~50) + status bar(~50) + stats grid(~120) + container section(~350) + action bar(~50)
-        let baseHeight: CGFloat = 620
-        // Adjust based on container count (max 500pt for scroll area)
-        let containerCount = containerStore.containers.count
-        let adjustedHeight = containerCount == 0 ? 420 : min(baseHeight, 680)
-
-        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: adjustedHeight)
+        // Let SwiftUI compute the actual content height, clamped to a reasonable range
+        let fittingHeight = min(max(hostingView.fittingSize.height, 300), 700)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: fittingHeight)
 
         item.view = hostingView
         return item
@@ -669,7 +664,11 @@ extension StatusItemController: NSMenuDelegate {
             // Rebuild menu with fresh content
             self.rebuildMenu()
 
-            // Refresh data when menu opens
+            // Yield to let AppKit finish menu layout and SwiftUI complete
+            // its initial render pass before mutating @Observable state
+            await Task.yield()
+
+            // Refresh data when menu opens (now a safe incremental update)
             await self.containerStore.refresh()
         }
     }
