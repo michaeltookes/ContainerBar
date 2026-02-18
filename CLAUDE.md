@@ -63,7 +63,7 @@ Referenced by the `/release-prep` skill:
 | Sparkle appcast URL | `https://michaeltookes.github.io/ContainerBar/appcast.xml` |
 | Sparkle appcast file | `docs/appcast.xml` |
 | Homebrew cask file | `containerbar.rb` (in homebrew-tap repo) |
-| Homebrew tap location | `~/Desktop/homebrew-tap/` |
+| Homebrew tap location | `~/Desktop/Current Projects/homebrew-tap/` |
 | Homebrew cask URL template | `https://github.com/michaeltookes/ContainerBar/releases/download/v{VERSION}/ContainerBar.zip` |
 | Notarization keychain profile | `ContainerBar-Notarize` |
 | Validation script | `./scripts/validate-release.py` |
