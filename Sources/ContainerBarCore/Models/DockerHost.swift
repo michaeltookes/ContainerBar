@@ -110,7 +110,7 @@ public struct DockerSystemInfo: Codable, Sendable {
         case containersPaused = "ContainersPaused"
         case containersStopped = "ContainersStopped"
         case images = "Images"
-        case dockerVersion = "DockerRootDir"
+        case dockerVersion = "DockerVersion"
         case operatingSystem = "OperatingSystem"
         case kernelVersion = "KernelVersion"
         case architecture = "Architecture"
