@@ -85,6 +85,17 @@ public final class ContainerStore {
         startSettingsObservation()
     }
 
+    #if DEBUG
+    /// Test-only initializer that accepts a pre-built fetcher and skips auto-refresh
+    public init(settings: SettingsStore, fetcher: ContainerFetcher, startRefreshLoop: Bool = false) {
+        self.settings = settings
+        self.fetcher = fetcher
+        if startRefreshLoop {
+            startTimer()
+        }
+    }
+    #endif
+
     deinit {
         timerTask?.cancel()
         settingsObservationTask?.cancel()
