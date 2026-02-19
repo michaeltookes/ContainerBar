@@ -51,6 +51,8 @@ public struct MetricsHistory: Sendable {
     }
 
     /// Clear all history
+    /// Note: `nextId` is intentionally not reset to avoid ID collisions
+    /// with points that may still be referenced by in-flight SwiftUI renders.
     public mutating func clear() {
         points.removeAll()
     }
