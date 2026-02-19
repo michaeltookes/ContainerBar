@@ -18,6 +18,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     // Connection management
     private var connection: UnixSocketConnection?
     private var sshTunnel: SSHTunnelConnection?
+    private var tlsConnection: TLSConnection?
     private var effectiveSocketPath: String?
     private let connectionLock = NSLock()
 
@@ -62,7 +63,17 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             self.effectiveSocketPath = socketPath
 
         case .tcpTLS:
-            throw DockerAPIError.notImplemented("TCP+TLS connections")
+            guard let remoteHost = host.host else {
+                throw DockerAPIError.invalidConfiguration("Missing host for TCP+TLS connection")
+            }
+            let tls = try TLSConnection(
+                host: remoteHost,
+                port: host.tlsPort,
+                caCertPath: host.tlsCACert,
+                clientCertPath: host.tlsClientCert,
+                clientKeyPath: host.tlsClientKey
+            )
+            self.tlsConnection = tls
 
         case .ssh:
             guard let remoteHost = host.host else {
@@ -121,6 +132,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     deinit {
         closeConnection()
         sshTunnel?.disconnect()
+        tlsConnection?.disconnect()
     }
 
     // MARK: - Connection Management
@@ -161,6 +173,11 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     // MARK: - Request Helpers
 
     private func performRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
+        // TLS connections use their own transport
+        if host.connectionType == .tcpTLS {
+            return try await performTLSRequest(request)
+        }
+
         // Ensure SSH tunnel is established for remote connections
         try await ensureSSHTunnel()
 
@@ -185,6 +202,28 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             let conn = try getConnection()
             return try conn.sendRequest(request)
         }
+    }
+
+    private func performTLSRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
+        guard let tls = tlsConnection else {
+            throw DockerAPIError.invalidConfiguration("TLS connection not configured")
+        }
+
+        // Ensure connected (lazy connect on first use)
+        try await ensureTLSConnected()
+
+        do {
+            return try await tls.sendRequest(request)
+        } catch {
+            // Reconnect once on failure
+            try await tls.connect()
+            return try await tls.sendRequest(request)
+        }
+    }
+
+    private func ensureTLSConnected() async throws {
+        guard let tls = tlsConnection, !tls.isConnected else { return }
+        try await tls.connect()
     }
 
     private func validateResponse(_ response: HTTPResponse, allowedCodes: Set<Int> = [200]) throws {

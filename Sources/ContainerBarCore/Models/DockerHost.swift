@@ -16,6 +16,16 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
     public var sshUser: String?
     public var sshPort: Int?
 
+    // TLS certificate paths (for tcpTLS connections)
+    public var tlsCACert: String?
+    public var tlsClientCert: String?
+    public var tlsClientKey: String?
+
+    /// Port for TLS connections (default 2376)
+    public var tlsPort: Int {
+        port ?? 2376
+    }
+
     public init(
         id: UUID = UUID(),
         name: String,
@@ -27,7 +37,10 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         port: Int? = nil,
         tlsEnabled: Bool = false,
         sshUser: String? = nil,
-        sshPort: Int? = nil
+        sshPort: Int? = nil,
+        tlsCACert: String? = nil,
+        tlsClientCert: String? = nil,
+        tlsClientKey: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -40,6 +53,9 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         self.tlsEnabled = tlsEnabled || connectionType == .tcpTLS
         self.sshUser = sshUser
         self.sshPort = sshPort ?? (connectionType == .ssh ? 22 : nil)
+        self.tlsCACert = tlsCACert
+        self.tlsClientCert = tlsClientCert
+        self.tlsClientKey = tlsClientKey
     }
 
     /// Creates a default local Docker host configuration
