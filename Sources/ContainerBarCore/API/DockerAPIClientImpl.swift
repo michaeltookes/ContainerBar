@@ -4,6 +4,9 @@ import Logging
 /// Concrete implementation of DockerAPIClient
 ///
 /// Supports Unix socket and SSH tunnel connections to Docker daemons.
+/// Synchronization: `connectionLock` protects `connection` and `effectiveSocketPath`.
+/// `UnixSocketConnection` has its own lock for socket I/O, and `SSHTunnelConnection`
+/// has its own lock for tunnel process state. Lock ordering: connectionLock → socketLock.
 public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Properties

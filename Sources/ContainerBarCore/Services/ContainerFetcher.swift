@@ -88,7 +88,7 @@ public actor ContainerFetcher {
             let metrics = buildMetricsSnapshot(containers: containers, stats: stats)
 
             // Record success
-            failureGate.recordSuccess()
+            await failureGate.recordSuccess()
 
             let result = ContainerFetchResult(
                 containers: containers,
@@ -107,7 +107,7 @@ public actor ContainerFetcher {
 
             // Check if we should surface this error
             let hadPriorData = lastFetchResult != nil
-            if failureGate.shouldSurfaceError(onFailureWithPriorData: hadPriorData) {
+            if await failureGate.shouldSurfaceError(onFailureWithPriorData: hadPriorData) {
                 throw error
             }
 

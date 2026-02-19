@@ -5,12 +5,14 @@ import Darwin
 
 /// Handles raw HTTP communication over Unix domain sockets
 ///
-/// This is a low-level implementation that handles the socket connection
-/// and HTTP request/response parsing for the Docker API.
+/// Synchronization: `socketLock` protects `socketFD` for all read/write/lifecycle
+/// operations. The lock is held for the duration of each complete operation
+/// (connect, disconnect, send+receive) to prevent interleaved access.
 final class UnixSocketConnection: @unchecked Sendable {
 
     private let socketPath: String
     private var socketFD: Int32 = -1
+    private let socketLock = NSLock()
 
     init(socketPath: String) {
         self.socketPath = socketPath
@@ -24,6 +26,9 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Connect to the Unix socket
     func connect() throws {
+        socketLock.lock()
+        defer { socketLock.unlock() }
+
         // Create socket
         socketFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard socketFD >= 0 else {
@@ -70,6 +75,9 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Disconnect from the Unix socket
     func disconnect() {
+        socketLock.lock()
+        defer { socketLock.unlock() }
+
         if socketFD >= 0 {
             Darwin.close(socketFD)
             socketFD = -1
@@ -80,6 +88,9 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Send an HTTP request and receive the response
     func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
+        socketLock.lock()
+        defer { socketLock.unlock() }
+
         guard socketFD >= 0 else {
             throw DockerAPIError.connectionFailed
         }

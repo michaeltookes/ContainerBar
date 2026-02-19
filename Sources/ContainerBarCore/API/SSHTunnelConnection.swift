@@ -5,6 +5,8 @@ import Logging
 ///
 /// Creates an SSH tunnel that forwards the remote container socket to a local socket,
 /// allowing the standard Unix socket connection to work with remote hosts.
+/// Synchronization: `stateLock` protects `tunnelProcess` and `localSocketPath`
+/// which may be read from any thread (e.g. `isConnected`, `disconnect`).
 public final class SSHTunnelConnection: @unchecked Sendable {
 
     // MARK: - Properties
@@ -14,6 +16,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     private let port: Int
     private let remoteSocketPath: String
     private let logger = Logger(label: "com.containerbar.ssh")
+    private let stateLock = NSLock()
 
     private var tunnelProcess: Process?
     private var localSocketPath: String?
@@ -136,8 +139,10 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             throw DockerAPIError.connectionFailed
         }
 
-        self.tunnelProcess = process
-        self.localSocketPath = localSocket
+        stateLock.withLock {
+            self.tunnelProcess = process
+            self.localSocketPath = localSocket
+        }
 
         logger.info("SSH tunnel established: \(localSocket)")
         return localSocket
@@ -145,21 +150,25 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
     /// Closes the SSH tunnel
     public func disconnect() {
-        if let process = tunnelProcess, process.isRunning {
-            process.terminate()
-            logger.info("SSH tunnel closed")
-        }
-        tunnelProcess = nil
+        stateLock.withLock {
+            if let process = tunnelProcess, process.isRunning {
+                process.terminate()
+                logger.info("SSH tunnel closed")
+            }
+            tunnelProcess = nil
 
-        // Clean up local socket
-        if let socketPath = localSocketPath {
-            try? FileManager.default.removeItem(atPath: socketPath)
+            // Clean up local socket
+            if let socketPath = localSocketPath {
+                try? FileManager.default.removeItem(atPath: socketPath)
+            }
+            localSocketPath = nil
         }
-        localSocketPath = nil
     }
 
     /// Check if tunnel is active
     public var isConnected: Bool {
-        tunnelProcess?.isRunning ?? false
+        stateLock.withLock {
+            tunnelProcess?.isRunning ?? false
+        }
     }
 }
