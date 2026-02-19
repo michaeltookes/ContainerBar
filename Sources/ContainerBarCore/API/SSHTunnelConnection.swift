@@ -21,6 +21,9 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     private var tunnelProcess: Process?
     private var localSocketPath: String?
 
+    /// Set to true when the tunnel process terminates unexpectedly
+    private var tunnelDied = false
+
     // MARK: - Initialization
 
     /// Creates an SSH tunnel connection
@@ -105,6 +108,16 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         process.standardError = errorPipe
         process.standardOutput = FileHandle.nullDevice
 
+        // Monitor tunnel death via terminationHandler
+        process.terminationHandler = { [weak self] terminatedProcess in
+            guard let self else { return }
+            let status = terminatedProcess.terminationStatus
+            self.logger.warning("SSH tunnel process terminated with status \(status)")
+            self.stateLock.withLock {
+                self.tunnelDied = true
+            }
+        }
+
         do {
             try process.run()
         } catch {
@@ -142,16 +155,44 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         stateLock.withLock {
             self.tunnelProcess = process
             self.localSocketPath = localSocket
+            self.tunnelDied = false
         }
 
         logger.info("SSH tunnel established: \(localSocket)")
         return localSocket
     }
 
+    /// Tears down the existing tunnel and reconnects with exponential backoff
+    /// - Returns: The new local socket path
+    public func reconnect() async throws -> String {
+        let maxRetries = 3
+        let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
+
+        for attempt in 0..<maxRetries {
+            disconnect()
+
+            do {
+                let socketPath = try await connect()
+                logger.info("SSH tunnel reconnected on attempt \(attempt + 1)")
+                return socketPath
+            } catch {
+                logger.warning("Reconnect attempt \(attempt + 1)/\(maxRetries) failed: \(error.localizedDescription)")
+
+                if attempt < maxRetries - 1 {
+                    try await Task.sleep(for: delays[attempt])
+                }
+            }
+        }
+
+        logger.error("SSH tunnel reconnection failed after \(maxRetries) attempts")
+        throw DockerAPIError.sshConnectionFailed("Reconnection failed after \(maxRetries) attempts")
+    }
+
     /// Closes the SSH tunnel
     public func disconnect() {
         stateLock.withLock {
             if let process = tunnelProcess, process.isRunning {
+                process.terminationHandler = nil // Prevent handler from firing during intentional disconnect
                 process.terminate()
                 logger.info("SSH tunnel closed")
             }
@@ -162,6 +203,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 try? FileManager.default.removeItem(atPath: socketPath)
             }
             localSocketPath = nil
+            tunnelDied = false
         }
     }
 
@@ -169,6 +211,13 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     public var isConnected: Bool {
         stateLock.withLock {
             tunnelProcess?.isRunning ?? false
+        }
+    }
+
+    /// Whether the tunnel has died since last connect
+    public var hasDied: Bool {
+        stateLock.withLock {
+            tunnelDied
         }
     }
 }

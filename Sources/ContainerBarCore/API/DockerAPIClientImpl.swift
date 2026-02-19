@@ -91,17 +91,26 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("DockerAPIClient initialized for \(host.name)")
     }
 
-    /// Ensures the SSH tunnel is connected, establishing it if needed
+    /// Ensures the SSH tunnel is connected, establishing or reconnecting if needed
     private func ensureSSHTunnel() async throws {
         guard host.connectionType == .ssh, let tunnel = sshTunnel else { return }
 
-        let alreadyConnected = connectionLock.withLock {
-            effectiveSocketPath != nil && tunnel.isConnected
+        let needsConnect = connectionLock.withLock {
+            // Need to connect if: no socket path yet, tunnel died, or tunnel not running
+            effectiveSocketPath == nil || tunnel.hasDied || !tunnel.isConnected
         }
 
-        guard !alreadyConnected else { return }
+        guard needsConnect else { return }
 
-        let localSocket = try await tunnel.connect()
+        // If tunnel previously died, attempt reconnect with backoff
+        let localSocket: String
+        if tunnel.hasDied {
+            logger.warning("SSH tunnel died, attempting reconnect")
+            closeConnection()
+            localSocket = try await tunnel.reconnect()
+        } else {
+            localSocket = try await tunnel.connect()
+        }
 
         connectionLock.withLock {
             self.effectiveSocketPath = localSocket
@@ -160,8 +169,19 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             let conn = try getConnection()
             return try conn.sendRequest(request)
         } catch {
-            // Connection might be stale, try reconnecting once
+            // Connection might be stale, try reconnecting socket first
             closeConnection()
+
+            // For SSH connections, check if tunnel died and attempt reconnect
+            if host.connectionType == .ssh, let tunnel = sshTunnel, !tunnel.isConnected {
+                logger.warning("SSH tunnel lost during request, attempting reconnect")
+                let localSocket = try await tunnel.reconnect()
+                connectionLock.withLock {
+                    self.effectiveSocketPath = localSocket
+                    self.connection = nil
+                }
+            }
+
             let conn = try getConnection()
             return try conn.sendRequest(request)
         }

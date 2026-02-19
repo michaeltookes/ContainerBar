@@ -23,6 +23,7 @@ struct DockerAPITests {
         #expect(DockerAPIError.connectionFailed.isTransient == true)
         #expect(DockerAPIError.networkTimeout.isTransient == true)
         #expect(DockerAPIError.serverError("test").isTransient == true)
+        #expect(DockerAPIError.sshConnectionFailed("test").isTransient == true)
 
         // Permanent errors (don't retry)
         #expect(DockerAPIError.unauthorized.isTransient == false)

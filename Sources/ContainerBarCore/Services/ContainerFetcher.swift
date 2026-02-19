@@ -292,10 +292,10 @@ extension DockerAPIError {
     /// Whether this error is transient and can be retried
     public var isTransient: Bool {
         switch self {
-        case .connectionFailed, .networkTimeout, .serverError:
+        case .connectionFailed, .networkTimeout, .serverError, .sshConnectionFailed:
             return true
         case .unauthorized, .notFound, .invalidConfiguration, .invalidURL,
-             .socketNotFound, .sshConnectionFailed:
+             .socketNotFound:
             return false
         case .conflict, .unexpectedStatus, .invalidResponse, .decodingError,
              .notImplemented:
