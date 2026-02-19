@@ -39,9 +39,12 @@ final class TLSConnection: @unchecked Sendable {
         // Configure client identity if both cert and key are provided
         if let certPath = clientCertPath, let keyPath = clientKeyPath {
             let identity = try TLSCertificateLoader.loadIdentity(certPath: certPath, keyPath: keyPath)
+            guard let secIdentity = sec_identity_create(identity) else {
+                throw DockerAPIError.invalidConfiguration("Failed to create sec_identity from client certificate")
+            }
             sec_protocol_options_set_local_identity(
                 tlsOptions.securityProtocolOptions,
-                sec_identity_create(identity)!
+                secIdentity
             )
         }
 

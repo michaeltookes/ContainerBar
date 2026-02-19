@@ -31,9 +31,12 @@ enum TLSCertificateLoader {
     static func loadIdentity(certPath: String, keyPath: String) throws -> SecIdentity {
         let cert = try loadCertificate(path: certPath)
 
-        // Load private key from PEM
+        // Load private key from PEM and detect key type
         let keyData = try Data(contentsOf: URL(fileURLWithPath: keyPath))
         let keyPEM = String(data: keyData, encoding: .utf8) ?? ""
+
+        let keyType = detectKeyType(from: keyPEM)
+
         let keyBase64 = keyPEM
             .replacingOccurrences(of: "-----BEGIN RSA PRIVATE KEY-----", with: "")
             .replacingOccurrences(of: "-----END RSA PRIVATE KEY-----", with: "")
@@ -49,7 +52,7 @@ enum TLSCertificateLoader {
         }
 
         let keyAttributes: [String: Any] = [
-            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+            kSecAttrKeyType as String: keyType,
             kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
         ]
 
@@ -76,6 +79,16 @@ enum TLSCertificateLoader {
 
         // swiftlint:disable:next force_cast
         return identity as! SecIdentity
+    }
+
+    /// Detect key type from PEM header
+    private static func detectKeyType(from pemString: String) -> CFString {
+        if pemString.contains("BEGIN EC PRIVATE KEY") {
+            return kSecAttrKeyTypeECSECPrimeRandom
+        }
+        // PKCS#8 "BEGIN PRIVATE KEY" could be RSA or EC — default to RSA
+        // since Docker TLS predominantly uses RSA keys
+        return kSecAttrKeyTypeRSA
     }
 
     private static func createPKCS12(cert: SecCertificate, key: SecKey) throws -> Data {
