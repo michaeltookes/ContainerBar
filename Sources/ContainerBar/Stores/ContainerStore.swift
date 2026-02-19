@@ -42,6 +42,18 @@ public final class ContainerStore {
     /// Set of container IDs currently being acted upon
     public private(set) var actionInProgress: Set<String> = []
 
+    // MARK: - Action Error State
+
+    /// Represents an error from a container action (start/stop/restart/remove)
+    public struct ActionError: Identifiable {
+        public let id = UUID()
+        public let message: String
+        public let timestamp: Date = Date()
+    }
+
+    /// Most recent action error, displayed as a transient banner
+    public private(set) var lastActionError: ActionError?
+
     // MARK: - Private Properties
 
     @ObservationIgnored
@@ -261,9 +273,11 @@ public final class ContainerStore {
 
         do {
             try await fetcher.startContainer(id: id)
+            lastActionError = nil
             await refresh(force: true)
         } catch {
             logger.error("Failed to start container: \(error.localizedDescription)")
+            lastActionError = ActionError(message: "Failed to start container: \(error.localizedDescription)")
         }
     }
 
@@ -282,9 +296,11 @@ public final class ContainerStore {
 
         do {
             try await fetcher.stopContainer(id: id)
+            lastActionError = nil
             await refresh(force: true)
         } catch {
             logger.error("Failed to stop container: \(error.localizedDescription)")
+            lastActionError = ActionError(message: "Failed to stop container: \(error.localizedDescription)")
         }
     }
 
@@ -303,9 +319,11 @@ public final class ContainerStore {
 
         do {
             try await fetcher.restartContainer(id: id)
+            lastActionError = nil
             await refresh(force: true)
         } catch {
             logger.error("Failed to restart container: \(error.localizedDescription)")
+            lastActionError = ActionError(message: "Failed to restart container: \(error.localizedDescription)")
         }
     }
 
@@ -324,10 +342,17 @@ public final class ContainerStore {
 
         do {
             try await fetcher.removeContainer(id: id, force: force)
+            lastActionError = nil
             await refresh(force: true)
         } catch {
             logger.error("Failed to remove container: \(error.localizedDescription)")
+            lastActionError = ActionError(message: "Failed to remove container: \(error.localizedDescription)")
         }
+    }
+
+    /// Dismiss the current action error
+    public func dismissActionError() {
+        lastActionError = nil
     }
 
     // MARK: - Timer Management
