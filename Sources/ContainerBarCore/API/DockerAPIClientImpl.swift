@@ -75,20 +75,35 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
                 fallbackPath: host.runtime.defaultRemoteSocketPath
             )
 
-            // Create SSH tunnel to the remote socket
+            // Create SSH tunnel (connection established lazily via ensureSSHTunnel)
             let tunnel = SSHTunnelConnection(
                 host: remoteHost,
                 user: sshUser,
                 port: sshPort,
                 remoteSocketPath: remoteSocketPath
             )
-            let localSocket = try tunnel.connect()
-
             self.sshTunnel = tunnel
-            self.effectiveSocketPath = localSocket
         }
 
         logger.info("DockerAPIClient initialized for \(host.name)")
+    }
+
+    /// Ensures the SSH tunnel is connected, establishing it if needed
+    private func ensureSSHTunnel() async throws {
+        guard host.connectionType == .ssh, let tunnel = sshTunnel else { return }
+
+        let alreadyConnected = connectionLock.withLock {
+            effectiveSocketPath != nil && tunnel.isConnected
+        }
+
+        guard !alreadyConnected else { return }
+
+        let localSocket = try await tunnel.connect()
+
+        connectionLock.withLock {
+            self.effectiveSocketPath = localSocket
+            self.connection = nil // Reset stale connection
+        }
     }
 
     deinit {
@@ -133,7 +148,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Request Helpers
 
-    private func performRequest(_ request: HTTPRequest) throws -> HTTPResponse {
+    private func performRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
+        // Ensure SSH tunnel is established for remote connections
+        try await ensureSSHTunnel()
+
         // Try to reuse connection, reconnect if needed
         do {
             let conn = try getConnection()
@@ -175,7 +193,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Pinging Docker daemon")
 
         let request = HTTPRequest(path: "/\(apiVersion)/_ping")
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         guard response.statusCode == 200 else {
             throw DockerAPIError.connectionFailed
@@ -189,7 +207,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching containers (all=\(all))")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()
@@ -208,7 +226,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching container \(id)")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()
@@ -228,7 +246,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             Task {
                 do {
                     let request = HTTPRequest(path: path)
-                    let response = try self.performRequest(request)
+                    let response = try await self.performRequest(request)
                     try self.validateResponse(response)
 
                     // Parse stats from response body
@@ -252,7 +270,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Starting container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already started)
         try validateResponse(response, allowedCodes: [204, 304])
@@ -267,7 +285,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Stopping container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already stopped)
         try validateResponse(response, allowedCodes: [204, 304])
@@ -282,7 +300,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Restarting container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
         logger.info("Container \(id) restarted")
@@ -293,7 +311,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Removing container \(id)")
 
         let request = HTTPRequest(method: "DELETE", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
         logger.info("Container \(id) removed")
@@ -310,7 +328,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching logs for container \(id)")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         // Docker logs use multiplexed stream format when TTY is disabled
@@ -328,7 +346,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching system info")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()

@@ -41,7 +41,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
     /// Establishes an SSH tunnel to the remote Docker socket
     /// - Returns: The local socket path to connect to
-    public func connect() throws -> String {
+    public func connect() async throws -> String {
         // Create a unique local socket path
         let socketDir = FileManager.default.temporaryDirectory
         let socketName = "dockerbar-\(UUID().uuidString.prefix(8)).sock"
@@ -110,7 +110,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
 
         // Wait briefly for tunnel to establish
-        Thread.sleep(forTimeInterval: 1.0)
+        try await Task.sleep(for: .seconds(1))
 
         // Check if process is still running
         guard process.isRunning else {
@@ -126,7 +126,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             if FileManager.default.fileExists(atPath: localSocket) {
                 break
             }
-            Thread.sleep(forTimeInterval: 0.5)
+            try await Task.sleep(for: .milliseconds(500))
             attempts += 1
         }
 
