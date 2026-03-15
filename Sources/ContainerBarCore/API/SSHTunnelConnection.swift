@@ -5,7 +5,13 @@ import Logging
 ///
 /// Creates an SSH tunnel that forwards the remote container socket to a local socket,
 /// allowing the standard Unix socket connection to work with remote hosts.
+/// Synchronization: `stateLock` protects `tunnelProcess` and `localSocketPath`
+/// which may be read from any thread (e.g. `isConnected`, `disconnect`).
 public final class SSHTunnelConnection: @unchecked Sendable {
+    public struct StateSnapshot: Sendable {
+        public let isConnected: Bool
+        public let hasDied: Bool
+    }
 
     // MARK: - Properties
 
@@ -14,9 +20,15 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     private let port: Int
     private let remoteSocketPath: String
     private let logger = Logger(label: "com.containerbar.ssh")
+    private let stateLock = NSLock()
 
     private var tunnelProcess: Process?
     private var localSocketPath: String?
+    private var connectTask: Task<String, Error>?
+    private var connectTaskID: UUID?
+
+    /// Set to true when the tunnel process terminates unexpectedly
+    private var tunnelDied = false
 
     // MARK: - Initialization
 
@@ -41,125 +53,206 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
     /// Establishes an SSH tunnel to the remote Docker socket
     /// - Returns: The local socket path to connect to
-    public func connect() throws -> String {
-        // Create a unique local socket path
-        let socketDir = FileManager.default.temporaryDirectory
-        let socketName = "dockerbar-\(UUID().uuidString.prefix(8)).sock"
-        let localSocket = socketDir.appendingPathComponent(socketName).path
+    public func connect() async throws -> String {
+        let task = getOrCreateConnectTask(forceReconnect: false)
+        return try await task.value
+    }
 
-        // Remove existing socket if present
-        try? FileManager.default.removeItem(atPath: localSocket)
+    /// Tears down the existing tunnel and reconnects with exponential backoff
+    /// - Returns: The new local socket path
+    public func reconnect() async throws -> String {
+        let maxRetries = 3
+        let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
+        var lastError: Error?
 
-        logger.info("Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)")
-
-        // Build SSH command for socket forwarding
-        // ssh -nNT -L /local/socket:/remote/socket user@host
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-nNT",                                    // No command, no TTY
-            "-o", "StrictHostKeyChecking=accept-new", // Accept new host keys
-            "-o", "BatchMode=yes",                    // No password prompts (use key auth)
-            "-o", "ConnectTimeout=10",                // 10 second timeout
-            "-o", "ServerAliveInterval=30",           // Keep alive
-            "-o", "ServerAliveCountMax=3",
-            "-p", String(port),
-            "-L", "\(localSocket):\(remoteSocketPath)",
-            "\(user)@\(host)"
-        ]
-
-        // Ensure SSH agent socket is available to the subprocess
-        // Apps launched from Xcode/GUI may not inherit the full shell environment
-        var environment = ProcessInfo.processInfo.environment
-        if environment["SSH_AUTH_SOCK"] == nil {
-            // Query launchd for the SSH_AUTH_SOCK value
-            let launchctlProcess = Process()
-            launchctlProcess.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            launchctlProcess.arguments = ["getenv", "SSH_AUTH_SOCK"]
-            let pipe = Pipe()
-            launchctlProcess.standardOutput = pipe
-            launchctlProcess.standardError = FileHandle.nullDevice
+        for attempt in 0..<maxRetries {
+            let task = getOrCreateConnectTask(forceReconnect: true)
 
             do {
-                try launchctlProcess.run()
-                launchctlProcess.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !path.isEmpty {
-                    environment["SSH_AUTH_SOCK"] = path
-                    logger.info("Found SSH_AUTH_SOCK via launchctl: \(path)")
-                }
+                let socketPath = try await task.value
+                logger.info("SSH tunnel reconnected on attempt \(attempt + 1)")
+                return socketPath
             } catch {
-                logger.warning("Failed to query launchctl for SSH_AUTH_SOCK: \(error)")
+                if error is CancellationError {
+                    throw error
+                }
+                lastError = error
+                logger.warning("Reconnect attempt \(attempt + 1)/\(maxRetries) failed: \(error.localizedDescription)")
+
+                if attempt < maxRetries - 1 {
+                    try await Task.sleep(for: delays[attempt])
+                }
             }
         }
-        process.environment = environment
 
-        logger.info("SSH_AUTH_SOCK: \(environment["SSH_AUTH_SOCK"] ?? "not set")")
-
-        // Capture stderr for error messages
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        process.standardOutput = FileHandle.nullDevice
-
-        do {
-            try process.run()
-        } catch {
-            logger.error("Failed to start SSH tunnel: \(error.localizedDescription)")
-            throw DockerAPIError.connectionFailed
+        logger.error("SSH tunnel reconnection failed after \(maxRetries) attempts")
+        if let dockerError = lastError as? DockerAPIError {
+            throw dockerError
         }
 
-        // Wait briefly for tunnel to establish
-        Thread.sleep(forTimeInterval: 1.0)
-
-        // Check if process is still running
-        guard process.isRunning else {
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-            logger.error("SSH tunnel failed: \(errorMessage)")
-            throw DockerAPIError.sshConnectionFailed(errorMessage.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-
-        // Verify socket was created
-        var attempts = 0
-        while attempts < 10 {
-            if FileManager.default.fileExists(atPath: localSocket) {
-                break
-            }
-            Thread.sleep(forTimeInterval: 0.5)
-            attempts += 1
-        }
-
-        guard FileManager.default.fileExists(atPath: localSocket) else {
-            process.terminate()
-            logger.error("SSH tunnel established but socket not created")
-            throw DockerAPIError.connectionFailed
-        }
-
-        self.tunnelProcess = process
-        self.localSocketPath = localSocket
-
-        logger.info("SSH tunnel established: \(localSocket)")
-        return localSocket
+        throw DockerAPIError.sshConnectionFailed(
+            "Reconnection failed after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown error")"
+        )
     }
 
     /// Closes the SSH tunnel
     public func disconnect() {
-        if let process = tunnelProcess, process.isRunning {
-            process.terminate()
-            logger.info("SSH tunnel closed")
-        }
-        tunnelProcess = nil
-
-        // Clean up local socket
-        if let socketPath = localSocketPath {
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
-        localSocketPath = nil
+        disconnectTunnelState(cancelConnectTask: true)
     }
 
     /// Check if tunnel is active
     public var isConnected: Bool {
-        tunnelProcess?.isRunning ?? false
+        stateLock.withLock {
+            tunnelProcess?.isRunning ?? false
+        }
     }
+
+    /// Whether the tunnel has died since last connect
+    public var hasDied: Bool {
+        stateLock.withLock {
+            tunnelDied
+        }
+    }
+
+    public func snapshotState() -> StateSnapshot {
+        stateLock.withLock {
+            StateSnapshot(
+                isConnected: tunnelProcess?.isRunning ?? false,
+                hasDied: tunnelDied
+            )
+        }
+    }
+
+    private func getOrCreateConnectTask(forceReconnect: Bool) -> Task<String, Error> {
+        stateLock.withLock {
+            if !forceReconnect, let connectTask {
+                return connectTask
+            }
+
+            let taskID = UUID()
+            let task = Task<String, Error> { [weak self] in
+                guard let self else {
+                    throw DockerAPIError.connectionFailed
+                }
+
+                defer {
+                    self.clearConnectTaskIfCurrent(taskID)
+                }
+
+                if forceReconnect {
+                    self.disconnectTunnelState(cancelConnectTask: false)
+                }
+
+                return try await self.startTunnel(taskID: taskID)
+            }
+
+            connectTask = task
+            connectTaskID = taskID
+            return task
+        }
+    }
+
+    private func clearConnectTaskIfCurrent(_ taskID: UUID) {
+        stateLock.withLock {
+            guard connectTaskID == taskID else {
+                return
+            }
+
+            connectTask = nil
+            connectTaskID = nil
+        }
+    }
+
+    private func startTunnel(taskID: UUID) async throws -> String {
+        let launch = try SSHTunnelProcessLauncher.launch(
+            host: host,
+            user: user,
+            port: port,
+            remoteSocketPath: remoteSocketPath,
+            logger: logger
+        )
+        let process = launch.process
+        let localSocket = launch.localSocketPath
+
+        // Monitor tunnel death via terminationHandler
+        process.terminationHandler = { [weak self] terminatedProcess in
+            guard let self else { return }
+            let status = terminatedProcess.terminationStatus
+            let shouldReport = self.stateLock.withLock { () -> Bool in
+                guard self.tunnelProcess === terminatedProcess else {
+                    return false
+                }
+                self.tunnelDied = true
+                return true
+            }
+            guard shouldReport else { return }
+            self.logger.warning("SSH tunnel process terminated with status \(status)")
+        }
+
+        var adopted = false
+        defer {
+            if !adopted {
+                process.terminationHandler = nil
+                if process.isRunning {
+                    process.terminate()
+                }
+                try? FileManager.default.removeItem(atPath: localSocket)
+            }
+        }
+
+        try await SSHTunnelProcessLauncher.waitForSocket(
+            process: process,
+            errorPipe: launch.errorPipe,
+            localSocketPath: localSocket,
+            logger: logger
+        )
+
+        let adoptedState = stateLock.withLock { () -> Bool in
+            guard connectTaskID == taskID else {
+                return false
+            }
+
+            tunnelProcess = process
+            localSocketPath = localSocket
+            tunnelDied = false
+            return true
+        }
+
+        guard adoptedState else {
+            throw CancellationError()
+        }
+
+        adopted = true
+        logger.info("SSH tunnel established: \(localSocket)")
+        return localSocket
+    }
+
+    private func disconnectTunnelState(cancelConnectTask: Bool) {
+        let state = stateLock.withLock { () -> (Process?, String?) in
+            let process = tunnelProcess
+            let socketPath = localSocketPath
+            tunnelProcess = nil
+            localSocketPath = nil
+            tunnelDied = false
+
+            if cancelConnectTask {
+                connectTask?.cancel()
+                connectTask = nil
+                connectTaskID = nil
+            }
+
+            return (process, socketPath)
+        }
+
+        if let process = state.0, process.isRunning {
+            process.terminationHandler = nil
+            process.terminate()
+            logger.info("SSH tunnel closed")
+        }
+
+        if let socketPath = state.1 {
+            try? FileManager.default.removeItem(atPath: socketPath)
+        }
+    }
+
 }

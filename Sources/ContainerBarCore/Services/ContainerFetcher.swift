@@ -25,7 +25,7 @@ public actor ContainerFetcher {
     private let minFetchInterval: TimeInterval = 1.0
 
     /// Maximum number of concurrent stats fetches
-    private let maxConcurrentStatsFetches = 10
+    private static let maxConcurrentStatsFetches = 10
 
     // MARK: - Initialization
 
@@ -88,7 +88,7 @@ public actor ContainerFetcher {
             let metrics = buildMetricsSnapshot(containers: containers, stats: stats)
 
             // Record success
-            failureGate.recordSuccess()
+            await failureGate.recordSuccess()
 
             let result = ContainerFetchResult(
                 containers: containers,
@@ -107,7 +107,7 @@ public actor ContainerFetcher {
 
             // Check if we should surface this error
             let hadPriorData = lastFetchResult != nil
-            if failureGate.shouldSurfaceError(onFailureWithPriorData: hadPriorData) {
+            if await failureGate.shouldSurfaceError(onFailureWithPriorData: hadPriorData) {
                 throw error
             }
 
@@ -165,7 +165,7 @@ public actor ContainerFetcher {
         }
 
         // Limit concurrent stats fetches
-        let containersToFetch = Array(runningContainers.prefix(maxConcurrentStatsFetches))
+        let containersToFetch = Array(runningContainers.prefix(Self.maxConcurrentStatsFetches))
 
         // Fetch stats concurrently using TaskGroup
         return await withTaskGroup(of: (String, ContainerStats?).self) { group in
@@ -219,87 +219,5 @@ public actor ContainerFetcher {
             totalCount: containers.count,
             updatedAt: Date()
         )
-    }
-}
-
-// MARK: - Retry Configuration
-
-/// Configuration for retry behavior
-public struct RetryConfig: Sendable {
-    public let maxAttempts: Int
-    public let initialDelay: TimeInterval
-    public let maxDelay: TimeInterval
-    public let multiplier: Double
-
-    public static let `default` = RetryConfig(
-        maxAttempts: 3,
-        initialDelay: 1.0,
-        maxDelay: 10.0,
-        multiplier: 2.0
-    )
-
-    public init(maxAttempts: Int, initialDelay: TimeInterval, maxDelay: TimeInterval, multiplier: Double) {
-        self.maxAttempts = maxAttempts
-        self.initialDelay = initialDelay
-        self.maxDelay = maxDelay
-        self.multiplier = multiplier
-    }
-}
-
-// MARK: - Retry Helper
-
-/// Retry an async operation with exponential backoff
-public func withRetry<T>(
-    config: RetryConfig = .default,
-    operation: @escaping () async throws -> T
-) async throws -> T {
-    var lastError: Error?
-    var delay = config.initialDelay
-
-    for attempt in 1...config.maxAttempts {
-        do {
-            return try await operation()
-        } catch let error as DockerAPIError {
-            lastError = error
-
-            // Don't retry permanent errors
-            guard error.isTransient else {
-                throw error
-            }
-
-            // Don't delay on last attempt
-            guard attempt < config.maxAttempts else {
-                break
-            }
-
-            // Wait with exponential backoff
-            try? await Task.sleep(for: .seconds(delay))
-
-            // Increase delay for next attempt
-            delay = min(delay * config.multiplier, config.maxDelay)
-        } catch {
-            lastError = error
-            throw error
-        }
-    }
-
-    throw lastError ?? DockerAPIError.connectionFailed
-}
-
-// MARK: - Error Extensions
-
-extension DockerAPIError {
-    /// Whether this error is transient and can be retried
-    public var isTransient: Bool {
-        switch self {
-        case .connectionFailed, .networkTimeout, .serverError:
-            return true
-        case .unauthorized, .notFound, .invalidConfiguration, .invalidURL,
-             .socketNotFound, .sshConnectionFailed:
-            return false
-        case .conflict, .unexpectedStatus, .invalidResponse, .decodingError,
-             .notImplemented:
-            return false
-        }
     }
 }

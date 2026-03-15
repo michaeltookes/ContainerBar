@@ -4,45 +4,26 @@ import Logging
 /// Concrete implementation of DockerAPIClient
 ///
 /// Supports Unix socket and SSH tunnel connections to Docker daemons.
+/// Synchronization: `connectionLock` protects `connection` and `effectiveSocketPath`.
+/// `UnixSocketConnection` has its own lock for socket I/O, and `SSHTunnelConnection`
+/// has its own lock for tunnel process state. Lock ordering: connectionLock → socketLock.
 public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Properties
 
-    private let host: DockerHost
-    private let logger = Logger(label: "com.containerbar.api")
-    private let apiVersion = "v1.44"
+    let host: DockerHost
+    let logger = Logger(label: "com.containerbar.api")
+    let apiVersion = "v1.44"
 
     // Connection management
-    private var connection: UnixSocketConnection?
-    private var sshTunnel: SSHTunnelConnection?
-    private var effectiveSocketPath: String?
-    private let connectionLock = NSLock()
+    var connection: UnixSocketConnection?
+    var sshTunnel: SSHTunnelConnection?
+    var tlsConnection: TLSConnection?
+    var effectiveSocketPath: String?
+    let connectionLock = NSLock()
+    let tlsConnectCoordinator = TLSConnectCoordinator()
 
     // MARK: - Initialization
-
-    static func validatedRemoteSocketPath(configuredPath: String?, fallbackPath: String) -> String {
-        guard let configuredPath else {
-            return fallbackPath
-        }
-
-        let trimmedPath = configuredPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            return fallbackPath
-        }
-        guard trimmedPath.hasPrefix("/") else {
-            return fallbackPath
-        }
-        guard !trimmedPath.contains("\0") else {
-            return fallbackPath
-        }
-
-        let pathSegments = trimmedPath.split(separator: "/", omittingEmptySubsequences: true)
-        guard !pathSegments.contains(where: { $0 == ".." }) else {
-            return fallbackPath
-        }
-
-        return trimmedPath
-    }
 
     public init(host: DockerHost) throws {
         self.host = host
@@ -59,7 +40,17 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             self.effectiveSocketPath = socketPath
 
         case .tcpTLS:
-            throw DockerAPIError.notImplemented("TCP+TLS connections")
+            guard let remoteHost = host.host else {
+                throw DockerAPIError.invalidConfiguration("Missing host for TCP+TLS connection")
+            }
+            let tls = try TLSConnection(
+                host: remoteHost,
+                port: host.tlsPort,
+                caCertPath: host.tlsCACert,
+                clientCertPath: host.tlsClientCert,
+                clientKeyPath: host.tlsClientKey
+            )
+            self.tlsConnection = tls
 
         case .ssh:
             guard let remoteHost = host.host else {
@@ -75,17 +66,14 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
                 fallbackPath: host.runtime.defaultRemoteSocketPath
             )
 
-            // Create SSH tunnel to the remote socket
+            // Create SSH tunnel (connection established lazily via ensureSSHTunnel)
             let tunnel = SSHTunnelConnection(
                 host: remoteHost,
                 user: sshUser,
                 port: sshPort,
                 remoteSocketPath: remoteSocketPath
             )
-            let localSocket = try tunnel.connect()
-
             self.sshTunnel = tunnel
-            self.effectiveSocketPath = localSocket
         }
 
         logger.info("DockerAPIClient initialized for \(host.name)")
@@ -94,79 +82,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     deinit {
         closeConnection()
         sshTunnel?.disconnect()
-    }
-
-    // MARK: - Connection Management
-
-    private func getConnection() throws -> UnixSocketConnection {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
-
-        if let existing = connection {
-            return existing
-        }
-
-        guard let socketPath = effectiveSocketPath else {
-            throw DockerAPIError.invalidConfiguration("No socket path configured")
-        }
-
-        // For SSH connections, verify tunnel is still active
-        if host.connectionType == .ssh {
-            guard let tunnel = sshTunnel, tunnel.isConnected else {
-                throw DockerAPIError.connectionFailed
-            }
-        }
-
-        let conn = UnixSocketConnection(socketPath: socketPath)
-        try conn.connect()
-        connection = conn
-        return conn
-    }
-
-    private func closeConnection() {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
-
-        connection?.disconnect()
-        connection = nil
-    }
-
-    // MARK: - Request Helpers
-
-    private func performRequest(_ request: HTTPRequest) throws -> HTTPResponse {
-        // Try to reuse connection, reconnect if needed
-        do {
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
-        } catch {
-            // Connection might be stale, try reconnecting once
-            closeConnection()
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
-        }
-    }
-
-    private func validateResponse(_ response: HTTPResponse, allowedCodes: Set<Int> = [200]) throws {
-        guard allowedCodes.contains(response.statusCode) else {
-            logger.error("HTTP error: \(response.statusCode)")
-
-            switch response.statusCode {
-            case 401:
-                throw DockerAPIError.unauthorized
-            case 404:
-                throw DockerAPIError.notFound("Resource not found")
-            case 409:
-                throw DockerAPIError.conflict("Container is already in requested state")
-            case 500...599:
-                // Try to extract error message from body
-                if let errorMessage = String(data: response.body, encoding: .utf8) {
-                    throw DockerAPIError.serverError(errorMessage)
-                }
-                throw DockerAPIError.serverError("Docker daemon error")
-            default:
-                throw DockerAPIError.unexpectedStatus(response.statusCode)
-            }
-        }
+        tlsConnection?.disconnectForTeardown()
     }
 
     // MARK: - DockerAPIClient Protocol
@@ -175,7 +91,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Pinging Docker daemon")
 
         let request = HTTPRequest(path: "/\(apiVersion)/_ping")
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         guard response.statusCode == 200 else {
             throw DockerAPIError.connectionFailed
@@ -189,7 +105,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching containers (all=\(all))")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()
@@ -208,7 +124,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching container \(id)")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()
@@ -228,7 +144,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             Task {
                 do {
                     let request = HTTPRequest(path: path)
-                    let response = try self.performRequest(request)
+                    let response = try await self.performRequest(request)
                     try self.validateResponse(response)
 
                     // Parse stats from response body
@@ -252,7 +168,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Starting container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already started)
         try validateResponse(response, allowedCodes: [204, 304])
@@ -267,7 +183,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Stopping container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already stopped)
         try validateResponse(response, allowedCodes: [204, 304])
@@ -282,7 +198,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Restarting container \(id)")
 
         let request = HTTPRequest(method: "POST", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
         logger.info("Container \(id) restarted")
@@ -293,7 +209,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("Removing container \(id)")
 
         let request = HTTPRequest(method: "DELETE", path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
         logger.info("Container \(id) removed")
@@ -310,7 +226,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching logs for container \(id)")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         // Docker logs use multiplexed stream format when TTY is disabled
@@ -328,57 +244,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.debug("Fetching system info")
 
         let request = HTTPRequest(path: path)
-        let response = try performRequest(request)
+        let response = try await performRequest(request)
         try validateResponse(response)
 
         let decoder = JSONDecoder()
         return try decoder.decode(DockerSystemInfo.self, from: response.body)
-    }
-
-    // MARK: - Multiplexed Log Parsing
-
-    /// Parse Docker's multiplexed log format
-    /// Format: [8-byte header][payload]
-    /// Header: [stream_type(1)][padding(3)][size(4 big-endian)]
-    private func parseMultiplexedLogs(_ data: Data) -> String {
-        var result = ""
-        var offset = 0
-
-        while offset + 8 <= data.count {
-            // Read 4-byte size (big-endian) from bytes 4-7 of header
-            let sizeBytes = data.subdata(in: (offset + 4)..<(offset + 8))
-            let size = sizeBytes.withUnsafeBytes { buffer in
-                buffer.load(as: UInt32.self).bigEndian
-            }
-
-            // Move past header
-            offset += 8
-
-            // Validate we have enough data
-            guard offset + Int(size) <= data.count else {
-                break
-            }
-
-            // Extract payload
-            let payload = data.subdata(in: offset..<(offset + Int(size)))
-            if let text = String(data: payload, encoding: .utf8) {
-                result += text
-            }
-
-            // Move to next frame
-            offset += Int(size)
-        }
-
-        return result
-    }
-}
-
-// MARK: - Factory Method
-
-extension DockerAPIClientImpl {
-    /// Create a client for local Docker daemon
-    public static func local() throws -> DockerAPIClientImpl {
-        let host = DockerHost.local
-        return try DockerAPIClientImpl(host: host)
     }
 }

@@ -88,10 +88,17 @@ struct ServiceIcon: View {
 
     // MARK: - Icon Loading
 
+    @MainActor private static var iconCache: [String: NSImage] = [:]
+
     private func loadServiceIcon(named name: String) -> NSImage? {
+        if let cached = Self.iconCache[name] {
+            return cached
+        }
+
         // Load from SPM bundle (resources are flattened by .process())
         if let url = Bundle.module.url(forResource: name, withExtension: "png"),
            let image = NSImage(contentsOf: url) {
+            Self.iconCache[name] = image
             return image
         }
 

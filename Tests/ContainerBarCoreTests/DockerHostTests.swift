@@ -105,6 +105,36 @@ struct DockerHostTests {
         #expect(decoded.sshUser == original.sshUser)
         #expect(decoded.sshPort == original.sshPort)
     }
+    @Test("DockerSystemInfo decodes version from correct JSON field")
+    func systemInfoDecodesVersion() throws {
+        let json = """
+        {
+            "ID": "ABCD:1234",
+            "Containers": 5,
+            "ContainersRunning": 3,
+            "ContainersPaused": 0,
+            "ContainersStopped": 2,
+            "Images": 10,
+            "DockerRootDir": "/var/lib/docker",
+            "DockerVersion": "24.0.5",
+            "OperatingSystem": "Ubuntu 22.04",
+            "KernelVersion": "5.15.0",
+            "Architecture": "x86_64",
+            "MemTotal": 8589934592,
+            "NCPU": 4,
+            "ServerVersion": "24.0.5"
+        }
+        """.data(using: .utf8)!
+
+        let info = try JSONDecoder().decode(DockerSystemInfo.self, from: json)
+
+        #expect(info.dockerVersion == "24.0.5")
+        #expect(info.dockerVersion != "/var/lib/docker")
+        #expect(info.containers == 5)
+        #expect(info.containersRunning == 3)
+        #expect(info.cpuCount == 4)
+        #expect(info.serverVersion == "24.0.5")
+    }
 }
 
 @Suite("ConnectionType Tests")
