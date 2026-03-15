@@ -26,6 +26,8 @@ struct SearchBarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+                .accessibilityHint("Clears the search field")
             }
         }
         .padding(.horizontal, 12)

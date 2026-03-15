@@ -15,6 +15,7 @@ public struct RetryConfig: Sendable {
     )
 
     public init(maxAttempts: Int, initialDelay: TimeInterval, maxDelay: TimeInterval, multiplier: Double) {
+        precondition(maxAttempts > 0, "RetryConfig.maxAttempts must be greater than zero")
         self.maxAttempts = maxAttempts
         self.initialDelay = initialDelay
         self.maxDelay = maxDelay

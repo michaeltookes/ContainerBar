@@ -24,6 +24,8 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
     private var tunnelProcess: Process?
     private var localSocketPath: String?
+    private var connectTask: Task<String, Error>?
+    private var connectTaskID: UUID?
 
     /// Set to true when the tunnel process terminates unexpectedly
     private var tunnelDied = false
@@ -52,7 +54,113 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     /// Establishes an SSH tunnel to the remote Docker socket
     /// - Returns: The local socket path to connect to
     public func connect() async throws -> String {
-        // Create a unique local socket path
+        let task = getOrCreateConnectTask(forceReconnect: false)
+        return try await task.value
+    }
+
+    /// Tears down the existing tunnel and reconnects with exponential backoff
+    /// - Returns: The new local socket path
+    public func reconnect() async throws -> String {
+        let maxRetries = 3
+        let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
+        var lastError: Error?
+
+        for attempt in 0..<maxRetries {
+            let task = getOrCreateConnectTask(forceReconnect: true)
+
+            do {
+                let socketPath = try await task.value
+                logger.info("SSH tunnel reconnected on attempt \(attempt + 1)")
+                return socketPath
+            } catch {
+                lastError = error
+                logger.warning("Reconnect attempt \(attempt + 1)/\(maxRetries) failed: \(error.localizedDescription)")
+
+                if attempt < maxRetries - 1 {
+                    try await Task.sleep(for: delays[attempt])
+                }
+            }
+        }
+
+        logger.error("SSH tunnel reconnection failed after \(maxRetries) attempts")
+        if let dockerError = lastError as? DockerAPIError {
+            throw dockerError
+        }
+
+        throw DockerAPIError.sshConnectionFailed(
+            "Reconnection failed after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown error")"
+        )
+    }
+
+    /// Closes the SSH tunnel
+    public func disconnect() {
+        disconnectTunnelState(cancelConnectTask: true)
+    }
+
+    /// Check if tunnel is active
+    public var isConnected: Bool {
+        stateLock.withLock {
+            tunnelProcess?.isRunning ?? false
+        }
+    }
+
+    /// Whether the tunnel has died since last connect
+    public var hasDied: Bool {
+        stateLock.withLock {
+            tunnelDied
+        }
+    }
+
+    public func snapshotState() -> StateSnapshot {
+        stateLock.withLock {
+            StateSnapshot(
+                isConnected: tunnelProcess?.isRunning ?? false,
+                hasDied: tunnelDied
+            )
+        }
+    }
+
+    private func getOrCreateConnectTask(forceReconnect: Bool) -> Task<String, Error> {
+        stateLock.withLock {
+            if !forceReconnect, let connectTask {
+                return connectTask
+            }
+
+            let taskID = UUID()
+            let task = Task<String, Error> { [weak self] in
+                guard let self else {
+                    throw DockerAPIError.connectionFailed
+                }
+
+                defer {
+                    self.clearConnectTaskIfCurrent(taskID)
+                }
+
+                if forceReconnect {
+                    self.disconnectTunnelState(cancelConnectTask: false)
+                }
+
+                return try await self.startTunnel(taskID: taskID)
+            }
+
+            connectTask = task
+            connectTaskID = taskID
+            return task
+        }
+    }
+
+    private func clearConnectTaskIfCurrent(_ taskID: UUID) {
+        stateLock.withLock {
+            guard connectTaskID == taskID else {
+                return
+            }
+
+            connectTask = nil
+            connectTaskID = nil
+        }
+    }
+
+    private func startTunnel(taskID: UUID) async throws -> String {
         let socketDir = FileManager.default.temporaryDirectory
         let socketName = "dockerbar-\(UUID().uuidString.prefix(8)).sock"
         let localSocket = socketDir.appendingPathComponent(socketName).path
@@ -121,10 +229,15 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         process.terminationHandler = { [weak self] terminatedProcess in
             guard let self else { return }
             let status = terminatedProcess.terminationStatus
-            self.logger.warning("SSH tunnel process terminated with status \(status)")
-            self.stateLock.withLock {
+            let shouldReport = self.stateLock.withLock { () -> Bool in
+                guard self.tunnelProcess === terminatedProcess else {
+                    return false
+                }
                 self.tunnelDied = true
+                return true
             }
+            guard shouldReport else { return }
+            self.logger.warning("SSH tunnel process terminated with status \(status)")
         }
 
         do {
@@ -134,8 +247,21 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             throw DockerAPIError.connectionFailed
         }
 
+        var adopted = false
+        defer {
+            if !adopted {
+                process.terminationHandler = nil
+                if process.isRunning {
+                    process.terminate()
+                }
+                try? FileManager.default.removeItem(atPath: localSocket)
+            }
+        }
+
         // Wait briefly for tunnel to establish
+        try Task.checkCancellation()
         try await Task.sleep(for: .seconds(1))
+        try Task.checkCancellation()
 
         // Check if process is still running
         guard process.isRunning else {
@@ -158,6 +284,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         // Verify socket was created
         var attempts = 0
         while attempts < 10 {
+            try Task.checkCancellation()
             if FileManager.default.fileExists(atPath: localSocket) {
                 break
             }
@@ -171,89 +298,52 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             throw DockerAPIError.connectionFailed
         }
 
-        stateLock.withLock {
-            self.tunnelProcess = process
-            self.localSocketPath = localSocket
-            self.tunnelDied = false
+        let adoptedState = stateLock.withLock { () -> Bool in
+            guard connectTaskID == taskID else {
+                return false
+            }
+
+            tunnelProcess = process
+            localSocketPath = localSocket
+            tunnelDied = false
+            return true
         }
 
+        guard adoptedState else {
+            throw CancellationError()
+        }
+
+        adopted = true
         logger.info("SSH tunnel established: \(localSocket)")
         return localSocket
     }
 
-    /// Tears down the existing tunnel and reconnects with exponential backoff
-    /// - Returns: The new local socket path
-    public func reconnect() async throws -> String {
-        let maxRetries = 3
-        let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
-        var lastError: Error?
-
-        for attempt in 0..<maxRetries {
-            disconnect()
-
-            do {
-                let socketPath = try await connect()
-                logger.info("SSH tunnel reconnected on attempt \(attempt + 1)")
-                return socketPath
-            } catch {
-                lastError = error
-                logger.warning("Reconnect attempt \(attempt + 1)/\(maxRetries) failed: \(error.localizedDescription)")
-
-                if attempt < maxRetries - 1 {
-                    try await Task.sleep(for: delays[attempt])
-                }
-            }
-        }
-
-        logger.error("SSH tunnel reconnection failed after \(maxRetries) attempts")
-        if let dockerError = lastError as? DockerAPIError {
-            throw dockerError
-        }
-
-        throw DockerAPIError.sshConnectionFailed(
-            "Reconnection failed after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown error")"
-        )
-    }
-
-    /// Closes the SSH tunnel
-    public func disconnect() {
-        stateLock.withLock {
-            if let process = tunnelProcess, process.isRunning {
-                process.terminationHandler = nil // Prevent handler from firing during intentional disconnect
-                process.terminate()
-                logger.info("SSH tunnel closed")
-            }
+    private func disconnectTunnelState(cancelConnectTask: Bool) {
+        let state = stateLock.withLock { () -> (Process?, String?) in
+            let process = tunnelProcess
+            let socketPath = localSocketPath
             tunnelProcess = nil
-
-            // Clean up local socket
-            if let socketPath = localSocketPath {
-                try? FileManager.default.removeItem(atPath: socketPath)
-            }
             localSocketPath = nil
             tunnelDied = false
+
+            if cancelConnectTask {
+                connectTask?.cancel()
+                connectTask = nil
+                connectTaskID = nil
+            }
+
+            return (process, socketPath)
+        }
+
+        if let process = state.0, process.isRunning {
+            process.terminationHandler = nil
+            process.terminate()
+            logger.info("SSH tunnel closed")
+        }
+
+        if let socketPath = state.1 {
+            try? FileManager.default.removeItem(atPath: socketPath)
         }
     }
 
-    /// Check if tunnel is active
-    public var isConnected: Bool {
-        stateLock.withLock {
-            tunnelProcess?.isRunning ?? false
-        }
-    }
-
-    /// Whether the tunnel has died since last connect
-    public var hasDied: Bool {
-        stateLock.withLock {
-            tunnelDied
-        }
-    }
-
-    public func snapshotState() -> StateSnapshot {
-        stateLock.withLock {
-            StateSnapshot(
-                isConnected: tunnelProcess?.isRunning ?? false,
-                hasDied: tunnelDied
-            )
-        }
-    }
 }

@@ -101,7 +101,9 @@ enum TLSCertificateLoader {
                 "PKCS#8 private keys are not supported without algorithm OID detection. Use RSA/EC PEM headers or convert the key."
             )
         }
-        return kSecAttrKeyTypeRSA
+        throw DockerAPIError.invalidConfiguration(
+            "Unsupported private key format. Use an RSA or EC PEM private key."
+        )
     }
 
     private static func createPKCS12(cert: SecCertificate, key: SecKey) throws -> Data {

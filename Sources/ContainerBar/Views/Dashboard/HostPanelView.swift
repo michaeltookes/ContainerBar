@@ -3,6 +3,7 @@ import ContainerBarCore
 import Logging
 
 /// Host selection and management panel
+@MainActor
 struct HostPanelView: View {
     @Environment(SettingsStore.self) private var settings
     private let logger = Logger(label: "com.containerbar.ui.host-panel")
@@ -200,7 +201,7 @@ struct HostPanelView: View {
 
             onSelectHost(newHost.id)
         } catch {
-            logger.warning("Failed to save remote host from dashboard panel: \(error.localizedDescription)")
+            logger.warning("Failed to save remote host from dashboard panel")
             validationError = error.localizedDescription
         }
     }
@@ -215,6 +216,7 @@ struct HostPanelView: View {
 }
 
 /// Individual host row in the list
+@MainActor
 struct HostListRowView: View {
     let host: DockerHost
     let isSelected: Bool

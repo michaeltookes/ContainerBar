@@ -6,6 +6,7 @@ enum ConnectionTestResult: Equatable {
     case failure(String)
 }
 
+@MainActor
 struct HostRowView: View {
     let host: DockerHost
     let isSelected: Bool

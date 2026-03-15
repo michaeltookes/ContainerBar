@@ -22,7 +22,7 @@ public func withRetry<T>(
                 break
             }
 
-            try? await Task.sleep(for: .seconds(delay))
+            try await Task.sleep(for: .seconds(delay))
             delay = min(delay * config.multiplier, config.maxDelay)
         } catch {
             lastError = error

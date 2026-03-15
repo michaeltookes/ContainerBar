@@ -1,6 +1,7 @@
 import SwiftUI
 import ContainerBarCore
 
+@MainActor
 struct AddHostSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -124,7 +125,8 @@ struct AddHostSheet: View {
 
         switch connectionType {
         case .unixSocket:
-            let finalSocketPath = socketPath.isEmpty ? runtime.defaultSocketPath : socketPath
+            let trimmedSocketPath = socketPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let finalSocketPath = trimmedSocketPath.isEmpty ? runtime.defaultSocketPath : trimmedSocketPath
             newHost = DockerHost(
                 name: name,
                 connectionType: .unixSocket,

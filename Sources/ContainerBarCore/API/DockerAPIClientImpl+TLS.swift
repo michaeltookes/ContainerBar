@@ -54,6 +54,7 @@ extension DockerAPIClientImpl {
 
 actor TLSConnectCoordinator {
     private var connectTask: Task<Void, Error>?
+    private var connectTaskID: UUID?
 
     func ensureConnected(_ tls: TLSConnection) async throws {
         guard !tls.isConnected else {
@@ -66,34 +67,42 @@ actor TLSConnectCoordinator {
     }
 
     func reconnect(_ tls: TLSConnection) async throws {
-        if let connectTask {
-            _ = try? await connectTask.value
-        }
-
         tls.disconnect()
+        let reconnectTaskID = UUID()
 
-        try await runConnectTask {
+        try await runConnectTask(taskID: reconnectTaskID) {
             try await tls.connect()
         }
     }
 
     private func runConnectTask(
+        taskID: UUID? = nil,
         _ operation: @escaping @Sendable () async throws -> Void
     ) async throws {
-        if let connectTask {
+        if let connectTask,
+           let connectTaskID,
+           taskID == nil || connectTaskID == taskID {
             return try await connectTask.value
         }
 
+        let newTaskID = taskID ?? UUID()
         let task = Task {
             try await operation()
         }
         connectTask = task
+        connectTaskID = newTaskID
 
         do {
             try await task.value
-            connectTask = nil
+            if connectTaskID == newTaskID {
+                connectTask = nil
+                connectTaskID = nil
+            }
         } catch {
-            connectTask = nil
+            if connectTaskID == newTaskID {
+                connectTask = nil
+                connectTaskID = nil
+            }
             throw error
         }
     }

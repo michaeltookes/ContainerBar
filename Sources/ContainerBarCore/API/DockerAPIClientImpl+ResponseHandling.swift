@@ -30,9 +30,8 @@ extension DockerAPIClientImpl {
         var offset = 0
 
         while offset + 8 <= data.count {
-            let sizeBytes = data.subdata(in: (offset + 4)..<(offset + 8))
-            let rawSize = sizeBytes.withUnsafeBytes { buffer in
-                buffer.load(as: UInt32.self).bigEndian
+            let rawSize = (offset + 4..<(offset + 8)).reduce(UInt32(0)) { partial, index in
+                (partial << 8) | UInt32(data[index])
             }
             offset += 8
 

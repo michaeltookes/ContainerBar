@@ -22,11 +22,12 @@ struct HTTPRequest: Sendable {
         }
     }
 
-    func toHTTPData() -> Data {
+    func toHTTPData(resolvedHost: String? = nil) -> Data {
         var resolvedHeaders = headers
 
-        if resolvedHeaders.keys.contains(where: { $0.caseInsensitiveCompare("Host") == .orderedSame }) == false {
-            resolvedHeaders["Host"] = "localhost"
+        if let resolvedHost,
+           resolvedHeaders.keys.contains(where: { $0.caseInsensitiveCompare("Host") == .orderedSame }) == false {
+            resolvedHeaders["Host"] = resolvedHost
         }
 
         if resolvedHeaders.keys.contains(where: { $0.caseInsensitiveCompare("Connection") == .orderedSame }) == false {
@@ -53,8 +54,8 @@ struct HTTPRequest: Sendable {
         return requestData
     }
 
-    func toHTTPString() -> String {
-        String(decoding: toHTTPData(), as: UTF8.self)
+    func toHTTPString(resolvedHost: String? = nil) -> String {
+        String(decoding: toHTTPData(resolvedHost: resolvedHost), as: UTF8.self)
     }
 }
 

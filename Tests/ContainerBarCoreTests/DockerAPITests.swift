@@ -43,7 +43,7 @@ struct DockerAPITests {
         let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("GET /v1.43/containers/json?all=true HTTP/1.1"))
-        #expect(httpString.contains("Host: localhost"))
+        #expect(httpString.contains("Host:") == false)
         #expect(httpString.contains("Connection: keep-alive"))
     }
 
@@ -75,6 +75,18 @@ struct DockerAPITests {
 
         #expect(httpString.contains("Host: docker.example.com"))
         #expect(httpString.contains("Host: localhost") == false)
+    }
+
+    @Test("HTTPRequest uses resolved host when provided")
+    func httpRequestResolvedHostHeader() {
+        let request = HTTPRequest(
+            method: "GET",
+            path: "/_ping"
+        )
+
+        let httpString = String(decoding: request.toHTTPData(resolvedHost: "docker.example.com"), as: UTF8.self)
+
+        #expect(httpString.contains("Host: docker.example.com"))
     }
 
     @Test("HTTPResponse success detection")
@@ -223,6 +235,26 @@ struct RetryConfigTests {
         #expect(config.initialDelay == 0.5)
         #expect(config.maxDelay == 30.0)
         #expect(config.multiplier == 3.0)
+    }
+
+    @Test("withRetry propagates cancellation during backoff")
+    func retryCancellation() async throws {
+        let task = Task {
+            let _: Void = try await withRetry(
+                config: RetryConfig(maxAttempts: 2, initialDelay: 1.0, maxDelay: 1.0, multiplier: 2.0)
+            ) {
+                throw DockerAPIError.connectionFailed
+            }
+        }
+
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation to propagate from withRetry")
+        } catch is CancellationError {
+            // Expected.
+        }
     }
 }
 

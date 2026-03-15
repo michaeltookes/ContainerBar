@@ -5,14 +5,16 @@ import Darwin
 
 /// Handles raw HTTP communication over Unix domain sockets
 ///
-/// Synchronization: `socketLock` protects `socketFD` for all read/write/lifecycle
-/// operations. The lock is held for the duration of each complete operation
-/// (connect, disconnect, send+receive) to prevent interleaved access.
+/// Synchronization: `socketLock` protects `socketFD` lifecycle state while `ioLock`
+/// serializes request/response traffic. Blocking socket I/O runs without holding
+/// `socketLock` to avoid deadlocking disconnect/reconnect.
 final class UnixSocketConnection: @unchecked Sendable {
 
     private let socketPath: String
     private var socketFD: Int32 = -1
+    private var socketGeneration: UInt64 = 0
     private let socketLock = NSLock()
+    private let ioLock = NSLock()
 
     init(socketPath: String) {
         self.socketPath = socketPath
@@ -26,17 +28,21 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Connect to the Unix socket
     func connect() throws {
-        socketLock.lock()
-        defer { socketLock.unlock() }
-
-        if socketFD >= 0 {
-            Darwin.close(socketFD)
+        let (generation, existingFD) = socketLock.withLock { () -> (UInt64, Int32) in
+            socketGeneration &+= 1
+            let generation = socketGeneration
+            let existingFD = socketFD
             socketFD = -1
+            return (generation, existingFD)
+        }
+
+        if existingFD >= 0 {
+            Darwin.close(existingFD)
         }
 
         // Create socket
-        socketFD = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard socketFD >= 0 else {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else {
             throw DockerAPIError.connectionFailed
         }
 
@@ -47,8 +53,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         // Copy socket path to sun_path
         let pathBytes = socketPath.utf8CString
         guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            Darwin.close(socketFD)
-            socketFD = -1
+            Darwin.close(fd)
             throw DockerAPIError.invalidConfiguration("Socket path too long")
         }
 
@@ -63,29 +68,44 @@ final class UnixSocketConnection: @unchecked Sendable {
         // Connect
         let result = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                Darwin.connect(socketFD, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+                Darwin.connect(fd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
 
         guard result == 0 else {
             let errorCode = errno
-            Darwin.close(socketFD)
-            socketFD = -1
+            Darwin.close(fd)
             if errorCode == ENOENT {
                 throw DockerAPIError.socketNotFound(socketPath)
             }
+            throw DockerAPIError.connectionFailed
+        }
+
+        let adopted = socketLock.withLock { () -> Bool in
+            guard socketGeneration == generation, socketFD == -1 else {
+                return false
+            }
+            socketFD = fd
+            return true
+        }
+
+        guard adopted else {
+            Darwin.close(fd)
             throw DockerAPIError.connectionFailed
         }
     }
 
     /// Disconnect from the Unix socket
     func disconnect() {
-        socketLock.lock()
-        defer { socketLock.unlock() }
-
-        if socketFD >= 0 {
-            Darwin.close(socketFD)
+        let fd = socketLock.withLock { () -> Int32 in
+            socketGeneration &+= 1
+            let fd = socketFD
             socketFD = -1
+            return fd
+        }
+
+        if fd >= 0 {
+            Darwin.close(fd)
         }
     }
 
@@ -93,14 +113,14 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Send an HTTP request and receive the response
     func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
-        socketLock.lock()
-        defer { socketLock.unlock() }
+        ioLock.lock()
+        defer { ioLock.unlock() }
 
-        guard socketFD >= 0 else {
+        let fd = socketLock.withLock { socketFD }
+        guard fd >= 0 else {
             throw DockerAPIError.connectionFailed
         }
 
-        // Build HTTP request string
         let requestData = request.toHTTPData()
 
         // Send request
@@ -112,7 +132,7 @@ final class UnixSocketConnection: @unchecked Sendable {
 
             while totalSent < buffer.count {
                 let sent = Darwin.send(
-                    socketFD,
+                    fd,
                     baseAddress.advanced(by: totalSent),
                     buffer.count - totalSent,
                     0
@@ -126,12 +146,10 @@ final class UnixSocketConnection: @unchecked Sendable {
             }
         }
 
-        // Receive response
-        let response = try receiveResponse()
-        return response
+        return try receiveResponse(socketFD: fd)
     }
 
-    private func receiveResponse() throws -> HTTPResponse {
+    private func receiveResponse(socketFD: Int32) throws -> HTTPResponse {
         var responseData = Data()
         let bufferSize = 8192
         var buffer = [UInt8](repeating: 0, count: bufferSize)
@@ -185,7 +203,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             }
         } else if headers["transfer-encoding"]?.lowercased() == "chunked" {
             // Read chunked response
-            bodyData = try readChunkedBody(initialData: bodyData)
+            bodyData = try readChunkedBody(initialData: bodyData, socketFD: socketFD)
         }
 
         return HTTPResponse(statusCode: statusCode, headers: headers, body: bodyData)
@@ -218,7 +236,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         return (statusCode, headers)
     }
 
-    private func readChunkedBody(initialData: Data) throws -> Data {
+    private func readChunkedBody(initialData: Data, socketFD: Int32) throws -> Data {
         var result = Data()
         var remaining = initialData
         let bufferSize = 8192

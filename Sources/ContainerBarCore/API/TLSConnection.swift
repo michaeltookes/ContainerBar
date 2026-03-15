@@ -182,7 +182,7 @@ final class TLSConnection: @unchecked Sendable {
         }
 
         // Build and send HTTP request
-        let requestData = request.toHTTPData()
+        let requestData = request.toHTTPData(resolvedHost: host)
 
         // Send
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
