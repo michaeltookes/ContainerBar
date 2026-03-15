@@ -25,7 +25,7 @@ public actor ContainerFetcher {
     private let minFetchInterval: TimeInterval = 1.0
 
     /// Maximum number of concurrent stats fetches
-    static let maxConcurrentStatsFetches = 10
+    private static let maxConcurrentStatsFetches = 10
 
     // MARK: - Initialization
 
@@ -219,87 +219,5 @@ public actor ContainerFetcher {
             totalCount: containers.count,
             updatedAt: Date()
         )
-    }
-}
-
-// MARK: - Retry Configuration
-
-/// Configuration for retry behavior
-public struct RetryConfig: Sendable {
-    public let maxAttempts: Int
-    public let initialDelay: TimeInterval
-    public let maxDelay: TimeInterval
-    public let multiplier: Double
-
-    public static let `default` = RetryConfig(
-        maxAttempts: 3,
-        initialDelay: 1.0,
-        maxDelay: 10.0,
-        multiplier: 2.0
-    )
-
-    public init(maxAttempts: Int, initialDelay: TimeInterval, maxDelay: TimeInterval, multiplier: Double) {
-        self.maxAttempts = maxAttempts
-        self.initialDelay = initialDelay
-        self.maxDelay = maxDelay
-        self.multiplier = multiplier
-    }
-}
-
-// MARK: - Retry Helper
-
-/// Retry an async operation with exponential backoff
-public func withRetry<T>(
-    config: RetryConfig = .default,
-    operation: @escaping () async throws -> T
-) async throws -> T {
-    var lastError: Error?
-    var delay = config.initialDelay
-
-    for attempt in 1...config.maxAttempts {
-        do {
-            return try await operation()
-        } catch let error as DockerAPIError {
-            lastError = error
-
-            // Don't retry permanent errors
-            guard error.isTransient else {
-                throw error
-            }
-
-            // Don't delay on last attempt
-            guard attempt < config.maxAttempts else {
-                break
-            }
-
-            // Wait with exponential backoff
-            try? await Task.sleep(for: .seconds(delay))
-
-            // Increase delay for next attempt
-            delay = min(delay * config.multiplier, config.maxDelay)
-        } catch {
-            lastError = error
-            throw error
-        }
-    }
-
-    throw lastError ?? DockerAPIError.connectionFailed
-}
-
-// MARK: - Error Extensions
-
-extension DockerAPIError {
-    /// Whether this error is transient and can be retried
-    public var isTransient: Bool {
-        switch self {
-        case .connectionFailed, .networkTimeout, .serverError, .sshConnectionFailed, .tlsConnectionFailed:
-            return true
-        case .unauthorized, .notFound, .invalidConfiguration, .invalidURL,
-             .socketNotFound:
-            return false
-        case .conflict, .unexpectedStatus, .invalidResponse, .decodingError,
-             .notImplemented:
-            return false
-        }
     }
 }

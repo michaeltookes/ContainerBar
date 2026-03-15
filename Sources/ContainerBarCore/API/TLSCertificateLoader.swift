@@ -35,7 +35,7 @@ enum TLSCertificateLoader {
         let keyData = try Data(contentsOf: URL(fileURLWithPath: keyPath))
         let keyPEM = String(data: keyData, encoding: .utf8) ?? ""
 
-        let keyType = detectKeyType(from: keyPEM)
+        let keyType = try detectKeyType(from: keyPEM)
 
         let keyBase64 = keyPEM
             .replacingOccurrences(of: "-----BEGIN RSA PRIVATE KEY-----", with: "")
@@ -80,21 +80,27 @@ enum TLSCertificateLoader {
         guard status == errSecSuccess,
               let itemArray = items as? [[String: Any]],
               let firstItem = itemArray.first,
-              let identity = firstItem[kSecImportItemIdentity as String] else {
+              let identityObject = firstItem[kSecImportItemIdentity as String],
+              case let identity as SecIdentity = identityObject else {
             throw DockerAPIError.invalidConfiguration("Failed to import client identity (status: \(status))")
         }
 
-        // swiftlint:disable:next force_cast
-        return identity as! SecIdentity
+        return identity
     }
 
     /// Detect key type from PEM header
-    private static func detectKeyType(from pemString: String) -> CFString {
+    private static func detectKeyType(from pemString: String) throws -> CFString {
         if pemString.contains("BEGIN EC PRIVATE KEY") {
             return kSecAttrKeyTypeECSECPrimeRandom
         }
-        // PKCS#8 "BEGIN PRIVATE KEY" could be RSA or EC — default to RSA
-        // since Docker TLS predominantly uses RSA keys
+        if pemString.contains("BEGIN RSA PRIVATE KEY") {
+            return kSecAttrKeyTypeRSA
+        }
+        if pemString.contains("BEGIN PRIVATE KEY") {
+            throw DockerAPIError.invalidConfiguration(
+                "PKCS#8 private keys are not supported without algorithm OID detection. Use RSA/EC PEM headers or convert the key."
+            )
+        }
         return kSecAttrKeyTypeRSA
     }
 

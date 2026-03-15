@@ -2,6 +2,7 @@ import SwiftUI
 import ContainerBarCore
 
 /// Logs container selection panel
+@MainActor
 struct LogsPanelView: View {
     let containers: [DockerContainer]
     let onSelectContainer: (String) -> Void
@@ -9,7 +10,7 @@ struct LogsPanelView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Title and dismiss control stay grouped so the panel reads as a single transient surface.
             HStack {
                 Text("View Logs")
                     .font(.system(size: 12, weight: .semibold))
@@ -25,6 +26,9 @@ struct LogsPanelView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+                .accessibilityHint("Closes the logs panel")
+                .accessibilityIdentifier("logs-panel-close")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -44,7 +48,7 @@ struct LogsPanelView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
             } else {
-                // Container list
+                // The container list keeps running items discoverable and lets the user jump straight to logs.
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(sortedContainers) { container in
@@ -75,6 +79,7 @@ struct LogsPanelView: View {
 }
 
 /// Container row for logs panel
+@MainActor
 struct LogsContainerRowView: View {
     let container: DockerContainer
     let onSelect: () -> Void
@@ -84,12 +89,11 @@ struct LogsContainerRowView: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 10) {
-                // Status indicator
+                // The leading dot gives a quick visual state cue before the spoken label/value.
                 Circle()
                     .fill(container.state == .running ? Color.green : Color.gray)
                     .frame(width: 8, height: 8)
 
-                // Container name
                 Text(container.displayName)
                     .font(.system(size: 12))
                     .foregroundStyle(.primary)
@@ -97,12 +101,11 @@ struct LogsContainerRowView: View {
 
                 Spacer()
 
-                // Status text
                 Text(container.state == .running ? "Running" : "Stopped")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
 
-                // Arrow
+                // The chevron signals that selecting the row navigates into the log viewer flow.
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
@@ -117,6 +120,10 @@ struct LogsContainerRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(container.displayName)
+        .accessibilityValue(container.status.isEmpty ? container.state.rawValue.capitalized : container.status)
+        .accessibilityHint("Opens this container's logs")
+        .accessibilityIdentifier("logs-panel-container-\(container.id)")
         .onHover { hovering in
             isHovered = hovering
         }

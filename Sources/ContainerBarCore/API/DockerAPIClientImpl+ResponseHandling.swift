@@ -1,6 +1,8 @@
 import Foundation
 
 extension DockerAPIClientImpl {
+    private static let maxLogFrameSize = 10 * 1024 * 1024
+
     func validateResponse(_ response: HTTPResponse, allowedCodes: Set<Int> = [200]) throws {
         guard allowedCodes.contains(response.statusCode) else {
             logger.error("HTTP error: \(response.statusCode)")
@@ -29,22 +31,24 @@ extension DockerAPIClientImpl {
 
         while offset + 8 <= data.count {
             let sizeBytes = data.subdata(in: (offset + 4)..<(offset + 8))
-            let size = sizeBytes.withUnsafeBytes { buffer in
+            let rawSize = sizeBytes.withUnsafeBytes { buffer in
                 buffer.load(as: UInt32.self).bigEndian
             }
-
             offset += 8
 
-            guard offset + Int(size) <= data.count else {
+            guard rawSize > 0,
+                  rawSize <= UInt32(Self.maxLogFrameSize),
+                  let frameSize = Int(exactly: rawSize),
+                  offset + frameSize <= data.count else {
                 break
             }
 
-            let payload = data.subdata(in: offset..<(offset + Int(size)))
+            let payload = data.subdata(in: offset..<(offset + frameSize))
             if let text = String(data: payload, encoding: .utf8) {
                 result += text
             }
 
-            offset += Int(size)
+            offset += frameSize
         }
 
         return result

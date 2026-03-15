@@ -9,8 +9,8 @@ import Logging
 /// which may be read from any thread (e.g. `isConnected`, `disconnect`).
 public final class SSHTunnelConnection: @unchecked Sendable {
     public struct StateSnapshot: Sendable {
-        let isConnected: Bool
-        let hasDied: Bool
+        public let isConnected: Bool
+        public let hasDied: Bool
     }
 
     // MARK: - Properties
@@ -186,6 +186,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     public func reconnect() async throws -> String {
         let maxRetries = 3
         let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
+        var lastError: Error?
 
         for attempt in 0..<maxRetries {
             disconnect()
@@ -195,6 +196,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 logger.info("SSH tunnel reconnected on attempt \(attempt + 1)")
                 return socketPath
             } catch {
+                lastError = error
                 logger.warning("Reconnect attempt \(attempt + 1)/\(maxRetries) failed: \(error.localizedDescription)")
 
                 if attempt < maxRetries - 1 {
@@ -204,7 +206,13 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
 
         logger.error("SSH tunnel reconnection failed after \(maxRetries) attempts")
-        throw DockerAPIError.sshConnectionFailed("Reconnection failed after \(maxRetries) attempts")
+        if let dockerError = lastError as? DockerAPIError {
+            throw dockerError
+        }
+
+        throw DockerAPIError.sshConnectionFailed(
+            "Reconnection failed after \(maxRetries) attempts: \(lastError?.localizedDescription ?? "unknown error")"
+        )
     }
 
     /// Closes the SSH tunnel

@@ -24,6 +24,7 @@ struct DockerAPITests {
         #expect(DockerAPIError.networkTimeout.isTransient == true)
         #expect(DockerAPIError.serverError("test").isTransient == true)
         #expect(DockerAPIError.sshConnectionFailed("test").isTransient == true)
+        #expect(DockerAPIError.tlsConnectionFailed("test").isTransient == true)
 
         // Permanent errors (don't retry)
         #expect(DockerAPIError.unauthorized.isTransient == false)
@@ -32,14 +33,14 @@ struct DockerAPITests {
         #expect(DockerAPIError.socketNotFound("/path").isTransient == false)
     }
 
-    @Test("HTTPRequest builds correct request string")
+    @Test("HTTPRequest builds correct request data")
     func httpRequestString() {
         let request = HTTPRequest(
             method: "GET",
             path: "/v1.43/containers/json?all=true"
         )
 
-        let httpString = request.toHTTPString()
+        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("GET /v1.43/containers/json?all=true HTTP/1.1"))
         #expect(httpString.contains("Host: localhost"))
@@ -55,11 +56,25 @@ struct DockerAPITests {
             body: body
         )
 
-        let httpString = request.toHTTPString()
+        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("POST"))
         #expect(httpString.contains("Content-Length: \(body.count)"))
         #expect(httpString.contains("test body"))
+    }
+
+    @Test("HTTPRequest preserves explicit Host header")
+    func httpRequestCustomHostHeader() {
+        let request = HTTPRequest(
+            method: "GET",
+            path: "/_ping",
+            headers: ["Host": "docker.example.com"]
+        )
+
+        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
+
+        #expect(httpString.contains("Host: docker.example.com"))
+        #expect(httpString.contains("Host: localhost") == false)
     }
 
     @Test("HTTPResponse success detection")

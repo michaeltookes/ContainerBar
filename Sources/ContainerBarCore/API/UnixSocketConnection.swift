@@ -101,10 +101,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         }
 
         // Build HTTP request string
-        let httpRequest = request.toHTTPString()
-        guard let requestData = httpRequest.data(using: .utf8) else {
-            throw DockerAPIError.invalidConfiguration("Could not encode request")
-        }
+        let requestData = request.toHTTPData()
 
         // Send request
         var totalSent = 0

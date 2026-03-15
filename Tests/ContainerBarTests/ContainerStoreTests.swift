@@ -129,9 +129,10 @@ struct ContainerStoreTests {
         await store.refresh()
 
         mock.callCount = 0
+        mock.calledMethods = []
         await store.stopContainer(id: "c1")
 
-        #expect(mock.callCount > 0)
+        #expect(mock.calledMethods.contains("stopContainer"))
     }
 
     @Test("restartContainer calls through to fetcher")
@@ -146,9 +147,10 @@ struct ContainerStoreTests {
         await store.refresh()
 
         mock.callCount = 0
+        mock.calledMethods = []
         await store.restartContainer(id: "c1")
 
-        #expect(mock.callCount > 0)
+        #expect(mock.calledMethods.contains("restartContainer"))
     }
 
     @Test("removeContainer passes force flag")
@@ -163,10 +165,10 @@ struct ContainerStoreTests {
         await store.refresh()
 
         mock.callCount = 0
+        mock.calledMethods = []
         await store.removeContainer(id: "c1", force: true)
 
-        // Should have called removeContainer then refresh (listContainers)
-        #expect(mock.callCount > 0)
+        #expect(mock.calledMethods.contains("removeContainer"))
     }
 
     // MARK: - Action Guard Tests

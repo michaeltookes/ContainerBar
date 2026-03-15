@@ -26,12 +26,15 @@ struct RemoteHostDraft: Sendable {
 enum RemoteHostDraftBuilder {
     enum ValidationError: LocalizedError {
         case emptyHost
+        case invalidHost
         case invalidPort
 
         var errorDescription: String? {
             switch self {
             case .emptyHost:
                 return "Host is required."
+            case .invalidHost:
+                return "Enter a valid host or host:port value."
             case .invalidPort:
                 return "SSH port must be between 1 and 65535."
             }
@@ -101,8 +104,11 @@ enum RemoteHostDraftBuilder {
             throw ValidationError.emptyHost
         }
 
-        if trimmedHost.hasPrefix("["),
-           let closingBracket = trimmedHost.firstIndex(of: "]") {
+        if trimmedHost.hasPrefix("[") {
+            guard let closingBracket = trimmedHost.firstIndex(of: "]") else {
+                throw ValidationError.invalidHost
+            }
+
             let hostStart = trimmedHost.index(after: trimmedHost.startIndex)
             let host = String(trimmedHost[hostStart..<closingBracket]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !host.isEmpty else {
@@ -114,10 +120,16 @@ enum RemoteHostDraftBuilder {
                 return (host, nil)
             }
 
-            if remainder.first == ":" {
-                let portString = String(remainder.dropFirst())
-                return (host, try parsePort(portString))
+            guard remainder.first == ":" else {
+                throw ValidationError.invalidHost
             }
+
+            let portString = String(remainder.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !portString.isEmpty, portString.allSatisfy(\.isNumber) else {
+                throw ValidationError.invalidHost
+            }
+
+            return (host, try parsePort(portString))
         }
 
         let colonCount = trimmedHost.reduce(into: 0) { count, character in
@@ -131,9 +143,19 @@ enum RemoteHostDraftBuilder {
             let parsedHost = String(trimmedHost[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
             let parsedPort = String(trimmedHost[trimmedHost.index(after: separator)...]).trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if !parsedHost.isEmpty, !parsedPort.isEmpty, parsedPort.allSatisfy(\.isNumber) {
-                return (parsedHost, try parsePort(parsedPort))
+            guard !parsedHost.isEmpty else {
+                throw ValidationError.emptyHost
             }
+
+            guard !parsedPort.isEmpty, parsedPort.allSatisfy(\.isNumber) else {
+                throw ValidationError.invalidHost
+            }
+
+            return (parsedHost, try parsePort(parsedPort))
+        }
+
+        if colonCount > 0 {
+            throw ValidationError.invalidHost
         }
 
         return (trimmedHost, nil)

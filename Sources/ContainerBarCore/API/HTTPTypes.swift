@@ -13,26 +13,48 @@ struct HTTPRequest: Sendable {
         self.body = body
     }
 
+    var isIdempotent: Bool {
+        switch method.uppercased() {
+        case "GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE":
+            return true
+        default:
+            return false
+        }
+    }
+
+    func toHTTPData() -> Data {
+        var resolvedHeaders = headers
+
+        if resolvedHeaders.keys.contains(where: { $0.caseInsensitiveCompare("Host") == .orderedSame }) == false {
+            resolvedHeaders["Host"] = "localhost"
+        }
+
+        if resolvedHeaders.keys.contains(where: { $0.caseInsensitiveCompare("Connection") == .orderedSame }) == false {
+            resolvedHeaders["Connection"] = "keep-alive"
+        }
+
+        if let body {
+            resolvedHeaders["Content-Length"] = "\(body.count)"
+        }
+
+        var requestData = Data()
+        requestData.append(Data("\(method) \(path) HTTP/1.1\r\n".utf8))
+
+        for (key, value) in resolvedHeaders {
+            requestData.append(Data("\(key): \(value)\r\n".utf8))
+        }
+
+        requestData.append(Data("\r\n".utf8))
+
+        if let body {
+            requestData.append(body)
+        }
+
+        return requestData
+    }
+
     func toHTTPString() -> String {
-        var request = "\(method) \(path) HTTP/1.1\r\n"
-        request += "Host: localhost\r\n"
-        request += "Connection: keep-alive\r\n"
-
-        for (key, value) in headers {
-            request += "\(key): \(value)\r\n"
-        }
-
-        if let body, !body.isEmpty {
-            request += "Content-Length: \(body.count)\r\n"
-        }
-
-        request += "\r\n"
-
-        if let body, let bodyString = String(data: body, encoding: .utf8) {
-            request += bodyString
-        }
-
-        return request
+        String(decoding: toHTTPData(), as: UTF8.self)
     }
 }
 

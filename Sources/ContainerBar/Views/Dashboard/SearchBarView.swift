@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Search bar view for filtering containers
+@MainActor
 struct SearchBarView: View {
     @Binding var searchText: String
     @FocusState private var isFocused: Bool

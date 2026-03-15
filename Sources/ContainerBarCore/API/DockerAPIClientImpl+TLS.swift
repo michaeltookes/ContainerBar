@@ -15,6 +15,9 @@ extension DockerAPIClientImpl {
             guard shouldRetryTLSRequest(after: error) else {
                 throw error
             }
+            guard request.isIdempotent else {
+                throw error
+            }
 
             try await reconnectTLSConnection()
             return try await tls.sendRequest(request)

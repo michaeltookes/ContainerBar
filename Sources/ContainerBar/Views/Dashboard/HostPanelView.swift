@@ -1,9 +1,11 @@
 import SwiftUI
 import ContainerBarCore
+import Logging
 
 /// Host selection and management panel
 struct HostPanelView: View {
     @Environment(SettingsStore.self) private var settings
+    private let logger = Logger(label: "com.containerbar.ui.host-panel")
 
     let onSelectHost: (UUID) -> Void
     let onClose: () -> Void
@@ -13,6 +15,7 @@ struct HostPanelView: View {
     @State private var newHostAddress = ""
     @State private var newHostUser = "root"
     @State private var newHostPort = ""
+    @State private var validationError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -138,6 +141,7 @@ struct HostPanelView: View {
             HStack(spacing: 12) {
                 Button("Cancel") {
                     withAnimation(.easeInOut(duration: 0.2)) {
+                        validationError = nil
                         resetForm()
                         isAddingHost = false
                     }
@@ -154,7 +158,14 @@ struct HostPanelView: View {
                 .controlSize(.small)
                 .disabled(!isNewHostValid)
             }
-            .padding(.top, 4)
+
+            if let validationError {
+                Text(validationError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            }
         }
         .padding(16)
     }
@@ -169,26 +180,29 @@ struct HostPanelView: View {
     }
 
     private func saveNewHost() {
-        guard let hostDraft = try? RemoteHostDraftBuilder.build(
-            nameInput: newHostName,
-            hostInput: newHostAddress,
-            userInput: newHostUser,
-            portInput: newHostPort
-        ) else {
-            return
+        do {
+            let hostDraft = try RemoteHostDraftBuilder.build(
+                nameInput: newHostName,
+                hostInput: newHostAddress,
+                userInput: newHostUser,
+                portInput: newHostPort
+            )
+
+            let newHost = hostDraft.makeDockerHost()
+            validationError = nil
+
+            settings.addHost(newHost)
+
+            withAnimation(.easeInOut(duration: 0.2)) {
+                resetForm()
+                isAddingHost = false
+            }
+
+            onSelectHost(newHost.id)
+        } catch {
+            logger.warning("Failed to save remote host from dashboard panel: \(error.localizedDescription)")
+            validationError = error.localizedDescription
         }
-
-        let newHost = hostDraft.makeDockerHost()
-
-        settings.addHost(newHost)
-
-        withAnimation(.easeInOut(duration: 0.2)) {
-            resetForm()
-            isAddingHost = false
-        }
-
-        // Select the new host
-        onSelectHost(newHost.id)
     }
 
     private func resetForm() {
@@ -196,6 +210,7 @@ struct HostPanelView: View {
         newHostAddress = ""
         newHostUser = "root"
         newHostPort = ""
+        validationError = nil
     }
 }
 

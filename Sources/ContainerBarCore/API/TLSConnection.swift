@@ -33,7 +33,10 @@ final class TLSConnection: @unchecked Sendable {
     ///   - clientKeyPath: Path to client private key (PEM)
     init(host: String, port: Int = 2376, caCertPath: String?, clientCertPath: String?, clientKeyPath: String?) throws {
         self.host = host
-        self.port = UInt16(port)
+        guard let validatedPort = UInt16(exactly: port) else {
+            throw DockerAPIError.invalidConfiguration("TLS port must be between 0 and 65535")
+        }
+        self.port = validatedPort
 
         let tlsOptions = NWProtocolTLS.Options()
 
@@ -129,10 +132,21 @@ final class TLSConnection: @unchecked Sendable {
                         conn.start(queue: DispatchQueue.global(qos: .userInitiated))
                     }
 
-                    lock.withLock {
+                    let shouldMarkConnected = lock.withLock {
+                        guard let currentConnection = connection, currentConnection === conn else {
+                            return false
+                        }
+
                         _isConnected = true
                         _isConnecting = false
+                        return true
                     }
+
+                    guard shouldMarkConnected else {
+                        conn.cancel()
+                        return
+                    }
+
                     logger.info("TLS connection established to \(host):\(port)")
                     return
                 } catch {
@@ -168,10 +182,7 @@ final class TLSConnection: @unchecked Sendable {
         }
 
         // Build and send HTTP request
-        let httpString = request.toHTTPString()
-        guard let requestData = httpString.data(using: .utf8) else {
-            throw DockerAPIError.invalidConfiguration("Could not encode request")
-        }
+        let requestData = request.toHTTPData()
 
         // Send
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -237,7 +248,9 @@ final class TLSConnection: @unchecked Sendable {
             while body.count < contentLength {
                 let remaining = contentLength - body.count
                 let chunk = try await receiveChunk(conn: conn, length: min(remaining, 8192))
-                guard !chunk.isEmpty else { break }
+                guard !chunk.isEmpty else {
+                    throw DockerAPIError.tlsConnectionFailed("Connection closed before receiving complete HTTP body")
+                }
                 body.append(chunk)
             }
             return Data(accumulated[..<headerEnd.upperBound]) + body
@@ -247,7 +260,9 @@ final class TLSConnection: @unchecked Sendable {
             var body = Data(bodyStart)
             while body.range(of: endMarker) == nil {
                 let chunk = try await receiveChunk(conn: conn, length: 8192)
-                guard !chunk.isEmpty else { break }
+                guard !chunk.isEmpty else {
+                    throw DockerAPIError.tlsConnectionFailed("Connection closed before receiving complete HTTP body")
+                }
                 body.append(chunk)
             }
             return Data(accumulated[..<headerEnd.upperBound]) + body
