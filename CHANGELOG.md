@@ -5,11 +5,27 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.1] - 2026-03-13
+
+### Added
+- **TCP+TLS Connection Support**: Connect to remote Docker daemons over TCP with TLS certificate authentication
+- **Error Feedback UI**: Container action errors (start/stop/restart) now display an inline banner with details
+- **SSH Auto-Reconnect**: SSH tunnels automatically reconnect on connection loss
 
 ### Changed
-- Clarified project positioning as **beta preview** in user-facing docs and in-app About metadata.
-- Retained monotonic semantic versioning (no version number rollback).
+- Replaced blocking `Thread.sleep` with async `Task.sleep` in SSH tunnel connection
+- Audited `@unchecked Sendable` usage for improved thread safety
+- Clarified project positioning as beta preview in user-facing docs and About pane
+- Replaced `Bundle.module` with `AppResourceBundle` for reliable resource loading
+- Refactored `StatusItemController` and `DashboardMenuView` into smaller focused files
+
+### Fixed
+- Crash when opening menu with many containers on hosts with high container counts
+- `DockerSystemInfo` CodingKey incorrectly mapped to `DockerRootDir`
+- Removed dead `SettingsView` placeholder code
+- Added `tlsConnectionFailed` error case with user-facing message
+- DMG creation integrated into release build workflow
+- Appcast child element parsing in release validator
 
 ## [2.0.0] - 2025-02-11
 
@@ -82,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
-[Unreleased]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.0...HEAD
+[2.0.1]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v2.0.0
 [1.1.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.1.0
 [1.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.0.0
