@@ -108,7 +108,7 @@ create_bundle() {
         echo_warning "AppIcon.icns not found in Distribution folder"
     fi
 
-    # Copy SPM resource bundles (e.g., KeyboardShortcuts localization)
+    # Copy SPM resource bundles (e.g., app resources + KeyboardShortcuts localization)
     for bundle in "$BUILD_DIR"/*.bundle; do
         if [ -d "$bundle" ]; then
             cp -R "$bundle" "$APP_BUNDLE/Contents/Resources/"

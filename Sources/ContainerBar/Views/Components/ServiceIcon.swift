@@ -95,8 +95,8 @@ struct ServiceIcon: View {
             return cached
         }
 
-        // Load from SPM bundle (resources are flattened by .process())
-        if let url = Bundle.module.url(forResource: name, withExtension: "png"),
+        // Load from bundled app resources (resources are flattened by .process()).
+        if let url = AppResourceBundle.url(forResource: name, withExtension: "png"),
            let image = NSImage(contentsOf: url) {
             Self.iconCache[name] = image
             return image
