@@ -20,7 +20,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INFO_PLIST = os.path.join(PROJECT_ROOT, "Distribution", "Info.plist")
 CHANGELOG = os.path.join(PROJECT_ROOT, "CHANGELOG.md")
 APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", "ContainerBar.app")
-HOMEBREW_CASK = os.path.expanduser("~/Desktop/homebrew-tap/Casks/containerbar.rb")
+HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
 # ───────────────────────────────────────────────────────────────────────────────
