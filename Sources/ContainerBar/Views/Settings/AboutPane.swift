@@ -5,7 +5,7 @@ import AppKit
 struct AboutPane: View {
     private var appIcon: NSImage {
         // Try to load App Icon Version from bundle resources
-        if let logoURL = Bundle.module.url(forResource: "AppIconLogo", withExtension: "png"),
+        if let logoURL = AppResourceBundle.url(forResource: "AppIconLogo", withExtension: "png"),
            let logo = NSImage(contentsOf: logoURL) {
             return logo
         }
@@ -27,6 +27,15 @@ struct AboutPane: View {
                 Text("ContainerBar")
                     .font(.largeTitle)
                     .fontWeight(.bold)
+
+                Text("Beta Preview")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.2))
+                    .foregroundStyle(.orange)
+                    .clipShape(Capsule())
 
                 Text("Version \(appVersion) (\(buildNumber))")
                     .font(.subheadline)

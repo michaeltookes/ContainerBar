@@ -417,6 +417,8 @@ public final class ContainerStore {
                 return "Access denied. Check Docker permissions."
             case .sshConnectionFailed(let message):
                 return "SSH connection failed: \(message)"
+            case .tlsConnectionFailed(let message):
+                return "TLS connection failed: \(message)"
             case .invalidResponse:
                 return "Invalid response from Docker. Check if Docker is running on the selected host."
             default:

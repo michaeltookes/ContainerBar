@@ -2,6 +2,8 @@
 
 A lightweight macOS menu bar application for Docker and Podman container monitoring and management.
 
+> Status: Beta preview. ContainerBar is actively developed and not yet positioned as production-grade.
+
 ![ContainerBar Screenshot](docs/images/full-view.png)
 
 ## Overview

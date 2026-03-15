@@ -2,6 +2,8 @@
 
 ContainerBar is a lightweight macOS menu bar application for monitoring and managing Docker and Podman containers. It works with Docker Desktop or Podman on your local machine, or connects to remote Docker/Podman hosts via SSH.
 
+> Status: Beta preview. Expect ongoing iteration and occasional behavioral changes between releases.
+
 ## Table of Contents
 
 - [Requirements](#requirements)

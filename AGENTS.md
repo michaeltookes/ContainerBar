@@ -6,7 +6,7 @@
 
 **Version**: 2.1  
 **Project**: ContainerBar - macOS Menu Bar Docker/Podman Monitor  
-**Last Updated**: February 12, 2026
+**Last Updated**: February 22, 2026
 
 ---
 
@@ -34,6 +34,27 @@ Read these first before making decisions:
 3. `.claude/agents/DESIGN_DOCUMENT.md` (architecture and technical intent)
 4. `.claude/agents/PROJECT_ORCHESTRATION.md` (orchestration conventions)
 5. Role-specific files in `.claude/agents/*.md`
+
+---
+
+## Backlog Discipline
+
+- Backlog location: `~/Desktop/Backlogs/projects/containerbar-backlog.md`
+- Update cadence: update backlog **before** starting and **after** completing every feature or bug fix.
+- Required backlog updates:
+  - Add missing work items under the right priority tier.
+  - Add newly discovered findings, risks, unknowns, and recommended next actions.
+  - Move completed items to `## Completed` with `(completed: YYYY-MM-DD)`.
+- Use the reusable skill `backlog-and-agent-governance` when backlog or AGENTS governance updates are part of the task.
+
+---
+
+## Sensitive Context Policy
+
+- `AGENTS.md` must contain only non-sensitive project guidance.
+- Never store secrets, private endpoints, key material, or credential values in this repository.
+- Keep local-only sensitive operational context in: `~/.codex/project-private/containerbar.private.md` (not committed).
+- Use placeholders in committed docs/scripts when private values are required, for example `<SIGNING_IDENTITY>`.
 
 ---
 

@@ -5,6 +5,12 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Clarified project positioning as **beta preview** in user-facing docs and in-app About metadata.
+- Retained monotonic semantic versioning (no version number rollback).
+
 ## [2.0.0] - 2025-02-11
 
 ### Added
@@ -76,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
+[Unreleased]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.0...HEAD
 [2.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v2.0.0
 [1.1.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.1.0
 [1.0.0]: https://github.com/michaeltookes/ContainerBar/releases/tag/v1.0.0

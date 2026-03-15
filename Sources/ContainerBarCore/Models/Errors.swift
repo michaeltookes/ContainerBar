@@ -16,6 +16,7 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
     case decodingError(String)
     case socketNotFound(String)
     case sshConnectionFailed(String)
+    case tlsConnectionFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -47,6 +48,8 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
             return "Docker socket not found at \(path)"
         case .sshConnectionFailed(let message):
             return "SSH connection failed: \(message)"
+        case .tlsConnectionFailed(let message):
+            return "TLS connection failed: \(message)"
         }
     }
 
@@ -80,6 +83,8 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
             return "Make sure Docker Desktop is running"
         case .sshConnectionFailed:
             return "Check your SSH credentials and ensure the remote host is accessible"
+        case .tlsConnectionFailed:
+            return "Verify your TLS certificates and ensure the remote Docker host is reachable"
         }
     }
 }
