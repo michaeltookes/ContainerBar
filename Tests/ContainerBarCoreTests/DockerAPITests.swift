@@ -105,6 +105,41 @@ struct DockerAPITests {
         }
     }
 
+    @Test("TLSConnection rejects half-configured client identity")
+    func tlsConnectionRejectsPartialClientIdentity() {
+        do {
+            _ = try TLSConnection(
+                host: "docker.example.com",
+                caCertPath: nil,
+                clientCertPath: "/tmp/client-cert.pem",
+                clientKeyPath: nil
+            )
+            Issue.record("Expected TLSConnection to reject a partial client identity configuration")
+        } catch let error as DockerAPIError {
+            #expect(error.errorDescription?.contains("must both be provided") == true)
+        } catch {
+            Issue.record("Expected DockerAPIError.invalidConfiguration, got \(error)")
+        }
+    }
+
+    @Test("TLS chunked decoder rejects malformed payloads")
+    func tlsChunkedDecoderRejectsMalformedPayload() {
+        let malformed = Data("5\r\nhello".utf8)
+
+        do {
+            _ = try decodeTLSChunkedBody(malformed)
+            Issue.record("Expected malformed chunked payload to throw")
+        } catch let error as DockerAPIError {
+            if case .invalidResponse = error {
+                #expect(true)
+            } else {
+                Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
+            }
+        } catch {
+            Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
+        }
+    }
+
     @Test("HTTPResponse success detection")
     func httpResponseSuccess() {
         let success = HTTPResponse(statusCode: 200, headers: [:], body: Data())
@@ -268,6 +303,40 @@ struct RetryConfigTests {
         do {
             _ = try await task.value
             Issue.record("Expected cancellation to propagate from withRetry")
+        } catch is CancellationError {
+            // Expected.
+        }
+    }
+}
+
+@Suite("Async Serial Gate Tests")
+struct AsyncSerialGateTests {
+
+    @Test("Cancelled waiter does not run after the gate is released")
+    func cancelledWaiterDoesNotRun() async throws {
+        let gate = AsyncSerialGate()
+
+        let blocker = Task {
+            try await gate.withExclusiveAccess {
+                try await Task.sleep(for: .milliseconds(200))
+            }
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        let cancelledWaiter = Task {
+            try await gate.withExclusiveAccess {
+                Issue.record("Cancelled waiter should not have executed")
+            }
+        }
+
+        cancelledWaiter.cancel()
+
+        _ = try await blocker.value
+
+        do {
+            _ = try await cancelledWaiter.value
+            Issue.record("Expected cancelled waiter to throw CancellationError")
         } catch is CancellationError {
             // Expected.
         }

@@ -57,7 +57,7 @@ actor TLSConnectCoordinator {
     private var connectTaskID: UUID?
 
     func ensureConnected(_ tls: TLSConnection) async throws {
-        guard !tls.isConnected else {
+        guard try await !tls.isConnectedState() else {
             return
         }
 
@@ -73,7 +73,7 @@ actor TLSConnectCoordinator {
         let reconnectTaskID = UUID()
 
         try await runConnectTask(taskID: reconnectTaskID, allowReuse: false) {
-            tls.disconnect()
+            try await tls.disconnect()
             try await tls.connect()
         }
     }

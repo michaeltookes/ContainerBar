@@ -6,13 +6,17 @@ actor AsyncSerialGate {
 
     func withExclusiveAccess<T>(
         _ operation: @Sendable () async throws -> T
-    ) async rethrows -> T {
-        await acquire()
+    ) async throws -> T {
+        try await acquire()
+        guard !Task.isCancelled else {
+            release()
+            throw CancellationError()
+        }
         defer { release() }
         return try await operation()
     }
 
-    private func acquire() async {
+    private func acquire() async throws {
         if !isLocked {
             isLocked = true
             return

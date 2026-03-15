@@ -82,7 +82,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     deinit {
         closeConnection()
         sshTunnel?.disconnect()
-        tlsConnection?.disconnect()
+        tlsConnection?.disconnectForTeardown()
     }
 
     // MARK: - DockerAPIClient Protocol

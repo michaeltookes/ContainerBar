@@ -20,11 +20,6 @@ final class TLSConnection: @unchecked Sendable {
     private var _isConnected: Bool = false
     private var _isConnecting: Bool = false
 
-    /// Whether the connection is currently active
-    var isConnected: Bool {
-        lock.withLock { _isConnected }
-    }
-
     /// Creates a TLS connection to a remote Docker daemon
     /// - Parameters:
     ///   - host: Remote host address
@@ -40,6 +35,10 @@ final class TLSConnection: @unchecked Sendable {
         self.port = validatedPort
 
         let tlsOptions = NWProtocolTLS.Options()
+
+        if (clientCertPath == nil) != (clientKeyPath == nil) {
+            throw DockerAPIError.invalidConfiguration("TLS client certificate and key must both be provided")
+        }
 
         // Configure client identity if both cert and key are provided
         if let certPath = clientCertPath, let keyPath = clientKeyPath {
@@ -75,13 +74,36 @@ final class TLSConnection: @unchecked Sendable {
     }
 
     deinit {
-        disconnect()
+        disconnectForTeardown()
     }
 
     // MARK: - Connection Management
 
+    func isConnectedState() async throws -> Bool {
+        try await ioGate.withExclusiveAccess {
+            lock.withLock { _isConnected }
+        }
+    }
+
     /// Establish the TLS connection
     func connect() async throws {
+        try await ioGate.withExclusiveAccess {
+            try await connectLocked()
+        }
+    }
+
+    /// Close the TLS connection
+    func disconnect() async throws {
+        try await ioGate.withExclusiveAccess {
+            disconnectImmediately()
+        }
+    }
+
+    func disconnectForTeardown() {
+        disconnectImmediately()
+    }
+
+    private func connectLocked() async throws {
         enum ConnectAction {
             case start(NWConnection)
             case wait
@@ -163,8 +185,7 @@ final class TLSConnection: @unchecked Sendable {
         }
     }
 
-    /// Close the TLS connection
-    func disconnect() {
+    private func disconnectImmediately() {
         lock.withLock {
             connection?.cancel()
             connection = nil

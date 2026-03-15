@@ -6,8 +6,9 @@ import Darwin
 /// Handles raw HTTP communication over Unix domain sockets
 ///
 /// Synchronization: `socketLock` protects `socketFD` lifecycle state while `ioLock`
-/// serializes request/response traffic. Blocking socket I/O runs without holding
-/// `socketLock` to avoid deadlocking disconnect/reconnect.
+/// serializes descriptor snapshots and rotation. Blocking socket I/O runs without
+/// holding `ioLock` or `socketLock`; in-flight requests rely on the generation
+/// token plus `shutdown()` on invalidation to fail promptly when the descriptor rotates.
 final class UnixSocketConnection: @unchecked Sendable {
 
     private let socketPath: String
@@ -28,15 +29,17 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Connect to the Unix socket
     func connect() throws {
-        let (generation, existingFD) = socketLock.withLock { () -> (UInt64, Int32) in
-            socketGeneration &+= 1
-            let generation = socketGeneration
-            let existingFD = socketFD
-            socketFD = -1
-            return (generation, existingFD)
+        let (generation, existingFD) = ioLock.withLock { () -> (UInt64, Int32) in
+            socketLock.withLock { () -> (UInt64, Int32) in
+                socketGeneration &+= 1
+                let generation = socketGeneration
+                let existingFD = socketFD
+                socketFD = -1
+                return (generation, existingFD)
+            }
         }
 
-        closeSocketDescriptor(existingFD)
+        invalidateSocketDescriptor(existingFD)
 
         // Create socket
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -51,7 +54,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         // Copy socket path to sun_path
         let pathBytes = socketPath.utf8CString
         guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            closeSocketDescriptor(fd)
+            invalidateSocketDescriptor(fd)
             throw DockerAPIError.invalidConfiguration("Socket path too long")
         }
 
@@ -72,50 +75,48 @@ final class UnixSocketConnection: @unchecked Sendable {
 
         guard result == 0 else {
             let errorCode = errno
-            closeSocketDescriptor(fd)
+            invalidateSocketDescriptor(fd)
             if errorCode == ENOENT {
                 throw DockerAPIError.socketNotFound(socketPath)
             }
             throw DockerAPIError.connectionFailed
         }
 
-        let adopted = socketLock.withLock { () -> Bool in
-            guard socketGeneration == generation, socketFD == -1 else {
-                return false
+        let adopted = ioLock.withLock { () -> Bool in
+            socketLock.withLock { () -> Bool in
+                guard socketGeneration == generation, socketFD == -1 else {
+                    return false
+                }
+                socketFD = fd
+                return true
             }
-            socketFD = fd
-            return true
         }
 
         guard adopted else {
-            closeSocketDescriptor(fd)
+            invalidateSocketDescriptor(fd)
             throw DockerAPIError.connectionFailed
         }
     }
 
     /// Disconnect from the Unix socket
     func disconnect() {
-        let fd = socketLock.withLock { () -> Int32 in
-            socketGeneration &+= 1
-            let fd = socketFD
-            socketFD = -1
-            return fd
+        let fd = ioLock.withLock { () -> Int32 in
+            socketLock.withLock { () -> Int32 in
+                socketGeneration &+= 1
+                let fd = socketFD
+                socketFD = -1
+                return fd
+            }
         }
 
-        closeSocketDescriptor(fd)
+        invalidateSocketDescriptor(fd)
     }
 
     // MARK: - HTTP Operations
 
     /// Send an HTTP request and receive the response
     func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
-        ioLock.lock()
-        defer { ioLock.unlock() }
-
-        let fd = socketLock.withLock { socketFD }
-        guard fd >= 0 else {
-            throw DockerAPIError.connectionFailed
-        }
+        let (fd, generation) = try snapshotSocketState()
 
         let requestData = try request.toHTTPData()
 
@@ -127,6 +128,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             }
 
             while totalSent < buffer.count {
+                try ensureSocketIsCurrent(expectedGeneration: generation)
                 let sent = Darwin.send(
                     fd,
                     baseAddress.advanced(by: totalSent),
@@ -142,33 +144,27 @@ final class UnixSocketConnection: @unchecked Sendable {
             }
         }
 
-        return try receiveResponse(socketFD: fd)
+        return try receiveResponse(socketFD: fd, expectedGeneration: generation)
     }
 
-    private func receiveResponse(socketFD: Int32) throws -> HTTPResponse {
+    private func receiveResponse(socketFD: Int32, expectedGeneration: UInt64) throws -> HTTPResponse {
         var responseData = Data()
         let bufferSize = 8192
-        var buffer = [UInt8](repeating: 0, count: bufferSize)
 
         // Read headers first
         var headersComplete = false
         var headerEndIndex = 0
 
         while !headersComplete {
-            let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-
-            if bytesRead < 0 {
-                throw DockerAPIError.connectionFailed
-            }
-
-            if bytesRead == 0 {
+            let chunk = try receiveChunk(socketFD: socketFD, length: bufferSize, expectedGeneration: expectedGeneration)
+            guard !chunk.isEmpty else {
                 break
             }
 
-            responseData.append(contentsOf: buffer[0..<bytesRead])
+            responseData.append(chunk)
 
             // Check for end of headers
-            if let range = responseData.range(of: Data("\r\n\r\n".utf8)) {
+            if let range = responseData.range(of: HTTPResponseParser.headerSeparator) {
                 headersComplete = true
                 headerEndIndex = range.upperBound
             }
@@ -184,138 +180,65 @@ final class UnixSocketConnection: @unchecked Sendable {
             throw DockerAPIError.invalidResponse
         }
 
-        let (statusCode, headers) = try parseHeaders(headerString)
+        let (statusCode, headers) = try HTTPResponseParser.parseStatusAndHeaders(headerString)
 
         // Determine how to read body
-        var bodyData = Data(responseData[headerEndIndex...])
-
-        if let contentLength = headers["content-length"],
-           let length = Int(contentLength) {
-            // Read until we have content-length bytes
-            while bodyData.count < length {
-                let bytesRead = Darwin.recv(socketFD, &buffer, min(bufferSize, length - bodyData.count), 0)
-                guard bytesRead > 0 else {
-                    throw DockerAPIError.invalidResponse
-                }
-                bodyData.append(contentsOf: buffer[0..<bytesRead])
-            }
-        } else if headers["transfer-encoding"]?.lowercased() == "chunked" {
-            // Read chunked response
-            bodyData = try readChunkedBody(initialData: bodyData, socketFD: socketFD)
+        let bodyData = try HTTPResponseParser.readBody(
+            headers: headers,
+            initialBody: Data(responseData[headerEndIndex...])
+        ) { length in
+            try self.receiveChunk(socketFD: socketFD, length: length, expectedGeneration: expectedGeneration)
         }
 
         return HTTPResponse(statusCode: statusCode, headers: headers, body: bodyData)
     }
 
-    private func parseHeaders(_ headerString: String) throws -> (Int, [String: String]) {
-        let lines = headerString.components(separatedBy: "\r\n")
-        guard let statusLine = lines.first else {
-            throw DockerAPIError.invalidResponse
+    private func snapshotSocketState() throws -> (fd: Int32, generation: UInt64) {
+        let state = ioLock.withLock { () -> (Int32, UInt64) in
+            socketLock.withLock { (socketFD, socketGeneration) }
         }
 
-        // Parse status line: "HTTP/1.1 200 OK"
-        let statusParts = statusLine.split(separator: " ", maxSplits: 2)
-        guard statusParts.count >= 2,
-              let statusCode = Int(statusParts[1]) else {
-            throw DockerAPIError.invalidResponse
+        guard state.0 >= 0 else {
+            throw DockerAPIError.connectionFailed
         }
 
-        // Parse headers
-        var headers: [String: String] = [:]
-        for line in lines.dropFirst() {
-            guard !line.isEmpty else { continue }
-            if let colonIndex = line.firstIndex(of: ":") {
-                let key = String(line[..<colonIndex]).trimmingCharacters(in: .whitespaces)
-                let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
-                headers[key.lowercased()] = value
-            }
-        }
-
-        return (statusCode, headers)
+        return (state.0, state.1)
     }
 
-    private func readChunkedBody(initialData: Data, socketFD: Int32) throws -> Data {
-        var result = Data()
-        var remaining = initialData
-        let bufferSize = 8192
-        var buffer = [UInt8](repeating: 0, count: bufferSize)
-
-        while true {
-            // Find chunk size line
-            guard let lineEnd = remaining.range(of: Data("\r\n".utf8)) else {
-                // Need more data
-                let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-                guard bytesRead > 0 else {
-                    throw DockerAPIError.invalidResponse
-                }
-                remaining.append(contentsOf: buffer[0..<bytesRead])
-                continue
-            }
-
-            let sizeLine = remaining[..<lineEnd.lowerBound]
-            guard let sizeString = String(data: sizeLine, encoding: .utf8),
-                  let chunkSize = Int(sizeString.trimmingCharacters(in: .whitespaces), radix: 16) else {
-                throw DockerAPIError.invalidResponse
-            }
-
-            // Move past size line
-            remaining = Data(remaining[lineEnd.upperBound...])
-
-            // End of chunks
-            if chunkSize == 0 {
-                let trailerTerminator = Data("\r\n\r\n".utf8)
-                let chunkTerminator = Data("\r\n".utf8)
-
-                while remaining.starts(with: chunkTerminator) == false,
-                      remaining.range(of: trailerTerminator) == nil {
-                    let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-                    guard bytesRead > 0 else {
-                        throw DockerAPIError.invalidResponse
-                    }
-                    remaining.append(contentsOf: buffer[0..<bytesRead])
-                }
-
-                guard remaining.starts(with: chunkTerminator) || remaining.range(of: trailerTerminator) != nil else {
-                    throw DockerAPIError.invalidResponse
-                }
-                break
-            }
-
-            // Read chunk data
-            while remaining.count < chunkSize + 2 {
-                let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-                guard bytesRead > 0 else {
-                    throw DockerAPIError.invalidResponse
-                }
-                remaining.append(contentsOf: buffer[0..<bytesRead])
-            }
-
-            guard remaining.count >= chunkSize + 2 else {
-                throw DockerAPIError.invalidResponse
-            }
-
-            // Append chunk to result
-            result.append(remaining[0..<chunkSize])
-
-            // Move past chunk data and CRLF
-            let chunkEnd = remaining.index(remaining.startIndex, offsetBy: chunkSize)
-            let trailerEnd = remaining.index(chunkEnd, offsetBy: 2)
-            guard remaining[chunkEnd..<trailerEnd] == Data("\r\n".utf8) else {
-                throw DockerAPIError.invalidResponse
-            }
-            remaining = Data(remaining[trailerEnd...])
+    private func ensureSocketIsCurrent(expectedGeneration: UInt64) throws {
+        let isCurrent = socketLock.withLock {
+            socketGeneration == expectedGeneration
         }
 
-        return result
+        guard isCurrent else {
+            throw DockerAPIError.connectionFailed
+        }
     }
 
-    private func closeSocketDescriptor(_ fd: Int32) {
+    private func receiveChunk(socketFD: Int32, length: Int, expectedGeneration: UInt64) throws -> Data {
+        try ensureSocketIsCurrent(expectedGeneration: expectedGeneration)
+
+        var buffer = [UInt8](repeating: 0, count: max(1, length))
+        let bytesRead = Darwin.recv(socketFD, &buffer, buffer.count, 0)
+
+        guard bytesRead >= 0 else {
+            throw DockerAPIError.connectionFailed
+        }
+
+        try ensureSocketIsCurrent(expectedGeneration: expectedGeneration)
+        guard bytesRead > 0 else {
+            return Data()
+        }
+
+        return Data(buffer[0..<bytesRead])
+    }
+
+    private func invalidateSocketDescriptor(_ fd: Int32) {
         guard fd >= 0 else {
             return
         }
 
-        ioLock.lock()
+        _ = Darwin.shutdown(fd, SHUT_RDWR)
         Darwin.close(fd)
-        ioLock.unlock()
     }
 }
