@@ -36,9 +36,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             return (generation, existingFD)
         }
 
-        if existingFD >= 0 {
-            Darwin.close(existingFD)
-        }
+        closeSocketDescriptor(existingFD)
 
         // Create socket
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -53,7 +51,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         // Copy socket path to sun_path
         let pathBytes = socketPath.utf8CString
         guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            Darwin.close(fd)
+            closeSocketDescriptor(fd)
             throw DockerAPIError.invalidConfiguration("Socket path too long")
         }
 
@@ -74,7 +72,7 @@ final class UnixSocketConnection: @unchecked Sendable {
 
         guard result == 0 else {
             let errorCode = errno
-            Darwin.close(fd)
+            closeSocketDescriptor(fd)
             if errorCode == ENOENT {
                 throw DockerAPIError.socketNotFound(socketPath)
             }
@@ -90,7 +88,7 @@ final class UnixSocketConnection: @unchecked Sendable {
         }
 
         guard adopted else {
-            Darwin.close(fd)
+            closeSocketDescriptor(fd)
             throw DockerAPIError.connectionFailed
         }
     }
@@ -104,9 +102,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             return fd
         }
 
-        if fd >= 0 {
-            Darwin.close(fd)
-        }
+        closeSocketDescriptor(fd)
     }
 
     // MARK: - HTTP Operations
@@ -121,7 +117,7 @@ final class UnixSocketConnection: @unchecked Sendable {
             throw DockerAPIError.connectionFailed
         }
 
-        let requestData = request.toHTTPData()
+        let requestData = try request.toHTTPData()
 
         // Send request
         var totalSent = 0
@@ -198,7 +194,9 @@ final class UnixSocketConnection: @unchecked Sendable {
             // Read until we have content-length bytes
             while bodyData.count < length {
                 let bytesRead = Darwin.recv(socketFD, &buffer, min(bufferSize, length - bodyData.count), 0)
-                if bytesRead <= 0 { break }
+                guard bytesRead > 0 else {
+                    throw DockerAPIError.invalidResponse
+                }
                 bodyData.append(contentsOf: buffer[0..<bytesRead])
             }
         } else if headers["transfer-encoding"]?.lowercased() == "chunked" {
@@ -247,7 +245,9 @@ final class UnixSocketConnection: @unchecked Sendable {
             guard let lineEnd = remaining.range(of: Data("\r\n".utf8)) else {
                 // Need more data
                 let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-                if bytesRead <= 0 { break }
+                guard bytesRead > 0 else {
+                    throw DockerAPIError.invalidResponse
+                }
                 remaining.append(contentsOf: buffer[0..<bytesRead])
                 continue
             }
@@ -263,27 +263,59 @@ final class UnixSocketConnection: @unchecked Sendable {
 
             // End of chunks
             if chunkSize == 0 {
+                let trailerTerminator = Data("\r\n\r\n".utf8)
+                let chunkTerminator = Data("\r\n".utf8)
+
+                while remaining.starts(with: chunkTerminator) == false,
+                      remaining.range(of: trailerTerminator) == nil {
+                    let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
+                    guard bytesRead > 0 else {
+                        throw DockerAPIError.invalidResponse
+                    }
+                    remaining.append(contentsOf: buffer[0..<bytesRead])
+                }
+
+                guard remaining.starts(with: chunkTerminator) || remaining.range(of: trailerTerminator) != nil else {
+                    throw DockerAPIError.invalidResponse
+                }
                 break
             }
 
             // Read chunk data
-            while remaining.count < chunkSize {
+            while remaining.count < chunkSize + 2 {
                 let bytesRead = Darwin.recv(socketFD, &buffer, bufferSize, 0)
-                if bytesRead <= 0 { break }
+                guard bytesRead > 0 else {
+                    throw DockerAPIError.invalidResponse
+                }
                 remaining.append(contentsOf: buffer[0..<bytesRead])
+            }
+
+            guard remaining.count >= chunkSize + 2 else {
+                throw DockerAPIError.invalidResponse
             }
 
             // Append chunk to result
             result.append(remaining[0..<chunkSize])
 
             // Move past chunk data and CRLF
-            if remaining.count > chunkSize + 2 {
-                remaining = Data(remaining[(chunkSize + 2)...])
-            } else {
-                remaining = Data()
+            let chunkEnd = remaining.index(remaining.startIndex, offsetBy: chunkSize)
+            let trailerEnd = remaining.index(chunkEnd, offsetBy: 2)
+            guard remaining[chunkEnd..<trailerEnd] == Data("\r\n".utf8) else {
+                throw DockerAPIError.invalidResponse
             }
+            remaining = Data(remaining[trailerEnd...])
         }
 
         return result
+    }
+
+    private func closeSocketDescriptor(_ fd: Int32) {
+        guard fd >= 0 else {
+            return
+        }
+
+        ioLock.lock()
+        Darwin.close(fd)
+        ioLock.unlock()
     }
 }

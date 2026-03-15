@@ -14,6 +14,7 @@ final class TLSConnection: @unchecked Sendable {
     private let tlsOptions: NWProtocolTLS.Options
     private let logger = Logger(label: "com.containerbar.tls")
     private let lock = NSLock()
+    private let ioGate = AsyncSerialGate()
 
     private var connection: NWConnection?
     private var _isConnected: Bool = false
@@ -144,7 +145,7 @@ final class TLSConnection: @unchecked Sendable {
 
                     guard shouldMarkConnected else {
                         conn.cancel()
-                        return
+                        throw DockerAPIError.tlsConnectionFailed("Connection adoption failed")
                     }
 
                     logger.info("TLS connection established to \(host):\(port)")
@@ -176,28 +177,27 @@ final class TLSConnection: @unchecked Sendable {
 
     /// Send an HTTP request and receive the response
     func sendRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
-        let conn: NWConnection? = lock.withLock { connection }
-        guard let conn else {
-            throw DockerAPIError.connectionFailed
+        try await ioGate.withExclusiveAccess {
+            let conn: NWConnection? = lock.withLock { connection }
+            guard let conn else {
+                throw DockerAPIError.connectionFailed
+            }
+
+            let requestData = try request.toHTTPData(resolvedHost: host)
+
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                conn.send(content: requestData, completion: .contentProcessed { error in
+                    if let error {
+                        continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)"))
+                    } else {
+                        continuation.resume()
+                    }
+                })
+            }
+
+            let responseData = try await receiveHTTPResponse(conn: conn)
+            return try parseTLSHTTPResponse(responseData)
         }
-
-        // Build and send HTTP request
-        let requestData = request.toHTTPData(resolvedHost: host)
-
-        // Send
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            conn.send(content: requestData, completion: .contentProcessed { error in
-                if let error {
-                    continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)"))
-                } else {
-                    continuation.resume()
-                }
-            })
-        }
-
-        // Receive response headers + body
-        let responseData = try await receiveHTTPResponse(conn: conn)
-        return try parseHTTPResponse(responseData)
     }
 
     // MARK: - Private Helpers
@@ -238,7 +238,7 @@ final class TLSConnection: @unchecked Sendable {
             throw DockerAPIError.invalidResponse
         }
 
-        let headers = parseHeaders(headerString)
+        let headers = parseTLSHeaders(headerString)
         let bodyStart = accumulated[headerEnd.upperBound...]
 
         if let contentLengthStr = headers["content-length"],
@@ -282,82 +282,6 @@ final class TLSConnection: @unchecked Sendable {
                 }
             }
         }
-    }
-
-    private func parseHeaders(_ headerString: String) -> [String: String] {
-        var headers: [String: String] = [:]
-        let lines = headerString.components(separatedBy: "\r\n")
-        for line in lines.dropFirst() {
-            guard !line.isEmpty, let colonIndex = line.firstIndex(of: ":") else { continue }
-            let key = String(line[..<colonIndex]).trimmingCharacters(in: .whitespaces)
-            let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
-            headers[key.lowercased()] = value
-        }
-        return headers
-    }
-
-    private func parseHTTPResponse(_ data: Data) throws -> HTTPResponse {
-        let headerSeparator = Data("\r\n\r\n".utf8)
-        guard let headerEnd = data.range(of: headerSeparator) else {
-            throw DockerAPIError.invalidResponse
-        }
-
-        let headerData = data[..<headerEnd.lowerBound]
-        guard let headerString = String(data: headerData, encoding: .utf8) else {
-            throw DockerAPIError.invalidResponse
-        }
-
-        // Parse status line
-        let lines = headerString.components(separatedBy: "\r\n")
-        guard let statusLine = lines.first else {
-            throw DockerAPIError.invalidResponse
-        }
-        let statusParts = statusLine.split(separator: " ", maxSplits: 2)
-        guard statusParts.count >= 2, let statusCode = Int(statusParts[1]) else {
-            throw DockerAPIError.invalidResponse
-        }
-
-        let headers = parseHeaders(headerString)
-        var body = Data(data[headerEnd.upperBound...])
-
-        // Decode chunked body if needed
-        if headers["transfer-encoding"]?.lowercased() == "chunked" {
-            body = decodeChunkedBody(body)
-        }
-
-        return HTTPResponse(statusCode: statusCode, headers: headers, body: body)
-    }
-
-    private func decodeChunkedBody(_ data: Data) -> Data {
-        var result = Data()
-        var remaining = data
-
-        while true {
-            guard let lineEnd = remaining.range(of: Data("\r\n".utf8)) else { break }
-
-            let sizeLine = remaining[..<lineEnd.lowerBound]
-            guard let sizeString = String(data: sizeLine, encoding: .utf8),
-                  let chunkSize = Int(sizeString.trimmingCharacters(in: .whitespaces), radix: 16) else {
-                break
-            }
-
-            remaining = Data(remaining[lineEnd.upperBound...])
-
-            if chunkSize == 0 { break }
-
-            guard remaining.count >= chunkSize else { break }
-
-            result.append(remaining[..<remaining.index(remaining.startIndex, offsetBy: chunkSize)])
-
-            // Skip chunk data + trailing CRLF
-            if remaining.count > chunkSize + 2 {
-                remaining = Data(remaining[remaining.index(remaining.startIndex, offsetBy: chunkSize + 2)...])
-            } else {
-                break
-            }
-        }
-
-        return result
     }
 
 }

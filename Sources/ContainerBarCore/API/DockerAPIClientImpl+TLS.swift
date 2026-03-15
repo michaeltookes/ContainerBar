@@ -61,45 +61,48 @@ actor TLSConnectCoordinator {
             return
         }
 
-        try await runConnectTask {
+        try await runConnectTask(taskID: UUID(), allowReuse: true) {
             try await tls.connect()
         }
     }
 
     func reconnect(_ tls: TLSConnection) async throws {
-        tls.disconnect()
+        if let connectTask {
+            _ = try? await connectTask.value
+        }
         let reconnectTaskID = UUID()
 
-        try await runConnectTask(taskID: reconnectTaskID) {
+        try await runConnectTask(taskID: reconnectTaskID, allowReuse: false) {
+            tls.disconnect()
             try await tls.connect()
         }
     }
 
     private func runConnectTask(
-        taskID: UUID? = nil,
+        taskID: UUID,
+        allowReuse: Bool,
         _ operation: @escaping @Sendable () async throws -> Void
     ) async throws {
-        if let connectTask,
-           let connectTaskID,
-           taskID == nil || connectTaskID == taskID {
+        if allowReuse,
+           let connectTask,
+           connectTaskID != nil {
             return try await connectTask.value
         }
 
-        let newTaskID = taskID ?? UUID()
         let task = Task {
             try await operation()
         }
         connectTask = task
-        connectTaskID = newTaskID
+        connectTaskID = taskID
 
         do {
             try await task.value
-            if connectTaskID == newTaskID {
+            if connectTaskID == taskID {
                 connectTask = nil
                 connectTaskID = nil
             }
         } catch {
-            if connectTaskID == newTaskID {
+            if connectTaskID == taskID {
                 connectTask = nil
                 connectTaskID = nil
             }

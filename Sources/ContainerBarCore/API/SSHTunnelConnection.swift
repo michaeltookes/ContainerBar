@@ -210,7 +210,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !path.isEmpty {
                     environment["SSH_AUTH_SOCK"] = path
-                    logger.info("Found SSH_AUTH_SOCK via launchctl: \(path)")
+                    logger.info("Found SSH agent socket via launchctl")
                 }
             } catch {
                 logger.warning("Failed to query launchctl for SSH_AUTH_SOCK: \(error)")
@@ -218,7 +218,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
         process.environment = environment
 
-        logger.info("SSH_AUTH_SOCK: \(environment["SSH_AUTH_SOCK"] ?? "not set")")
+        logger.info(environment["SSH_AUTH_SOCK"] == nil ? "SSH agent socket is not set" : "SSH agent socket is available")
 
         // Capture stderr for error messages
         let errorPipe = Pipe()

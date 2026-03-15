@@ -34,13 +34,13 @@ struct DockerAPITests {
     }
 
     @Test("HTTPRequest builds correct request data")
-    func httpRequestString() {
+    func httpRequestString() throws {
         let request = HTTPRequest(
             method: "GET",
             path: "/v1.43/containers/json?all=true"
         )
 
-        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
+        let httpString = String(decoding: try request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("GET /v1.43/containers/json?all=true HTTP/1.1"))
         #expect(httpString.contains("Host:") == false)
@@ -48,7 +48,7 @@ struct DockerAPITests {
     }
 
     @Test("HTTPRequest with POST method and body")
-    func httpRequestWithBody() {
+    func httpRequestWithBody() throws {
         let body = "test body".data(using: .utf8)!
         let request = HTTPRequest(
             method: "POST",
@@ -56,7 +56,7 @@ struct DockerAPITests {
             body: body
         )
 
-        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
+        let httpString = String(decoding: try request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("POST"))
         #expect(httpString.contains("Content-Length: \(body.count)"))
@@ -64,29 +64,45 @@ struct DockerAPITests {
     }
 
     @Test("HTTPRequest preserves explicit Host header")
-    func httpRequestCustomHostHeader() {
+    func httpRequestCustomHostHeader() throws {
         let request = HTTPRequest(
             method: "GET",
             path: "/_ping",
             headers: ["Host": "docker.example.com"]
         )
 
-        let httpString = String(decoding: request.toHTTPData(), as: UTF8.self)
+        let httpString = String(decoding: try request.toHTTPData(), as: UTF8.self)
 
         #expect(httpString.contains("Host: docker.example.com"))
         #expect(httpString.contains("Host: localhost") == false)
     }
 
     @Test("HTTPRequest uses resolved host when provided")
-    func httpRequestResolvedHostHeader() {
+    func httpRequestResolvedHostHeader() throws {
         let request = HTTPRequest(
             method: "GET",
             path: "/_ping"
         )
 
-        let httpString = String(decoding: request.toHTTPData(resolvedHost: "docker.example.com"), as: UTF8.self)
+        let httpString = String(decoding: try request.toHTTPData(resolvedHost: "docker.example.com"), as: UTF8.self)
 
         #expect(httpString.contains("Host: docker.example.com"))
+    }
+
+    @Test("HTTPRequest rejects CRLF injection")
+    func httpRequestRejectsCRLFInjection() throws {
+        let request = HTTPRequest(
+            method: "GET",
+            path: "/_ping",
+            headers: ["X-Test": "good\r\nInjected: bad"]
+        )
+
+        do {
+            _ = try request.toHTTPData()
+            Issue.record("Expected toHTTPData to reject CRLF injection")
+        } catch let error as DockerAPIError {
+            #expect(error.errorDescription?.contains("invalid line break") == true)
+        }
     }
 
     @Test("HTTPResponse success detection")

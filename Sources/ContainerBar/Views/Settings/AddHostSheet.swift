@@ -14,6 +14,7 @@ struct AddHostSheet: View {
     @State private var host = ""
     @State private var sshUser = "root"
     @State private var sshPort = ""
+    @State private var validationError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,19 +63,29 @@ struct AddHostSheet: View {
 
             Divider()
 
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
+            VStack(spacing: 8) {
+                HStack {
+                    Button("Cancel") {
+                        validationError = nil
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
 
-                Spacer()
+                    Spacer()
 
-                Button("Add") {
-                    saveHost()
+                    Button("Add") {
+                        saveHost()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isValid)
                 }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!isValid)
+
+                if let validationError {
+                    Text(validationError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .padding()
         }
@@ -82,7 +93,8 @@ struct AddHostSheet: View {
     }
 
     private var isValid: Bool {
-        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
+        guard !normalizedName.isEmpty else { return false }
+
         if connectionType == .ssh {
             return RemoteHostDraftBuilder.isValid(
                 nameInput: name,
@@ -93,11 +105,23 @@ struct AddHostSheet: View {
                 socketPath: socketPath
             )
         }
-        return true
+
+        switch connectionType {
+        case .unixSocket:
+            return true
+        case .tcpTLS:
+            return false
+        case .ssh:
+            return false
+        }
     }
 
     private var defaultRemoteSocketPath: String {
         runtime.defaultRemoteSocketPath
+    }
+
+    private var normalizedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func updateSocketPathForRuntime(_ newRuntime: ContainerRuntime) {
@@ -122,13 +146,19 @@ struct AddHostSheet: View {
 
     private func saveHost() {
         let newHost: DockerHost
+        validationError = nil
 
         switch connectionType {
         case .unixSocket:
+            guard !normalizedName.isEmpty else {
+                validationError = "Host name is required."
+                return
+            }
+
             let trimmedSocketPath = socketPath.trimmingCharacters(in: .whitespacesAndNewlines)
             let finalSocketPath = trimmedSocketPath.isEmpty ? runtime.defaultSocketPath : trimmedSocketPath
             newHost = DockerHost(
-                name: name,
+                name: normalizedName,
                 connectionType: .unixSocket,
                 runtime: runtime,
                 isDefault: false,
@@ -136,19 +166,23 @@ struct AddHostSheet: View {
             )
 
         case .ssh:
-            guard let hostDraft = try? RemoteHostDraftBuilder.build(
-                nameInput: name,
-                hostInput: host,
-                userInput: sshUser,
-                portInput: sshPort,
-                runtime: runtime,
-                socketPath: socketPath
-            ) else {
+            do {
+                let hostDraft = try RemoteHostDraftBuilder.build(
+                    nameInput: name,
+                    hostInput: host,
+                    userInput: sshUser,
+                    portInput: sshPort,
+                    runtime: runtime,
+                    socketPath: socketPath
+                )
+                newHost = hostDraft.makeDockerHost()
+            } catch {
+                validationError = error.localizedDescription
                 return
             }
-            newHost = hostDraft.makeDockerHost()
 
         case .tcpTLS:
+            validationError = "TCP + TLS host creation is not yet supported in this sheet."
             return
         }
 
