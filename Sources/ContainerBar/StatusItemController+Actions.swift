@@ -186,26 +186,20 @@ extension StatusItemController {
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
-            let name = nameField.stringValue.isEmpty ? "Remote Host" : nameField.stringValue
-            let host = hostField.stringValue
-            let user = userField.stringValue.isEmpty ? "root" : userField.stringValue
+            do {
+                let hostDraft = try RemoteHostDraftBuilder.build(
+                    nameInput: nameField.stringValue,
+                    hostInput: hostField.stringValue,
+                    userInput: userField.stringValue
+                )
+                let newHost = hostDraft.makeDockerHost()
 
-            guard !host.isEmpty else {
-                logger.warning("Host field is empty")
+                settingsStore.addHost(newHost)
+                logger.info("Added remote host '\(newHost.name)' [\(newHost.id.uuidString)]")
+            } catch {
+                logger.warning("Rejected remote host from menu add flow: \(error.localizedDescription)")
                 return
             }
-
-            let newHost = DockerHost(
-                name: name,
-                connectionType: .ssh,
-                isDefault: false,
-                host: host,
-                sshUser: user,
-                sshPort: 22
-            )
-
-            settingsStore.addHost(newHost)
-            logger.info("Added new host: \(name) (\(host))")
         }
     }
 

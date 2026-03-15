@@ -59,7 +59,12 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         callCount += 1
         lastCalledMethod = "getContainerStats"
 
-        return AsyncThrowingStream { continuation in
+        return AsyncThrowingStream { [weak self] continuation in
+            guard let self else {
+                continuation.finish()
+                return
+            }
+
             if self.shouldFail {
                 continuation.finish(throwing: self.failureError)
             } else if let stats = self.mockStats[id] {

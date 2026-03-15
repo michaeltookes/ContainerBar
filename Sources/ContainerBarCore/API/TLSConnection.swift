@@ -17,6 +17,7 @@ final class TLSConnection: @unchecked Sendable {
 
     private var connection: NWConnection?
     private var _isConnected: Bool = false
+    private var _isConnecting: Bool = false
 
     /// Whether the connection is currently active
     var isConnected: Bool {
@@ -77,40 +78,74 @@ final class TLSConnection: @unchecked Sendable {
 
     /// Establish the TLS connection
     func connect() async throws {
-        // Skip if already connected
-        if isConnected { return }
-
-        let nwHost = NWEndpoint.Host(host)
-        let nwPort = NWEndpoint.Port(rawValue: port)!
-
-        let params = NWParameters(tls: tlsOptions, tcp: .init())
-        let conn = NWConnection(host: nwHost, port: nwPort, using: params)
-
-        lock.withLock {
-            self.connection = conn
+        enum ConnectAction {
+            case start(NWConnection)
+            case wait
+            case ready
         }
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            conn.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    conn.stateUpdateHandler = nil
-                    continuation.resume()
-                case .failed(let error):
-                    conn.stateUpdateHandler = nil
-                    continuation.resume(throwing: DockerAPIError.sshConnectionFailed("TLS connection failed: \(error)"))
-                case .cancelled:
-                    conn.stateUpdateHandler = nil
-                    continuation.resume(throwing: DockerAPIError.connectionFailed)
-                default:
-                    break
+        while true {
+            let action = lock.withLock { () -> ConnectAction in
+                if _isConnected {
+                    return .ready
+                }
+
+                if _isConnecting {
+                    return .wait
+                }
+
+                let nwHost = NWEndpoint.Host(host)
+                let nwPort = NWEndpoint.Port(rawValue: port)!
+                let params = NWParameters(tls: tlsOptions, tcp: .init())
+                let conn = NWConnection(host: nwHost, port: nwPort, using: params)
+                connection = conn
+                _isConnecting = true
+                return .start(conn)
+            }
+
+            switch action {
+            case .ready:
+                return
+            case .wait:
+                try await Task.sleep(for: .milliseconds(50))
+            case .start(let conn):
+                do {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        conn.stateUpdateHandler = { state in
+                            switch state {
+                            case .ready:
+                                conn.stateUpdateHandler = nil
+                                continuation.resume()
+                            case .failed(let error):
+                                conn.stateUpdateHandler = nil
+                                continuation.resume(throwing: DockerAPIError.tlsConnectionFailed(error.localizedDescription))
+                            case .cancelled:
+                                conn.stateUpdateHandler = nil
+                                continuation.resume(throwing: DockerAPIError.connectionFailed)
+                            default:
+                                break
+                            }
+                        }
+                        conn.start(queue: DispatchQueue.global(qos: .userInitiated))
+                    }
+
+                    lock.withLock {
+                        _isConnected = true
+                        _isConnecting = false
+                    }
+                    logger.info("TLS connection established to \(host):\(port)")
+                    return
+                } catch {
+                    lock.withLock {
+                        connection?.cancel()
+                        connection = nil
+                        _isConnected = false
+                        _isConnecting = false
+                    }
+                    throw error
                 }
             }
-            conn.start(queue: DispatchQueue.global(qos: .userInitiated))
         }
-
-        lock.withLock { _isConnected = true }
-        logger.info("TLS connection established to \(host):\(port)")
     }
 
     /// Close the TLS connection
@@ -119,6 +154,7 @@ final class TLSConnection: @unchecked Sendable {
             connection?.cancel()
             connection = nil
             _isConnected = false
+            _isConnecting = false
         }
     }
 
@@ -141,7 +177,7 @@ final class TLSConnection: @unchecked Sendable {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             conn.send(content: requestData, completion: .contentProcessed { error in
                 if let error {
-                    continuation.resume(throwing: DockerAPIError.sshConnectionFailed("TLS send failed: \(error)"))
+                    continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)"))
                 } else {
                     continuation.resume()
                 }
@@ -158,10 +194,18 @@ final class TLSConnection: @unchecked Sendable {
     private func receiveHTTPResponse(conn: NWConnection) async throws -> Data {
         var accumulated = Data()
         let headerSeparator = Data("\r\n\r\n".utf8)
+        var receiveError: Error?
 
         // Read until we have complete headers
         while true {
-            let chunk = try await receiveChunk(conn: conn, length: 8192)
+            let chunk: Data
+            do {
+                chunk = try await receiveChunk(conn: conn, length: 8192)
+            } catch {
+                receiveError = error
+                break
+            }
+
             guard !chunk.isEmpty else { break }
             accumulated.append(chunk)
 
@@ -171,6 +215,9 @@ final class TLSConnection: @unchecked Sendable {
         }
 
         guard let headerEnd = accumulated.range(of: headerSeparator) else {
+            if let receiveError {
+                throw receiveError
+            }
             throw DockerAPIError.invalidResponse
         }
 
@@ -214,7 +261,7 @@ final class TLSConnection: @unchecked Sendable {
         try await withCheckedThrowingContinuation { continuation in
             conn.receive(minimumIncompleteLength: 1, maximumLength: length) { data, _, _, error in
                 if let error {
-                    continuation.resume(throwing: DockerAPIError.sshConnectionFailed("TLS receive failed: \(error)"))
+                    continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Receive failed: \(error.localizedDescription)"))
                 } else {
                     continuation.resume(returning: data ?? Data())
                 }

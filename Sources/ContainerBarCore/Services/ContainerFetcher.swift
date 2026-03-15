@@ -25,7 +25,7 @@ public actor ContainerFetcher {
     private let minFetchInterval: TimeInterval = 1.0
 
     /// Maximum number of concurrent stats fetches
-    private let maxConcurrentStatsFetches = 10
+    static let maxConcurrentStatsFetches = 10
 
     // MARK: - Initialization
 
@@ -165,7 +165,7 @@ public actor ContainerFetcher {
         }
 
         // Limit concurrent stats fetches
-        let containersToFetch = Array(runningContainers.prefix(maxConcurrentStatsFetches))
+        let containersToFetch = Array(runningContainers.prefix(Self.maxConcurrentStatsFetches))
 
         // Fetch stats concurrently using TaskGroup
         return await withTaskGroup(of: (String, ContainerStats?).self) { group in
@@ -292,7 +292,7 @@ extension DockerAPIError {
     /// Whether this error is transient and can be retried
     public var isTransient: Bool {
         switch self {
-        case .connectionFailed, .networkTimeout, .serverError, .sshConnectionFailed:
+        case .connectionFailed, .networkTimeout, .serverError, .sshConnectionFailed, .tlsConnectionFailed:
             return true
         case .unauthorized, .notFound, .invalidConfiguration, .invalidURL,
              .socketNotFound:

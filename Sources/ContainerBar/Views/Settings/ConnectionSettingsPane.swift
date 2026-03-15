@@ -336,7 +336,7 @@ struct AddHostSheet: View {
     @State private var socketPath = ""
     @State private var host = ""
     @State private var sshUser = "root"
-    @State private var sshPort = "22"
+    @State private var sshPort = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -373,6 +373,7 @@ struct AddHostSheet: View {
 
                 if connectionType == .ssh {
                     TextField("Host", text: $host, prompt: Text("192.168.1.100"))
+                        .help("You can optionally include a port, for example host.example.com:2222.")
                     TextField("SSH User", text: $sshUser, prompt: Text("root"))
                     TextField("SSH Port", text: $sshPort, prompt: Text("22"))
 
@@ -407,9 +408,16 @@ struct AddHostSheet: View {
     }
 
     private var isValid: Bool {
-        if name.isEmpty { return false }
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
         if connectionType == .ssh {
-            return !host.isEmpty && !sshUser.isEmpty
+            return RemoteHostDraftBuilder.isValid(
+                nameInput: name,
+                hostInput: host,
+                userInput: sshUser,
+                portInput: sshPort,
+                runtime: runtime,
+                socketPath: socketPath
+            )
         }
         return true
     }
@@ -459,18 +467,17 @@ struct AddHostSheet: View {
             )
 
         case .ssh:
-            // Use custom socket path if provided, otherwise nil (will use runtime default)
-            let finalSocketPath = socketPath.isEmpty ? nil : socketPath
-            newHost = DockerHost(
-                name: name,
-                connectionType: .ssh,
+            guard let hostDraft = try? RemoteHostDraftBuilder.build(
+                nameInput: name,
+                hostInput: host,
+                userInput: sshUser,
+                portInput: sshPort,
                 runtime: runtime,
-                isDefault: false,
-                socketPath: finalSocketPath,
-                host: host,
-                sshUser: sshUser,
-                sshPort: Int(sshPort) ?? 22
-            )
+                socketPath: socketPath
+            ) else {
+                return
+            }
+            newHost = hostDraft.makeDockerHost()
 
         case .tcpTLS:
             // Not implemented yet

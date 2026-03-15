@@ -63,14 +63,16 @@ Referenced by the `/release-prep` skill:
 | Sparkle appcast URL | `https://michaeltookes.github.io/ContainerBar/appcast.xml` |
 | Sparkle appcast file | `docs/appcast.xml` |
 | Homebrew cask file | `containerbar.rb` (in homebrew-tap repo) |
-| Homebrew tap location | `~/Desktop/Current Projects/homebrew-tap/` |
+| Homebrew tap location | `"$HOME/Desktop/Current Projects/homebrew-tap/"` |
 | Homebrew cask URL template | `https://github.com/michaeltookes/ContainerBar/releases/download/v{VERSION}/ContainerBar.zip` |
 | Notarization keychain profile | `ContainerBar-Notarize` |
 | Validation script | `./scripts/validate-release.py` |
 
 ## Backlog Management
 
-This project's backlog is tracked at: `/Users/michaeltookes/Desktop/Backlogs/projects/containerbar-backlog.md`
+Set `BACKLOG_ROOT` to your local backlog workspace before using these instructions, for example `export BACKLOG_ROOT="$HOME/Desktop/Backlogs"`.
+
+This project's backlog is tracked at: `${BACKLOG_ROOT}/projects/containerbar-backlog.md`
 
 When you complete work that corresponds to a backlog item:
 - Read the backlog file and find the matching item
@@ -82,4 +84,4 @@ When you discover new bugs, tech debt, or feature opportunities:
 - Add the item to the appropriate priority tier (High / Medium / Low)
 - Use the existing format: numbered, bold title, indented description
 
-If the backlog file doesn't exist yet, create it in the `projects/` folder using the template at `/Users/michaeltookes/Desktop/Backlogs/backlog-template.md`.
+If the backlog file doesn't exist yet, create it in the `projects/` folder using the template at `${BACKLOG_ROOT}/backlog-template.md`.

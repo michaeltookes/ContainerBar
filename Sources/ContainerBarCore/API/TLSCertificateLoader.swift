@@ -58,7 +58,14 @@ enum TLSCertificateLoader {
 
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateWithData(derKeyData as CFData, keyAttributes as CFDictionary, &error) else {
-            throw DockerAPIError.invalidConfiguration("Could not create private key: \(error?.takeRetainedValue().localizedDescription ?? "unknown")")
+            let failureDescription = error?.takeRetainedValue().localizedDescription ?? "unknown"
+            let keyFormatHint: String
+            if keyPEM.contains("BEGIN PRIVATE KEY") {
+                keyFormatHint = " PKCS#8 keys may contain EC keys; convert the key to an RSA PEM or add PKCS#8 OID detection for EC support."
+            } else {
+                keyFormatHint = ""
+            }
+            throw DockerAPIError.invalidConfiguration("Could not create private key: \(failureDescription).\(keyFormatHint)")
         }
 
         // Create a PKCS#12 data blob to import as identity

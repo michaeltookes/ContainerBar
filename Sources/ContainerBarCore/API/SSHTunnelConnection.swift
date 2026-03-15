@@ -8,6 +8,10 @@ import Logging
 /// Synchronization: `stateLock` protects `tunnelProcess` and `localSocketPath`
 /// which may be read from any thread (e.g. `isConnected`, `disconnect`).
 public final class SSHTunnelConnection: @unchecked Sendable {
+    public struct StateSnapshot: Sendable {
+        let isConnected: Bool
+        let hasDied: Bool
+    }
 
     // MARK: - Properties
 
@@ -58,13 +62,18 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
         logger.info("Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)")
 
+        let knownHostsPath = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".ssh/known_hosts")
+            .path
+
         // Build SSH command for socket forwarding
         // ssh -nNT -L /local/socket:/remote/socket user@host
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = [
             "-nNT",                                    // No command, no TTY
-            "-o", "StrictHostKeyChecking=accept-new", // Accept new host keys
+            "-o", "StrictHostKeyChecking=yes",         // Require known_hosts verification
+            "-o", "UserKnownHostsFile=\(knownHostsPath)",
             "-o", "BatchMode=yes",                    // No password prompts (use key auth)
             "-o", "ConnectTimeout=10",                // 10 second timeout
             "-o", "ServerAliveInterval=30",           // Keep alive
@@ -133,7 +142,17 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
             let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
             logger.error("SSH tunnel failed: \(errorMessage)")
-            throw DockerAPIError.sshConnectionFailed(errorMessage.trimmingCharacters(in: .whitespacesAndNewlines))
+            let trimmed = errorMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.localizedCaseInsensitiveContains("host key verification failed")
+                || trimmed.localizedCaseInsensitiveContains("REMOTE HOST IDENTIFICATION HAS CHANGED")
+                || trimmed.localizedCaseInsensitiveContains("host key is known") {
+                throw DockerAPIError.sshConnectionFailed(
+                    "\(trimmed). Verify the host key in ~/.ssh/known_hosts before reconnecting."
+                )
+            }
+
+            throw DockerAPIError.sshConnectionFailed(trimmed)
         }
 
         // Verify socket was created
@@ -218,6 +237,15 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     public var hasDied: Bool {
         stateLock.withLock {
             tunnelDied
+        }
+    }
+
+    public func snapshotState() -> StateSnapshot {
+        stateLock.withLock {
+            StateSnapshot(
+                isConnected: tunnelProcess?.isRunning ?? false,
+                hasDied: tunnelDied
+            )
         }
     }
 }

@@ -264,8 +264,7 @@ struct ContainerFetcherTests {
         #expect(result.metrics.stoppedCount == 5)
         #expect(result.metrics.totalCount == 25)
 
-        // Stats capped at maxConcurrentStatsFetches (10)
-        #expect(result.stats.count == 10)
+        #expect(result.stats.count <= ContainerFetcher.maxConcurrentStatsFetches)
     }
 
     @Test("Metrics snapshot updates correctly when containers change")

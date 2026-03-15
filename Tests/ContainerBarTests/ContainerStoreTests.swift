@@ -110,10 +110,11 @@ struct ContainerStoreTests {
         // Reset call tracking
         mock.callCount = 0
         mock.lastCalledMethod = nil
+        mock.calledMethods = []
 
         await store.startContainer(id: "c1")
 
-        #expect(mock.lastCalledMethod == "listContainers" || mock.callCount > 0)
+        #expect(mock.calledMethods.contains("startContainer"))
     }
 
     @Test("stopContainer calls through to fetcher")

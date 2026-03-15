@@ -11,42 +11,19 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
     // MARK: - Properties
 
-    private let host: DockerHost
-    private let logger = Logger(label: "com.containerbar.api")
-    private let apiVersion = "v1.44"
+    let host: DockerHost
+    let logger = Logger(label: "com.containerbar.api")
+    let apiVersion = "v1.44"
 
     // Connection management
-    private var connection: UnixSocketConnection?
-    private var sshTunnel: SSHTunnelConnection?
-    private var tlsConnection: TLSConnection?
-    private var effectiveSocketPath: String?
-    private let connectionLock = NSLock()
+    var connection: UnixSocketConnection?
+    var sshTunnel: SSHTunnelConnection?
+    var tlsConnection: TLSConnection?
+    var effectiveSocketPath: String?
+    let connectionLock = NSLock()
+    let tlsConnectCoordinator = TLSConnectCoordinator()
 
     // MARK: - Initialization
-
-    static func validatedRemoteSocketPath(configuredPath: String?, fallbackPath: String) -> String {
-        guard let configuredPath else {
-            return fallbackPath
-        }
-
-        let trimmedPath = configuredPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            return fallbackPath
-        }
-        guard trimmedPath.hasPrefix("/") else {
-            return fallbackPath
-        }
-        guard !trimmedPath.contains("\0") else {
-            return fallbackPath
-        }
-
-        let pathSegments = trimmedPath.split(separator: "/", omittingEmptySubsequences: true)
-        guard !pathSegments.contains(where: { $0 == ".." }) else {
-            return fallbackPath
-        }
-
-        return trimmedPath
-    }
 
     public init(host: DockerHost) throws {
         self.host = host
@@ -102,151 +79,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         logger.info("DockerAPIClient initialized for \(host.name)")
     }
 
-    /// Ensures the SSH tunnel is connected, establishing or reconnecting if needed
-    private func ensureSSHTunnel() async throws {
-        guard host.connectionType == .ssh, let tunnel = sshTunnel else { return }
-
-        let needsConnect = connectionLock.withLock {
-            // Need to connect if: no socket path yet, tunnel died, or tunnel not running
-            effectiveSocketPath == nil || tunnel.hasDied || !tunnel.isConnected
-        }
-
-        guard needsConnect else { return }
-
-        // If tunnel previously died, attempt reconnect with backoff
-        let localSocket: String
-        if tunnel.hasDied {
-            logger.warning("SSH tunnel died, attempting reconnect")
-            closeConnection()
-            localSocket = try await tunnel.reconnect()
-        } else {
-            localSocket = try await tunnel.connect()
-        }
-
-        connectionLock.withLock {
-            self.effectiveSocketPath = localSocket
-            self.connection = nil // Reset stale connection
-        }
-    }
-
     deinit {
         closeConnection()
         sshTunnel?.disconnect()
         tlsConnection?.disconnect()
-    }
-
-    // MARK: - Connection Management
-
-    private func getConnection() throws -> UnixSocketConnection {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
-
-        if let existing = connection {
-            return existing
-        }
-
-        guard let socketPath = effectiveSocketPath else {
-            throw DockerAPIError.invalidConfiguration("No socket path configured")
-        }
-
-        // For SSH connections, verify tunnel is still active
-        if host.connectionType == .ssh {
-            guard let tunnel = sshTunnel, tunnel.isConnected else {
-                throw DockerAPIError.connectionFailed
-            }
-        }
-
-        let conn = UnixSocketConnection(socketPath: socketPath)
-        try conn.connect()
-        connection = conn
-        return conn
-    }
-
-    private func closeConnection() {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
-
-        connection?.disconnect()
-        connection = nil
-    }
-
-    // MARK: - Request Helpers
-
-    private func performRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
-        // TLS connections use their own transport
-        if host.connectionType == .tcpTLS {
-            return try await performTLSRequest(request)
-        }
-
-        // Ensure SSH tunnel is established for remote connections
-        try await ensureSSHTunnel()
-
-        // Try to reuse connection, reconnect if needed
-        do {
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
-        } catch {
-            // Connection might be stale, try reconnecting socket first
-            closeConnection()
-
-            // For SSH connections, check if tunnel died and attempt reconnect
-            if host.connectionType == .ssh, let tunnel = sshTunnel, !tunnel.isConnected {
-                logger.warning("SSH tunnel lost during request, attempting reconnect")
-                let localSocket = try await tunnel.reconnect()
-                connectionLock.withLock {
-                    self.effectiveSocketPath = localSocket
-                    self.connection = nil
-                }
-            }
-
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
-        }
-    }
-
-    private func performTLSRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
-        guard let tls = tlsConnection else {
-            throw DockerAPIError.invalidConfiguration("TLS connection not configured")
-        }
-
-        // Ensure connected (lazy connect on first use)
-        try await ensureTLSConnected()
-
-        do {
-            return try await tls.sendRequest(request)
-        } catch {
-            // Reconnect once on failure
-            try await tls.connect()
-            return try await tls.sendRequest(request)
-        }
-    }
-
-    private func ensureTLSConnected() async throws {
-        guard let tls = tlsConnection, !tls.isConnected else { return }
-        try await tls.connect()
-    }
-
-    private func validateResponse(_ response: HTTPResponse, allowedCodes: Set<Int> = [200]) throws {
-        guard allowedCodes.contains(response.statusCode) else {
-            logger.error("HTTP error: \(response.statusCode)")
-
-            switch response.statusCode {
-            case 401:
-                throw DockerAPIError.unauthorized
-            case 404:
-                throw DockerAPIError.notFound("Resource not found")
-            case 409:
-                throw DockerAPIError.conflict("Container is already in requested state")
-            case 500...599:
-                // Try to extract error message from body
-                if let errorMessage = String(data: response.body, encoding: .utf8) {
-                    throw DockerAPIError.serverError(errorMessage)
-                }
-                throw DockerAPIError.serverError("Docker daemon error")
-            default:
-                throw DockerAPIError.unexpectedStatus(response.statusCode)
-            }
-        }
     }
 
     // MARK: - DockerAPIClient Protocol
@@ -413,52 +249,5 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
         let decoder = JSONDecoder()
         return try decoder.decode(DockerSystemInfo.self, from: response.body)
-    }
-
-    // MARK: - Multiplexed Log Parsing
-
-    /// Parse Docker's multiplexed log format
-    /// Format: [8-byte header][payload]
-    /// Header: [stream_type(1)][padding(3)][size(4 big-endian)]
-    private func parseMultiplexedLogs(_ data: Data) -> String {
-        var result = ""
-        var offset = 0
-
-        while offset + 8 <= data.count {
-            // Read 4-byte size (big-endian) from bytes 4-7 of header
-            let sizeBytes = data.subdata(in: (offset + 4)..<(offset + 8))
-            let size = sizeBytes.withUnsafeBytes { buffer in
-                buffer.load(as: UInt32.self).bigEndian
-            }
-
-            // Move past header
-            offset += 8
-
-            // Validate we have enough data
-            guard offset + Int(size) <= data.count else {
-                break
-            }
-
-            // Extract payload
-            let payload = data.subdata(in: offset..<(offset + Int(size)))
-            if let text = String(data: payload, encoding: .utf8) {
-                result += text
-            }
-
-            // Move to next frame
-            offset += Int(size)
-        }
-
-        return result
-    }
-}
-
-// MARK: - Factory Method
-
-extension DockerAPIClientImpl {
-    /// Create a client for local Docker daemon
-    public static func local() throws -> DockerAPIClientImpl {
-        let host = DockerHost.local
-        return try DockerAPIClientImpl(host: host)
     }
 }
