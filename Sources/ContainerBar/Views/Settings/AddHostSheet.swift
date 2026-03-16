@@ -88,7 +88,7 @@ struct AddHostSheet: View {
             }
             .padding()
         }
-        .frame(minWidth: 380, maxWidth: 380, minHeight: 300, idealHeight: 420)
+        .frame(width: 380)
     }
 
     private var isValid: Bool {

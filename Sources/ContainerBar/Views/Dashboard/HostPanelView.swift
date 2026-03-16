@@ -94,6 +94,7 @@ struct HostPanelView: View {
     }
 
     private var addHostForm: some View {
+        ScrollView {
         VStack(spacing: 12) {
             // Name field
             VStack(alignment: .leading, spacing: 4) {
@@ -169,6 +170,7 @@ struct HostPanelView: View {
             }
         }
         .padding(16)
+        }
     }
 
     private var isNewHostValid: Bool {
