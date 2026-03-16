@@ -59,7 +59,6 @@ struct AddHostSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .padding()
 
             Divider()
 
@@ -89,7 +88,7 @@ struct AddHostSheet: View {
             }
             .padding()
         }
-        .frame(width: 380)
+        .frame(minWidth: 380, maxWidth: 380, minHeight: 300, idealHeight: 420)
     }
 
     private var isValid: Bool {
