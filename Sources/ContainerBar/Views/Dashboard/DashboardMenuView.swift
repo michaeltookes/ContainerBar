@@ -118,8 +118,7 @@ struct DashboardMenuView: View {
                     .padding(.bottom, 12)
                 }
             }
-            .frame(minHeight: 100, maxHeight: .infinity)
-            .layoutPriority(-1)
+            .frame(maxHeight: 520)
 
             Divider()
 
