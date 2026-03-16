@@ -118,7 +118,8 @@ struct DashboardMenuView: View {
                     .padding(.bottom, 12)
                 }
             }
-            .frame(maxHeight: isPanelOpen ? 200 : 520)
+            .frame(minHeight: 100, maxHeight: .infinity)
+            .layoutPriority(-1)
 
             Divider()
 
@@ -187,10 +188,6 @@ struct DashboardMenuView: View {
     }
 
     // MARK: - Computed Properties
-
-    private var isPanelOpen: Bool {
-        isHostPanelOpen || isLogsPanelOpen
-    }
 
     private var hostName: String {
         settings.selectedHost?.name ?? "Local Docker"

@@ -42,8 +42,11 @@ extension StatusItemController {
 
         let hostingView = NSHostingView(rootView: dashboardView)
 
-        // Let SwiftUI compute the actual content height, clamped to a reasonable range
-        let fittingHeight = min(max(hostingView.fittingSize.height, 300), 700)
+        // Size the menu to fit the screen: use available height below the menu bar,
+        // leaving padding so the menu doesn't touch the screen edge.
+        let screenHeight = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height ?? 800
+        let maxMenuHeight = screenHeight - 40
+        let fittingHeight = min(max(hostingView.fittingSize.height, 300), maxMenuHeight)
         hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: fittingHeight)
 
         item.view = hostingView
