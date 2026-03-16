@@ -182,7 +182,7 @@ struct DashboardMenuView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(width: 400)
+        .frame(minWidth: 400, maxWidth: 400, maxHeight: 700)
         .background(.regularMaterial)
     }
 

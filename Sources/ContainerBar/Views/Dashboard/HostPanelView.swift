@@ -55,15 +55,20 @@ struct HostPanelView: View {
 
     private var hostList: some View {
         VStack(spacing: 0) {
-            ForEach(settings.hosts) { host in
-                HostListRowView(
-                    host: host,
-                    isSelected: settings.selectedHostId == host.id,
-                    onSelect: {
-                        onSelectHost(host.id)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(settings.hosts) { host in
+                        HostListRowView(
+                            host: host,
+                            isSelected: settings.selectedHostId == host.id,
+                            onSelect: {
+                                onSelectHost(host.id)
+                            }
+                        )
                     }
-                )
+                }
             }
+            .frame(maxHeight: 200)
 
             Divider()
                 .padding(.vertical, 4)
