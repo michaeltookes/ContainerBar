@@ -127,7 +127,7 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 - **TLS errors use wrong error type (`.sshConnectionFailed`)** (completed: 2026-02-22)
 - **`DashboardMenuView.swift` is 706 lines - split into separate files** (completed: 2026-02-22)
 - **SSH host trust uses TOFU (`StrictHostKeyChecking=accept-new`)** (completed: 2026-02-22)
-- **Release app crashes on menu open due SPM resource bundle lookup path mismatch** (completed: 2026-02-22)
+- **Release app crashes on menu open due to SPM resource bundle lookup path mismatch** (completed: 2026-02-22)
 - **BUG: App crashes when opening menu after adding more containers (Beelink)** (completed: 2026-02-18)
 - **`DockerSystemInfo.dockerVersion` CodingKey maps to wrong JSON field** (completed: 2026-02-18)
 - **Placeholder SettingsView still in ContainerBarApp.swift** (completed: 2026-02-18)
