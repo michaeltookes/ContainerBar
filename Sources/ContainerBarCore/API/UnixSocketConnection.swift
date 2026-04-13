@@ -118,7 +118,7 @@ final class UnixSocketConnection: @unchecked Sendable {
     func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
         let (fd, generation) = try snapshotSocketState()
 
-        let requestData = try request.toHTTPData()
+        let requestData = try request.toHTTPData(resolvedHost: "localhost")
 
         // Send request
         var totalSent = 0
