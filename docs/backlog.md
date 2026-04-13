@@ -91,8 +91,8 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 2. **Remote SSH/TLS integration behavior was not validated against live hosts**
     Audit conclusions are based on static review and unit tests. End-to-end behavior under real network conditions (latency, host key rotation, reconnect edge cases) remains a validation gap.
 
-3. **Strict SSH host-key verification now requires known_hosts onboarding discipline**
-    With `StrictHostKeyChecking=yes`, first-time or rotated-host connections fail until host keys are intentionally trusted. This is more secure, but needs explicit user onboarding/documentation validation.
+3. **`StrictHostKeyChecking=yes` requires explicit `known_hosts` onboarding for new or rotated SSH hosts**
+    With `StrictHostKeyChecking=yes`, first-time or rotated-host connections are rejected until the host key is explicitly verified and added to `known_hosts`, so document the onboarding steps for trusting new or changed host keys.
 
 4. **Interactive UI/accessibility behavior was not runtime-verified in this pass**
     UI findings are code-based. Live interaction checks (VoiceOver navigation, keyboard-only flows, menu timing behavior on real hardware) remain outstanding.
