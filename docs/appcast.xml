@@ -12,7 +12,7 @@
             <sparkle:version>4</sparkle:version>
             <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.1/ContainerBar.zip" length="7309238" type="application/octet-stream" sparkle:edSignature="orA+YSba5X43M/ykm6b/MdPhb3NZKedG2Jzt+sAumjRGnHb4JrArpR+LNRI8nDZn74jHktaZ1KF9eSRTqyD7DA=="/>
+            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.1/ContainerBar.zip" length="7314558" type="application/octet-stream" sparkle:edSignature="q340mbZtZSqu3xNpiTEFjoX/y3GBYXKG2eEjMHpjwsfj64qp/hDFNSCnAhTmFxpB6UetvJadiv4LBvOJ2KQpAQ=="/>
         </item>
         <item>
             <title>2.0.0</title>
