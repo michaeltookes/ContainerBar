@@ -43,6 +43,15 @@ echo_error() {
     echo -e "${RED}Error:${NC} $1"
 }
 
+has_rpath() {
+    local binary="$1"
+    local expected="$2"
+    otool -l "$binary" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+        in_rpath && $1 == "path" { print $2; in_rpath = 0 }
+    ' | grep -Fxq "$expected"
+}
+
 # Check for required tools
 check_requirements() {
     echo_step "Checking requirements..."
@@ -125,8 +134,19 @@ create_bundle() {
         cp -R "$BUILD_DIR/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/"
     fi
 
-    # Fix rpath so the executable can find Sparkle.framework
-    install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+    # Ensure runtime can resolve embedded frameworks from Contents/Frameworks.
+    if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
+        local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+        if has_rpath "$binary" "@executable_path/../Frameworks"; then
+            echo "  ✓ Framework rpath already present"
+        elif has_rpath "$binary" "@loader_path"; then
+            install_name_tool -rpath @loader_path @executable_path/../Frameworks "$binary"
+            echo "  ✓ Replaced @loader_path rpath with framework bundle path"
+        else
+            install_name_tool -add_rpath @executable_path/../Frameworks "$binary"
+            echo "  ✓ Added framework bundle rpath"
+        fi
+    fi
 
     echo "  ✓ Bundle created"
 }
@@ -197,9 +217,18 @@ sign() {
 verify() {
     echo_step "Verifying signature..."
 
-    codesign --verify --verbose=2 "$APP_BUNDLE"
+    codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
     echo ""
     codesign -dv --verbose=4 "$APP_BUNDLE" 2>&1 | grep -E "(Authority|TeamIdentifier|Signature)"
+
+    if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
+        local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+        if ! has_rpath "$binary" "@executable_path/../Frameworks"; then
+            echo_error "Missing framework rpath on $APP_NAME binary"
+            exit 1
+        fi
+        echo "  ✓ Framework rpath verified"
+    fi
 
     echo "  ✓ Signature verified"
 }

@@ -4,8 +4,8 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 ## High Priority
 
-1. **No open high-priority items currently**
-    Last high-priority backlog items were completed on 2026-02-22.
+1. **Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle**
+    The release tooling is now patched in source, but users with the already-built 2.0.1 app can still hit the Sparkle loader failure until a rebuilt hotfix is packaged, validated, and redistributed.
 ## Medium Priority
 
 1. **`TLSConnection.swift` is 308 lines - extract connection lifecycle or parsing helpers**
@@ -101,19 +101,23 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 1. **Validate and document strict SSH host-key onboarding**
     Add/update docs for first-time host trust setup (`known_hosts` flow), and run manual tests for new host, rotated key, and mismatch scenarios.
 
-2. **Align transport API contracts with behavior**
+2. **Cut and smoke-test a replacement hotfix app build**
+    Rebuild the release bundle with the fixed framework rpath, run `scripts/validate-release.py`, and confirm the packaged app launches from `/Applications` before publishing the replacement release.
+
+3. **Align transport API contracts with behavior**
     Resolve the stats streaming contract mismatch (`getContainerStats(stream:)`) either by implementing true streaming or simplifying the API.
 
-3. **Fix release metadata and validation drift**
+4. **Fix release metadata and validation drift**
     Align Homebrew tap paths, appcast/changelog dates, and stale docs to keep release operations auditable and reproducible.
 
-4. **Add real CI quality gates plus scoped linting**
+5. **Add real CI quality gates plus scoped linting**
     Add `swift build`/`swift test` to PR workflows and scope SwiftLint to project sources so failures are actionable.
 
-5. **Schedule targeted integration validation**
+6. **Schedule targeted integration validation**
     Run live SSH/TLS host tests and an interactive UI/accessibility pass to close current unknowns.
 ## Completed
 
+- **Investigate Beelink disconnect state and app launch/menu-open regression** (completed: 2026-04-13)
 - **Address follow-up review fixes for add-host validation, request sanitization, and transport fail-closed behavior** (completed: 2026-03-15)
 - **Address follow-up review fixes for cancellation propagation and transport invalidation** (completed: 2026-03-15)
 - **`SSHTunnelConnection.swift` is 349 lines - extract state/process helpers** (completed: 2026-03-15)

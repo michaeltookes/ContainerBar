@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Connection status bar with host name and container count badges
 struct ConnectionStatusBar: View {
-    let hostName: String
+    let presentation: ConnectionStatusPresentation
     let isConnected: Bool
     let runningCount: Int
     let stoppedCount: Int
@@ -10,17 +10,28 @@ struct ConnectionStatusBar: View {
     var body: some View {
         HStack(spacing: 12) {
             // Connection indicator
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(isConnected ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: isConnected ? .green.opacity(0.5) : .red.opacity(0.5), radius: 3)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(presentation.indicatorColor)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: presentation.indicatorShadowColor, radius: 3)
 
-                Text(isConnected ? "Connected to \(hostName)" : "Disconnected")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary.opacity(0.9))
-                    .lineLimit(1)
+                    Text(presentation.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.9))
+                        .lineLimit(1)
+                }
+
+                if let detail = presentation.detail {
+                    Text(detail)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
 
@@ -67,7 +78,13 @@ struct StatusPill: View {
 #Preview {
     VStack(spacing: 0) {
         ConnectionStatusBar(
-            hostName: "Local Docker",
+            presentation: .make(
+                hostName: "Local Docker",
+                isConnected: true,
+                isRefreshing: false,
+                lastRefreshAt: Date(),
+                connectionError: nil
+            ),
             isConnected: true,
             runningCount: 13,
             stoppedCount: 2
@@ -76,7 +93,13 @@ struct StatusPill: View {
         Divider()
 
         ConnectionStatusBar(
-            hostName: "Remote Server",
+            presentation: .make(
+                hostName: "Remote Server",
+                isConnected: false,
+                isRefreshing: true,
+                lastRefreshAt: nil,
+                connectionError: nil
+            ),
             isConnected: false,
             runningCount: 0,
             stoppedCount: 0
