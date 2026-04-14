@@ -2,6 +2,7 @@ import Testing
 @testable import ContainerBar
 @testable import ContainerBarCore
 
+@MainActor
 @Suite("ContainerBar App Tests")
 struct ContainerBarTests {
 
