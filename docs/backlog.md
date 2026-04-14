@@ -117,6 +117,7 @@ Prioritized list of planned features, improvements, and technical debt for Conta
     Run live SSH/TLS host tests and an interactive UI/accessibility pass to close current unknowns.
 ## Completed
 
+- **Address review follow-up for whitespace-only `connectionError` handling in `ConnectionStatusPresentation`** (completed: 2026-04-13)
 - **Address review follow-up for `ConnectionStatusPresentation.make(...)` API cleanup and coverage** (completed: 2026-04-13)
 - **Address review follow-ups for release-tool preflight checks and dashboard connection-state cleanup** (completed: 2026-04-13)
 - **Investigate Beelink disconnect state and app launch/menu-open regression** (completed: 2026-04-13)

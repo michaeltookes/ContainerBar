@@ -55,6 +55,31 @@ struct ContainerBarTests {
         #expect(presentation.detail == "Failed to connect to Docker daemon")
     }
 
+    @Test("Connection status ignores whitespace-only connection errors and trims displayed details")
+    func connectionStatusNormalizesConnectionErrors() {
+        let whitespaceOnlyPresentation = ConnectionStatusPresentation.make(
+            hostName: "Beelink Server",
+            isConnected: false,
+            isRefreshing: false,
+            connectionError: "  \n\t  "
+        )
+
+        #expect(whitespaceOnlyPresentation.state == .failed)
+        #expect(whitespaceOnlyPresentation.title == "Disconnected from Beelink Server")
+        #expect(whitespaceOnlyPresentation.detail == nil)
+
+        let trimmedPresentation = ConnectionStatusPresentation.make(
+            hostName: "Beelink Server",
+            isConnected: false,
+            isRefreshing: false,
+            connectionError: "  Failed to connect to Docker daemon \n"
+        )
+
+        #expect(trimmedPresentation.state == .failed)
+        #expect(trimmedPresentation.title == "Connection failed for Beelink Server")
+        #expect(trimmedPresentation.detail == "Failed to connect to Docker daemon")
+    }
+
     @Test("Connection status stays disconnected when idle in manual mode")
     func connectionStatusDoesNotShowConnectingWithoutRefresh() {
         let presentation = ConnectionStatusPresentation.make(

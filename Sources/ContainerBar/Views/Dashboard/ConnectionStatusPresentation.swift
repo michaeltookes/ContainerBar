@@ -41,12 +41,15 @@ struct ConnectionStatusPresentation: Equatable, Sendable {
             )
         }
 
-        if let connectionError, !connectionError.isEmpty {
-            return ConnectionStatusPresentation(
-                state: .failed,
-                title: "Connection failed for \(hostName)",
-                detail: connectionError
-            )
+        if let connectionError {
+            let trimmedConnectionError = connectionError.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedConnectionError.isEmpty {
+                return ConnectionStatusPresentation(
+                    state: .failed,
+                    title: "Connection failed for \(hostName)",
+                    detail: trimmedConnectionError
+                )
+            }
         }
 
         if isRefreshing {
