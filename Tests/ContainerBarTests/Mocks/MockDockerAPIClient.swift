@@ -24,6 +24,7 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     )
     private var _shouldFail = false
     private var _failureError: Error = DockerAPIError.connectionFailed
+    private var _responseDelay: Duration?
     private var _callCount = 0
     private var _lastCalledMethod: String?
     private var _calledMethods: [String] = []
@@ -51,6 +52,11 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     var failureError: Error {
         get { stateLock.withLock { _failureError } }
         set { stateLock.withLock { _failureError = newValue } }
+    }
+
+    var responseDelay: Duration? {
+        get { stateLock.withLock { _responseDelay } }
+        set { stateLock.withLock { _responseDelay = newValue } }
     }
 
     var callCount: Int {
@@ -88,14 +94,23 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         }
     }
 
+    private func maybeDelayResponse() async throws {
+        let responseDelay = stateLock.withLock { _responseDelay }
+        if let responseDelay {
+            try await Task.sleep(for: responseDelay)
+        }
+    }
+
     func ping() async throws {
         recordCall("ping")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
     }
 
     func getSystemInfo() async throws -> DockerSystemInfo {
         recordCall("getSystemInfo")
+        try await maybeDelayResponse()
         let snapshot = stateLock.withLock { (_shouldFail, _failureError, _mockSystemInfo) }
         if snapshot.0 { throw snapshot.1 }
         return snapshot.2
@@ -103,6 +118,7 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     func listContainers(all: Bool) async throws -> [DockerContainer] {
         recordCall("listContainers")
+        try await maybeDelayResponse()
         let snapshot = stateLock.withLock { (_shouldFail, _failureError, _mockContainers) }
         if snapshot.0 { throw snapshot.1 }
         return snapshot.2
@@ -110,6 +126,7 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     func getContainer(id: String) async throws -> DockerContainer {
         recordCall("getContainer")
+        try await maybeDelayResponse()
         let snapshot = stateLock.withLock { (_shouldFail, _failureError, _mockContainers) }
         if snapshot.0 { throw snapshot.1 }
         guard let container = snapshot.2.first(where: { $0.id == id }) else {
@@ -140,30 +157,35 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     func startContainer(id: String) async throws {
         recordCall("startContainer")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
     }
 
     func stopContainer(id: String, timeout: Int?) async throws {
         recordCall("stopContainer")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
     }
 
     func restartContainer(id: String, timeout: Int?) async throws {
         recordCall("restartContainer")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
     }
 
     func removeContainer(id: String, force: Bool, volumes: Bool) async throws {
         recordCall("removeContainer")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
     }
 
     func getContainerLogs(id: String, tail: Int?, timestamps: Bool) async throws -> String {
         recordCall("getContainerLogs")
+        try await maybeDelayResponse()
         let snapshot = failureSnapshot()
         if snapshot.shouldFail { throw snapshot.error }
         return "Mock log output for container \(id)"

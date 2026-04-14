@@ -168,6 +168,7 @@ public final class ContainerStore {
 
         isRefreshing = true
         defer { isRefreshing = false }
+        connectionError = nil
 
         logger.info("Refreshing container data")
 

@@ -42,6 +42,14 @@ struct ConnectionStatusPresentation: Equatable {
             )
         }
 
+        if isRefreshing {
+            return ConnectionStatusPresentation(
+                state: .connecting,
+                title: "Connecting to \(hostName)",
+                detail: nil
+            )
+        }
+
         if let connectionError {
             let trimmedConnectionError = connectionError.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedConnectionError.isEmpty {
@@ -51,14 +59,6 @@ struct ConnectionStatusPresentation: Equatable {
                     detail: trimmedConnectionError
                 )
             }
-        }
-
-        if isRefreshing {
-            return ConnectionStatusPresentation(
-                state: .connecting,
-                title: "Connecting to \(hostName)",
-                detail: nil
-            )
         }
 
         return ConnectionStatusPresentation(
