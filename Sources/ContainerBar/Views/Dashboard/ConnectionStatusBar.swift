@@ -83,7 +83,6 @@ struct StatusPill: View {
                 hostName: "Local Docker",
                 isConnected: true,
                 isRefreshing: false,
-                lastRefreshAt: Date(),
                 connectionError: nil
             ),
             runningCount: 13,
@@ -97,7 +96,6 @@ struct StatusPill: View {
                 hostName: "Remote Server",
                 isConnected: false,
                 isRefreshing: true,
-                lastRefreshAt: nil,
                 connectionError: nil
             ),
             runningCount: 0,

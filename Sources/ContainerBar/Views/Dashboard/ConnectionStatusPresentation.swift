@@ -31,7 +31,6 @@ struct ConnectionStatusPresentation: Equatable, Sendable {
         hostName: String,
         isConnected: Bool,
         isRefreshing: Bool,
-        lastRefreshAt _: Date?,
         connectionError: String?
     ) -> ConnectionStatusPresentation {
         if isConnected {

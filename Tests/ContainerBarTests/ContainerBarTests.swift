@@ -18,12 +18,26 @@ struct ContainerBarTests {
             hostName: "Beelink Server",
             isConnected: false,
             isRefreshing: true,
-            lastRefreshAt: nil,
             connectionError: nil
         )
 
         #expect(presentation.state == .connecting)
         #expect(presentation.title == "Connecting to Beelink Server")
+        #expect(presentation.detail == nil)
+    }
+
+    @Test("ConnectionStatusPresentation.make returns connected presentation for connected hosts")
+    func connectionStatusPresentationMakeReturnsConnectedState() {
+        let hostName = "Beelink Server"
+        let presentation = ConnectionStatusPresentation.make(
+            hostName: hostName,
+            isConnected: true,
+            isRefreshing: false,
+            connectionError: nil
+        )
+
+        #expect(presentation.state == .connected)
+        #expect(presentation.title == "Connected to \(hostName)")
         #expect(presentation.detail == nil)
     }
 
@@ -33,7 +47,6 @@ struct ContainerBarTests {
             hostName: "Beelink Server",
             isConnected: false,
             isRefreshing: false,
-            lastRefreshAt: nil,
             connectionError: "Failed to connect to Docker daemon"
         )
 
@@ -48,7 +61,6 @@ struct ContainerBarTests {
             hostName: "Beelink Server",
             isConnected: false,
             isRefreshing: false,
-            lastRefreshAt: nil,
             connectionError: nil
         )
 

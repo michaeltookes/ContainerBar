@@ -196,7 +196,6 @@ struct DashboardMenuView: View {
             hostName: hostName,
             isConnected: store.isConnected,
             isRefreshing: store.isRefreshing,
-            lastRefreshAt: store.lastRefreshAt,
             connectionError: store.connectionError
         )
     }
