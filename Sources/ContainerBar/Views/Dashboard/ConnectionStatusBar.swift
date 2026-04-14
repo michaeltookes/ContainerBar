@@ -3,9 +3,12 @@ import SwiftUI
 /// Connection status bar with host name and container count badges
 struct ConnectionStatusBar: View {
     let presentation: ConnectionStatusPresentation
-    let isConnected: Bool
     let runningCount: Int
     let stoppedCount: Int
+
+    private var isConnected: Bool {
+        presentation.state == .connected
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -32,8 +35,6 @@ struct ConnectionStatusBar: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer()
 
             // Status badges
             if isConnected {
@@ -85,7 +86,6 @@ struct StatusPill: View {
                 lastRefreshAt: Date(),
                 connectionError: nil
             ),
-            isConnected: true,
             runningCount: 13,
             stoppedCount: 2
         )
@@ -100,7 +100,6 @@ struct StatusPill: View {
                 lastRefreshAt: nil,
                 connectionError: nil
             ),
-            isConnected: false,
             runningCount: 0,
             stoppedCount: 0
         )

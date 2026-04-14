@@ -41,6 +41,21 @@ struct ContainerBarTests {
         #expect(presentation.title == "Connection failed for Beelink Server")
         #expect(presentation.detail == "Failed to connect to Docker daemon")
     }
+
+    @Test("Connection status stays disconnected when idle in manual mode")
+    func connectionStatusDoesNotShowConnectingWithoutRefresh() {
+        let presentation = ConnectionStatusPresentation.make(
+            hostName: "Beelink Server",
+            isConnected: false,
+            isRefreshing: false,
+            lastRefreshAt: nil,
+            connectionError: nil
+        )
+
+        #expect(presentation.state == .failed)
+        #expect(presentation.title == "Disconnected from Beelink Server")
+        #expect(presentation.detail == nil)
+    }
 }
 
 // TODO: Add tests for:

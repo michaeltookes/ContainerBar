@@ -12,6 +12,7 @@ import sys
 import os
 import plistlib
 import re
+import shutil
 import urllib.request
 import xml.etree.ElementTree as ET
 
@@ -162,11 +163,22 @@ def check_codesign():
         check("App codesign valid", False, f"app not found: {APP_BUNDLE}")
         return
 
-    result = subprocess.run(
-        ["codesign", "--verify", "--deep", "--strict", "--verbose=2", APP_BUNDLE],
-        capture_output=True,
-        text=True,
-    )
+    codesign_bin = shutil.which("codesign")
+    if not codesign_bin:
+        check("App codesign valid", False, "codesign not found")
+        return
+
+    try:
+        result = subprocess.run(
+            [codesign_bin, "--verify", "--deep", "--strict", "--verbose=2", APP_BUNDLE],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        check("App codesign valid", False, f"codesign execution failed: {exc}")
+        return
+
     combined = (result.stdout + result.stderr).strip()
     check("App codesign valid", result.returncode == 0, combined if combined else "verified")
 
@@ -184,12 +196,26 @@ def check_framework_rpath():
         check("App framework rpath valid", False, f"framework not found: {sparkle_framework}")
         return
 
-    result = subprocess.run(
-        ["otool", "-l", binary],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    otool_bin = shutil.which("otool")
+    if not otool_bin:
+        check("App framework rpath valid", False, "otool not found")
+        return
+
+    try:
+        result = subprocess.run(
+            [otool_bin, "-l", binary],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        check("App framework rpath valid", False, f"otool execution failed: {exc}")
+        return
+
+    if result.returncode != 0:
+        combined = (result.stdout + result.stderr).strip()
+        check("App framework rpath valid", False, combined if combined else "otool failed")
+        return
 
     rpaths = []
     capture_path = False

@@ -31,7 +31,7 @@ struct ConnectionStatusPresentation: Equatable, Sendable {
         hostName: String,
         isConnected: Bool,
         isRefreshing: Bool,
-        lastRefreshAt: Date?,
+        lastRefreshAt _: Date?,
         connectionError: String?
     ) -> ConnectionStatusPresentation {
         if isConnected {
@@ -50,7 +50,7 @@ struct ConnectionStatusPresentation: Equatable, Sendable {
             )
         }
 
-        if isRefreshing || lastRefreshAt == nil {
+        if isRefreshing {
             return ConnectionStatusPresentation(
                 state: .connecting,
                 title: "Connecting to \(hostName)",

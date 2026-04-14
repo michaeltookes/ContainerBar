@@ -66,6 +66,16 @@ check_requirements() {
         exit 1
     fi
 
+    if ! command -v otool &> /dev/null; then
+        echo_error "otool is not available; release rpath validation requires Xcode command line tools"
+        exit 1
+    fi
+
+    if ! command -v install_name_tool &> /dev/null; then
+        echo_error "install_name_tool is not available; release rpath remediation cannot run"
+        exit 1
+    fi
+
     # Check if signing identity exists
     if ! security find-identity -v -p codesigning | grep -q "$TEAM_ID"; then
         echo_error "Developer ID Application certificate not found for team $TEAM_ID"

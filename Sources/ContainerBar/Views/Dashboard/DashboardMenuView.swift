@@ -63,7 +63,6 @@ struct DashboardMenuView: View {
             if !isSearching {
                 ConnectionStatusBar(
                     presentation: connectionPresentation,
-                    isConnected: store.isConnected,
                     runningCount: runningCount,
                     stoppedCount: stoppedCount
                 )
