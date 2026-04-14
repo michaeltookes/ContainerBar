@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 @MainActor
-struct ConnectionStatusPresentation: Equatable, Sendable {
+struct ConnectionStatusPresentation: Equatable {
     enum State: Equatable, Sendable {
         case connecting
         case connected
