@@ -94,6 +94,39 @@ struct ContainerStoreTests {
         #expect(store.containers.count == 1)
     }
 
+    @Test("Refresh clears stale connection errors while a retry is in flight")
+    @MainActor
+    func refreshClearsPreviousErrorDuringRetry() async {
+        let mock = MockDockerAPIClient()
+        mock.shouldFail = true
+        mock.failureError = DockerAPIError.connectionFailed
+
+        let store = makeStore(mock: mock)
+        await store.refresh()
+
+        #expect(store.connectionError != nil)
+
+        mock.shouldFail = false
+        mock.mockContainers = [
+            DockerContainer.mock(id: "c1", name: "web", state: .running),
+        ]
+        mock.responseDelay = .milliseconds(200)
+
+        let refreshTask = Task {
+            await store.refresh(force: true)
+        }
+
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(store.isRefreshing == true)
+        #expect(store.connectionError == nil)
+
+        await refreshTask.value
+
+        #expect(store.isConnected == true)
+        #expect(store.connectionError == nil)
+    }
+
     // MARK: - Container Action Tests
 
     @Test("startContainer calls through to fetcher")

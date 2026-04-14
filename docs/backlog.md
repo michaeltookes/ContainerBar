@@ -4,35 +4,38 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 ## High Priority
 
-1. **No open high-priority items currently**
-    Last high-priority backlog items were completed on 2026-02-22.
+1. **Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle**
+    The release tooling is now patched in source, but users with the already-built 2.0.1 app can still hit the Sparkle loader failure until a rebuilt hotfix is packaged, validated, and redistributed.
 ## Medium Priority
 
-1. **`TLSConnection.swift` is 308 lines - extract connection lifecycle or parsing helpers**
+1. **Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`**
+    Remove the explicit `Sendable` conformance from the main-actor-isolated dashboard presentation struct so Swift 6 does not warn about redundant sendability.
+
+2. **`TLSConnection.swift` is 308 lines - extract connection lifecycle or parsing helpers**
     Request I/O serialization is now in place, but lifecycle coordination still leaves `TLSConnection.swift` just over the 300-line guideline. Extract additional connection-state helpers or parsing-adjacent utilities so the transport stays easier to audit.
 
-2. **`ContainerMenuCardView.swift` appears to be dead code**
+3. **`ContainerMenuCardView.swift` appears to be dead code**
     The 324-line `ContainerMenuCardView` seems superseded by `DashboardMenuView`. If unused, remove it to reduce maintenance surface.
 
-3. **`ContainerStore.swift` is 430 lines - extract metrics logic**
+4. **`ContainerStore.swift` is 430 lines - extract metrics logic**
     Rate calculation and metrics history updates could be extracted to a dedicated type, bringing the file under the 300-line convention.
 
-4. **Podman rootless socket path hardcodes UID 1000**
+5. **Podman rootless socket path hardcodes UID 1000**
     `ContainerRuntime.swift` line 53 hardcodes `/run/user/1000/podman/podman.sock` for remote Podman. This fails for non-default user IDs. Consider making it configurable via `DockerHost`.
 
-5. **No CI build/test step in GitHub Actions**
+6. **No CI build/test step in GitHub Actions**
     `claude-code-review.yml` runs code review on PRs but doesn't run `swift build` or `swift test`. PRs can pass review without compiling. Add a build+test job.
 
-6. **Build scripts hardcode arm64 architecture**
+7. **Build scripts hardcode arm64 architecture**
     `build-release.sh` (line 19) hardcodes `.build/arm64-apple-macosx/release`. Will fail on Intel Macs. Detect architecture or allow override via environment variable.
 
-7. **`getContainerStats(stream:)` ignores the streaming contract**
+8. **`getContainerStats(stream:)` ignores the streaming contract**
     `DockerAPIClientImpl.getContainerStats` accepts `stream`, but currently parses a single payload and finishes for all calls. Implement true streaming behavior when `stream=true`, or remove/rename the API contract.
 
-8. **Release validation metadata drift: Homebrew cask path mismatch**
+9. **Release validation metadata drift: Homebrew cask path mismatch**
     `CLAUDE.md` points to `~/Desktop/Current Projects/homebrew-tap/`, while `scripts/validate-release.py` checks `~/Desktop/homebrew-tap/Casks/containerbar.rb`. Align to a single canonical path.
 
-9. **Add scoped SwiftLint configuration to avoid linting dependencies**
+10. **Add scoped SwiftLint configuration to avoid linting dependencies**
     Running `swiftlint` currently scans `.build/checkouts` (Sparkle), producing external violations and hiding project-scope signal. Add `.swiftlint.yml` with includes/excludes for project sources only.
 ## Low Priority
 
@@ -101,19 +104,28 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 1. **Validate and document strict SSH host-key onboarding**
     Add/update docs for first-time host trust setup (`known_hosts` flow), and run manual tests for new host, rotated key, and mismatch scenarios.
 
-2. **Align transport API contracts with behavior**
+2. **Cut and smoke-test a replacement hotfix app build**
+    Rebuild the release bundle with the fixed framework rpath, run `scripts/validate-release.py`, and confirm the packaged app launches from `/Applications` before publishing the replacement release.
+
+3. **Align transport API contracts with behavior**
     Resolve the stats streaming contract mismatch (`getContainerStats(stream:)`) either by implementing true streaming or simplifying the API.
 
-3. **Fix release metadata and validation drift**
+4. **Fix release metadata and validation drift**
     Align Homebrew tap paths, appcast/changelog dates, and stale docs to keep release operations auditable and reproducible.
 
-4. **Add real CI quality gates plus scoped linting**
+5. **Add real CI quality gates plus scoped linting**
     Add `swift build`/`swift test` to PR workflows and scope SwiftLint to project sources so failures are actionable.
 
-5. **Schedule targeted integration validation**
+6. **Schedule targeted integration validation**
     Run live SSH/TLS host tests and an interactive UI/accessibility pass to close current unknowns.
 ## Completed
 
+- **Address retry-state presentation after failed refresh** (completed: 2026-04-14)
+- **Address review follow-up for main-actor isolation on `ConnectionStatusPresentation`** (completed: 2026-04-14)
+- **Address review follow-up for whitespace-only `connectionError` handling in `ConnectionStatusPresentation`** (completed: 2026-04-13)
+- **Address review follow-up for `ConnectionStatusPresentation.make(...)` API cleanup and coverage** (completed: 2026-04-13)
+- **Address review follow-ups for release-tool preflight checks and dashboard connection-state cleanup** (completed: 2026-04-13)
+- **Investigate Beelink disconnect state and app launch/menu-open regression** (completed: 2026-04-13)
 - **Address follow-up review fixes for add-host validation, request sanitization, and transport fail-closed behavior** (completed: 2026-03-15)
 - **Address follow-up review fixes for cancellation propagation and transport invalidation** (completed: 2026-03-15)
 - **`SSHTunnelConnection.swift` is 349 lines - extract state/process helpers** (completed: 2026-03-15)

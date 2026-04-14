@@ -62,8 +62,7 @@ struct DashboardMenuView: View {
             // Connection status bar (hidden when searching)
             if !isSearching {
                 ConnectionStatusBar(
-                    hostName: hostName,
-                    isConnected: store.isConnected,
+                    presentation: connectionPresentation,
                     runningCount: runningCount,
                     stoppedCount: stoppedCount
                 )
@@ -190,6 +189,15 @@ struct DashboardMenuView: View {
 
     private var hostName: String {
         settings.selectedHost?.name ?? "Local Docker"
+    }
+
+    private var connectionPresentation: ConnectionStatusPresentation {
+        ConnectionStatusPresentation.make(
+            hostName: hostName,
+            isConnected: store.isConnected,
+            isRefreshing: store.isRefreshing,
+            connectionError: store.connectionError
+        )
     }
 
     private var runningCount: Int {

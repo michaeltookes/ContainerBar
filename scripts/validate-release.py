@@ -12,6 +12,7 @@ import sys
 import os
 import plistlib
 import re
+import shutil
 import urllib.request
 import xml.etree.ElementTree as ET
 
@@ -156,6 +157,84 @@ def check_notarization():
     check("App notarization valid", accepted, combined.strip() if not accepted else "accepted")
 
 
+def check_codesign():
+    """Verify the built app passes strict code signing validation."""
+    if not os.path.isdir(APP_BUNDLE):
+        check("App codesign valid", False, f"app not found: {APP_BUNDLE}")
+        return
+
+    codesign_bin = shutil.which("codesign")
+    if not codesign_bin:
+        check("App codesign valid", False, "codesign not found")
+        return
+
+    try:
+        result = subprocess.run(
+            [codesign_bin, "--verify", "--deep", "--strict", "--verbose=2", APP_BUNDLE],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        check("App codesign valid", False, f"codesign execution failed: {exc}")
+        return
+
+    combined = (result.stdout + result.stderr).strip()
+    check("App codesign valid", result.returncode == 0, combined if combined else "verified")
+
+
+def check_framework_rpath():
+    """Verify the app binary can resolve embedded frameworks from Contents/Frameworks."""
+    binary = os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    sparkle_framework = os.path.join(APP_BUNDLE, "Contents", "Frameworks", "Sparkle.framework")
+
+    if not os.path.isfile(binary):
+        check("App framework rpath valid", False, f"binary not found: {binary}")
+        return
+
+    if not os.path.isdir(sparkle_framework):
+        check("App framework rpath valid", False, f"framework not found: {sparkle_framework}")
+        return
+
+    otool_bin = shutil.which("otool")
+    if not otool_bin:
+        check("App framework rpath valid", False, "otool not found")
+        return
+
+    try:
+        result = subprocess.run(
+            [otool_bin, "-l", binary],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        check("App framework rpath valid", False, f"otool execution failed: {exc}")
+        return
+
+    if result.returncode != 0:
+        combined = (result.stdout + result.stderr).strip()
+        check("App framework rpath valid", False, combined if combined else "otool failed")
+        return
+
+    rpaths = []
+    capture_path = False
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if stripped == "cmd LC_RPATH":
+            capture_path = True
+            continue
+        if capture_path and stripped.startswith("path "):
+            rpaths.append(stripped.split(" ", 2)[1])
+            capture_path = False
+
+    check(
+        "App framework rpath valid",
+        "@executable_path/../Frameworks" in rpaths,
+        ", ".join(rpaths) if rpaths else "no LC_RPATH entries found",
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <VERSION>")
@@ -173,6 +252,8 @@ def main():
     check_homebrew_cask(version)
     check_github_release(version)
     check_appcast(version)
+    check_codesign()
+    check_framework_rpath()
     check_notarization()
 
     total = passed + failed
