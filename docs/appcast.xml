@@ -7,6 +7,14 @@
         <language>en</language>
         <!-- Release entries will be added here by generate-appcast.sh -->
         <item>
+            <title>2.0.2</title>
+            <pubDate>Tue, 14 Apr 2026 14:37:00 -0500</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>2.0.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.2/ContainerBar.zip" length="7319624" type="application/octet-stream" sparkle:edSignature="9c2S9MCzdUywWyroEVsrEtGIPHbuynGQbl8cwctia4eObURMBgyho0rTLBroiQ4twOP021r2KxEMcTQcxYmpBQ=="/>
+        </item>
+        <item>
             <title>2.0.1</title>
             <pubDate>Sun, 15 Mar 2026 17:39:36 -0500</pubDate>
             <sparkle:version>4</sparkle:version>
