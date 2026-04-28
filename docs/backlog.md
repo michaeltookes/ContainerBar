@@ -6,6 +6,9 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 1. **Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle**
     The release tooling is now patched in source, but users with the already-built 2.0.1 app can still hit the Sparkle loader failure until a rebuilt hotfix is packaged, validated, and redistributed.
+
+2. **Add Mission Control backlog sync workflow**
+    Add `.github/workflows/sync-backlog.yml` so this repo's `docs/backlog.md` syncs to Mission Control on every push to `main` (and via manual `workflow_dispatch`). Copy the canonical template and instructions from the Mission Control repo at `docs/backlog-sync-workflow.md`. Set `PROJECT_SLUG` to this repo's project slug in Mission Control and add the `INGEST_API_KEY` repo secret (key will be provided separately).
 ## Medium Priority
 
 1. **Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`**
