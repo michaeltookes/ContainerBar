@@ -3,9 +3,6 @@ name: Sync backlog
 on:
   push:
     branches: [main]
-    paths:
-      - "docs/backlog.md"
-      - "docs/resolved.md"
   workflow_dispatch:
 
 concurrency:
