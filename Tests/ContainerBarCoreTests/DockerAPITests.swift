@@ -158,6 +158,22 @@ struct DockerAPITests {
         }
     }
 
+    @Test("TLS framing rejects content length with chunked transfer encoding")
+    func tlsFramingRejectsAmbiguousLengthAndChunkedHeaders() throws {
+        do {
+            try validateTLSHTTPFraming([
+                "content-length": "5",
+                "transfer-encoding": "chunked",
+            ])
+            Issue.record("Expected ambiguous TLS HTTP framing to throw")
+        } catch let error as DockerAPIError {
+            if case .invalidResponse = error {
+                return
+            }
+            Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
+        }
+    }
+
     @Test("HTTPResponse success detection")
     func httpResponseSuccess() {
         let success = HTTPResponse(statusCode: 200, headers: [:], body: Data())

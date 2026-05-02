@@ -89,6 +89,8 @@ private func receiveTLSHTTPBody(
     headers: [String: String],
     initialBody: Data
 ) async throws -> Data? {
+    try validateTLSHTTPFraming(headers)
+
     if let contentLengthStr = headers["content-length"] {
         let contentLength = try parseTLSContentLength(contentLengthStr)
         return try await receiveTLSContentLengthBody(conn: conn, initialBody: initialBody, contentLength: contentLength)
@@ -99,6 +101,13 @@ private func receiveTLSHTTPBody(
     }
 
     return nil
+}
+
+func validateTLSHTTPFraming(_ headers: [String: String]) throws {
+    if headers["content-length"] != nil,
+       headers["transfer-encoding"]?.lowercased() == "chunked" {
+        throw DockerAPIError.invalidResponse
+    }
 }
 
 private func receiveTLSContentLengthBody(
