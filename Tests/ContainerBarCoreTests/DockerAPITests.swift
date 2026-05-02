@@ -283,14 +283,9 @@ struct MockDockerAPIClientTests {
         let mockStats = ContainerStats.mock(containerId: "test1", cpuPercent: 5.0)
         mock.mockStats["test1"] = mockStats
 
-        let stream = try await mock.getContainerStats(id: "test1", stream: false)
+        let stats = try await mock.getContainerStats(id: "test1")
 
-        var receivedStats: ContainerStats?
-        for try await stats in stream {
-            receivedStats = stats
-        }
-
-        #expect(receivedStats?.cpuPercent == 5.0)
+        #expect(stats.cpuPercent == 5.0)
     }
 }
 

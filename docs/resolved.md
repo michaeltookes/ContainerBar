@@ -142,3 +142,19 @@
 ## ~~CB-006: `ContainerStore.swift` is 430 lines - extract metrics logic~~
 **Resolved**: 2026-05-02
 **Description**: Three-pronged extraction. (1) Pulled rate-of-change calculation and its previous-snapshot state into a new `MetricsRateTracker` type (`Sources/ContainerBar/Stores/MetricsRateTracker.swift`). (2) Lifted the connection-error-to-string switch into a free `userFriendlyConnectionErrorMessage(for:)` in `ConnectionErrorMessage.swift`. (3) Deduplicated the four near-identical container-action methods (start/stop/restart/remove) behind a single `performContainerAction` helper. `ContainerStore.swift` drops from 433 to 302 lines.
+
+## ~~CB-003: Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`~~
+**Resolved**: 2026-05-02
+**Description**: Removed the redundant `Sendable` conformance from the nested `enum State` in `ConnectionStatusPresentation`. Pure value enums get `Sendable` synthesized automatically; the explicit annotation was noise.
+
+## ~~CB-007: Podman rootless socket path hardcodes UID 1000~~
+**Resolved**: 2026-05-02
+**Description**: Parameterized `ContainerRuntime.defaultRemoteSocketPath(podmanUID:)` and added an optional `remotePodmanUID` field to `DockerHost`. `DockerAPIClientImpl` now passes `host.remotePodmanUID ?? ContainerRuntime.defaultPodmanUID` when computing the SSH-side fallback path, so callers with non-1000 user IDs can override programmatically without supplying a full socket path. UI surfacing left for a future task.
+
+## ~~CB-010: `getContainerStats(stream:)` ignores the streaming contract~~
+**Resolved**: 2026-05-02
+**Description**: Removed the unused `stream: Bool` parameter and `AsyncThrowingStream` return type from `DockerAPIClient.getContainerStats`. The method now returns a single `ContainerStats` snapshot, which is what the only caller (`ContainerFetcher`) actually used. Updated both mocks and the one direct test that exercised the old contract.
+
+## ~~CB-029: Validate and document strict SSH host-key onboarding~~
+**Resolved**: 2026-05-02
+**Description**: Added a "First-Time Host Trust (SSH Host Keys)" subsection to `docs/GETTING_STARTED.md` covering new-host setup (`ssh user@host` once to populate `~/.ssh/known_hosts`), rotated-key recovery (`ssh-keygen -R host` then re-add), and the suspected-mismatch scenario as a security-incident path. The strict-key behavior in `SSHTunnelProcessLauncher` is unchanged; this just gives users a clear, supported onboarding path.

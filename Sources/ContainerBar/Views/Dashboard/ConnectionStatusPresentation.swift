@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 struct ConnectionStatusPresentation: Equatable {
-    enum State: Equatable, Sendable {
+    enum State: Equatable {
         case connecting
         case connected
         case failed

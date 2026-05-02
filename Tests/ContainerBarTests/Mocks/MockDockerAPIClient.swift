@@ -135,24 +135,16 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         return container
     }
 
-    func getContainerStats(id: String, stream: Bool) async throws -> AsyncThrowingStream<ContainerStats, Error> {
+    func getContainerStats(id: String) async throws -> ContainerStats {
         recordCall("getContainerStats")
-        return AsyncThrowingStream { [weak self] continuation in
-            guard let self else {
-                continuation.finish()
-                return
-            }
-
-            let snapshot = self.statsSnapshot(for: id)
-            if snapshot.shouldFail {
-                continuation.finish(throwing: snapshot.error)
-            } else if let stats = snapshot.stats {
-                continuation.yield(stats)
-                continuation.finish()
-            } else {
-                continuation.finish()
-            }
+        let snapshot = statsSnapshot(for: id)
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
+        guard let stats = snapshot.stats else {
+            throw DockerAPIError.notFound("Stats for \(id)")
+        }
+        return stats
     }
 
     func startContainer(id: String) async throws {

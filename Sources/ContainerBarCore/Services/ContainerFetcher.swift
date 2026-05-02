@@ -172,11 +172,8 @@ public actor ContainerFetcher {
             for container in containersToFetch {
                 group.addTask {
                     do {
-                        let stream = try await self.client.getContainerStats(id: container.id, stream: false)
-                        for try await stats in stream {
-                            return (container.id, stats)
-                        }
-                        return (container.id, nil)
+                        let stats = try await self.client.getContainerStats(id: container.id)
+                        return (container.id, stats)
                     } catch {
                         self.logger.warning("Failed to fetch stats for \(container.displayName): \(error.localizedDescription)")
                         return (container.id, nil)

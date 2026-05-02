@@ -15,12 +15,10 @@ public protocol DockerAPIClient: Sendable {
     /// - Returns: Container details
     func getContainer(id: String) async throws -> DockerContainer
 
-    /// Get real-time statistics for a container
-    /// - Parameters:
-    ///   - id: Container ID or name
-    ///   - stream: If true, stream continuous updates
-    /// - Returns: Async stream of container statistics
-    func getContainerStats(id: String, stream: Bool) async throws -> AsyncThrowingStream<ContainerStats, Error>
+    /// Get a single statistics snapshot for a container.
+    /// - Parameter id: Container ID or name
+    /// - Returns: One `ContainerStats` snapshot
+    func getContainerStats(id: String) async throws -> ContainerStats
 
     /// Start a stopped container
     /// - Parameter id: Container ID or name

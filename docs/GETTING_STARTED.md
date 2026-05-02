@@ -79,6 +79,47 @@ ContainerBar connects via SSH tunnel, so ensure:
 - Your SSH keys are configured for passwordless authentication
 - Docker or Podman is installed and running on the remote host
 
+#### First-Time Host Trust (SSH Host Keys)
+
+ContainerBar runs SSH with `StrictHostKeyChecking=yes`. That means the remote host's key must already be present in your `~/.ssh/known_hosts` before ContainerBar will connect. This is a security trade-off: ContainerBar refuses to silently trust new or changed keys, so you have to verify them once on the command line.
+
+**New host (first-time setup)**
+
+Open Terminal and SSH to the host once before adding it to ContainerBar:
+
+```bash
+ssh user@your.host
+```
+
+SSH will prompt:
+
+```
+The authenticity of host 'your.host (1.2.3.4)' can't be established.
+ED25519 key fingerprint is SHA256:...
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+Verify the fingerprint matches the host (compare against the host's `/etc/ssh/ssh_host_*_key.pub` if you have console access), then type `yes`. The key is now in `~/.ssh/known_hosts` and ContainerBar will connect.
+
+**Rotated host key (server reinstalled or key regenerated)**
+
+If the host's SSH key changes, SSH will refuse to connect:
+
+```
+WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!
+```
+
+Remove the stale entry, then re-add the new key:
+
+```bash
+ssh-keygen -R your.host
+ssh user@your.host        # confirm new fingerprint, type yes
+```
+
+**Suspected mismatch (potential man-in-the-middle)**
+
+If you weren't expecting the host key to change, **stop**. Don't accept the new key until you've verified out of band (console access, hosting-provider dashboard, etc.) that the change is legitimate. If anything looks off, treat it as a security incident before clearing `known_hosts`.
+
 ---
 
 ## Using ContainerBar
