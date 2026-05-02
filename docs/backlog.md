@@ -90,18 +90,4 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 17. **CB-030: Schedule targeted integration validation pass**
     Audit findings are based on static review and unit tests. Run a live SSH/TLS pass against a real host (latency, host key rotation, reconnect edges) and an interactive UI/accessibility pass (VoiceOver, keyboard-only, menu timing on real hardware) to close the validation gaps called out in Risks & Unknowns.
-## Risks & Unknowns
-
-1. **Notarization/appcast release pipeline not validated in this audit run**
-    The full release path (`build-release.sh`, `notarize.sh`, appcast publication) requires signing credentials and external services that were not executed in this pass.
-
-2. **Remote SSH/TLS integration behavior was not validated against live hosts**
-    Audit conclusions are based on static review and unit tests. End-to-end behavior under real network conditions (latency, host key rotation, reconnect edge cases) remains a validation gap.
-
-3. **`StrictHostKeyChecking=yes` requires explicit `known_hosts` onboarding for new or rotated SSH hosts**
-    With `StrictHostKeyChecking=yes`, first-time or rotated-host connections are rejected until the host key is explicitly verified and added to `known_hosts`, so document the onboarding steps for trusting new or changed host keys.
-
-4. **Interactive UI/accessibility behavior was not runtime-verified in this pass**
-    UI findings are code-based. Live interaction checks (VoiceOver navigation, keyboard-only flows, menu timing behavior on real hardware) remain outstanding.
-
 Completed items live in [`docs/resolved.md`](resolved.md).
