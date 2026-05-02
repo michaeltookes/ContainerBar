@@ -86,3 +86,7 @@
 
 ## ~~Address retry-state presentation after failed refresh~~
 **Resolved**: 2026-04-14
+
+## ~~CB-001: Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle~~
+**Resolved**: 2026-04-14 (shipped as v2.0.2)
+**Description**: Rebuilt and shipped the hotfix as v2.0.2 with the corrected Sparkle appcast EdDSA signature and file size for the v2.0.1 update path, so users on the broken 2.0.1 bundle can update cleanly.
