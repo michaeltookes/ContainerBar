@@ -17,12 +17,8 @@
 /// ```swift
 /// import ContainerBarCore
 ///
-/// // Create a local Docker host configuration
-/// let host = DockerHost.local
-///
-/// // Use a fetch strategy to create a client
-/// let strategy = UnixSocketStrategy()
-/// let client = try strategy.createClient(host: host)
+/// // Connect to the local Docker daemon over its Unix socket
+/// let client = try DockerAPIClientImpl.local()
 ///
 /// // Fetch containers
 /// let containers = try await client.listContainers(all: true)

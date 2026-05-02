@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DMG creation integrated into release build workflow
 - Appcast child element parsing in release validator
 
-## [2.0.0] - 2025-02-11
+## [2.0.0] - 2026-02-12
 
 ### Added
 - **Podman Support**: Full Podman container runtime support alongside Docker

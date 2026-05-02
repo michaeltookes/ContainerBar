@@ -1,14 +1,14 @@
-# DockerBar Project Orchestration Prompt
+# ContainerBar Project Orchestration Prompt
 
-**Project**: DockerBar - macOS Menu Bar Docker Container Monitor  
-**Phase**: Phase 1 - MVP Foundation  
-**Date**: January 17, 2026
+**Project**: ContainerBar - macOS Menu Bar Docker & Podman Container Monitor  
+**Phase**: Release & Maintenance (post-2.0 beta preview)  
+**Date**: 2026-05-01
 
 ---
 
 ## Mission
 
-Build DockerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
+Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
 
 ---
 
@@ -91,7 +91,7 @@ Build DockerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` 
 TASKS:
 1. Read AGENTS.md, PROJECT_ORCHESTRATION.md, and DESIGN_DOCUMENT.md
 2. Create Swift package structure (Package.swift)
-3. Set up DockerBar and DockerBarCore targets
+3. Set up ContainerBar and ContainerBarCore targets
 4. Create basic README
 5. Post completion in /.claude/agents/communications/daily-standup.md
 
@@ -331,7 +331,7 @@ You are the primary agent who kicks off the project. Here's your immediate actio
 **Step 2**: Set up the project
 ```
 1. Create Swift package structure
-2. Set up targets (DockerBar, DockerBarCore, Tests)
+2. Set up targets (ContainerBar, ContainerBarCore, Tests)
 3. Configure Package.swift with dependencies
 4. Create basic README
 ```
@@ -343,7 +343,7 @@ You are the primary agent who kicks off the project. Here's your immediate actio
 **Completed**:
 - ✅ Read all requirements
 - ✅ Created Swift package structure
-- ✅ Set up DockerBar and DockerBarCore targets
+- ✅ Set up ContainerBar and ContainerBarCore targets
 
 **In Progress**:
 - 🔄 Setting up basic project skeleton
@@ -469,7 +469,7 @@ All agents post daily standups with progress
 
 ---
 
-## Let's Build DockerBar! 🚀
+## Let's Build ContainerBar! 🚀
 
 **@BUILD_LEAD**: You're up! Read the requirements and start with Day 1 tasks.
 

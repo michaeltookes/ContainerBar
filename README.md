@@ -72,8 +72,8 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 
 ### Adding a Remote Host
 
-1. Click the ContainerBar icon in your menu bar
-2. Hover over **Hosts** → click **Add Host...**
+1. Open **Settings** (or press `Cmd + ,`) and switch to **Connections**
+2. Click **Add Host**
 3. Select the runtime (**Docker** or **Podman**)
 4. Enter a name, hostname/IP, and SSH user
 5. Click **Add**
