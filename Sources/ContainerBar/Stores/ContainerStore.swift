@@ -71,22 +71,8 @@ public final class ContainerStore {
     @ObservationIgnored
     private let logger = Logger(label: "com.containerbar.store.container")
 
-    // MARK: - Rate Calculation State
-
     @ObservationIgnored
-    private var previousNetworkRx: UInt64 = 0
-
-    @ObservationIgnored
-    private var previousNetworkTx: UInt64 = 0
-
-    @ObservationIgnored
-    private var previousBlockRead: UInt64 = 0
-
-    @ObservationIgnored
-    private var previousBlockWrite: UInt64 = 0
-
-    @ObservationIgnored
-    private var previousTimestamp: Date?
+    private let rateTracker = MetricsRateTracker()
 
     // MARK: - Initialization
 
@@ -141,12 +127,7 @@ public final class ContainerStore {
         connectionError = nil
         lastRefreshAt = nil
 
-        // Reset rate calculation state
-        previousNetworkRx = 0
-        previousNetworkTx = 0
-        previousBlockRead = 0
-        previousBlockWrite = 0
-        previousTimestamp = nil
+        rateTracker.reset()
 
         // Reset the fetcher
         fetcher = nil
@@ -196,164 +177,77 @@ public final class ContainerStore {
             self.connectionError = nil
             self.lastRefreshAt = Date()
 
-            // Update sparkline history
-            updateMetricsHistory(from: result.metrics, stats: result.stats)
+            rateTracker.update(
+                history: &metricsHistory,
+                snapshot: result.metrics,
+                stats: result.stats
+            )
 
             logger.info("Refresh complete: \(result.containers.count) containers")
         } catch {
             logger.error("Refresh failed: \(error.localizedDescription)")
-
-            // User-friendly error messages
-            let userMessage = userFriendlyErrorMessage(for: error)
-            self.connectionError = userMessage
+            self.connectionError = userFriendlyConnectionErrorMessage(for: error)
             self.isConnected = false
         }
     }
 
-    // MARK: - Metrics History
-
-    /// Update sparkline history with latest metrics
-    private func updateMetricsHistory(from metrics: ContainerMetricsSnapshot, stats: [String: ContainerStats]) {
-        let now = Date()
-
-        // Update CPU and memory history
-        metricsHistory.cpu.append(metrics.totalCPUPercent)
-        metricsHistory.memory.append(metrics.memoryUsagePercent)
-
-        // Calculate network rates (KB/s)
-        let totalNetworkRx = stats.values.reduce(0) { $0 + $1.networkRxBytes }
-        let totalNetworkTx = stats.values.reduce(0) { $0 + $1.networkTxBytes }
-        let totalBlockRead = stats.values.reduce(0) { $0 + $1.blockReadBytes }
-        let totalBlockWrite = stats.values.reduce(0) { $0 + $1.blockWriteBytes }
-
-        if let prevTime = previousTimestamp {
-            let elapsed = now.timeIntervalSince(prevTime)
-            if elapsed > 0 {
-                // Safe subtraction to handle counter resets (saturating to 0)
-                let rxDelta = totalNetworkRx >= previousNetworkRx ? totalNetworkRx - previousNetworkRx : 0
-                let txDelta = totalNetworkTx >= previousNetworkTx ? totalNetworkTx - previousNetworkTx : 0
-                let readDelta = totalBlockRead >= previousBlockRead ? totalBlockRead - previousBlockRead : 0
-                let writeDelta = totalBlockWrite >= previousBlockWrite ? totalBlockWrite - previousBlockWrite : 0
-
-                // Calculate rates in KB/s
-                let rxRate = Double(rxDelta) / elapsed / 1024.0
-                let txRate = Double(txDelta) / elapsed / 1024.0
-                let readRate = Double(readDelta) / elapsed / 1024.0
-                let writeRate = Double(writeDelta) / elapsed / 1024.0
-
-                // Append rates (guaranteed non-negative due to saturating subtraction)
-                metricsHistory.networkRxRate.append(max(0, rxRate))
-                metricsHistory.networkTxRate.append(max(0, txRate))
-                metricsHistory.diskReadRate.append(max(0, readRate))
-                metricsHistory.diskWriteRate.append(max(0, writeRate))
-            }
-        }
-
-        // Store current values for next calculation
-        previousNetworkRx = totalNetworkRx
-        previousNetworkTx = totalNetworkTx
-        previousBlockRead = totalBlockRead
-        previousBlockWrite = totalBlockWrite
-        previousTimestamp = now
-    }
-
     // MARK: - Container Actions
 
-    /// Start a stopped container
     public func startContainer(id: String) async {
-        guard !actionInProgress.contains(id) else { return }
-        actionInProgress.insert(id)
-        defer { actionInProgress.remove(id) }
-
-        logger.info("Starting container: \(id)")
-
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            return
-        }
-
-        do {
+        await performContainerAction(id: id, progressive: "Starting", infinitive: "start") { fetcher in
             try await fetcher.startContainer(id: id)
-            lastActionError = nil
-            await refresh(force: true)
-        } catch {
-            logger.error("Failed to start container: \(error.localizedDescription)")
-            lastActionError = ActionError(message: "Failed to start container: \(error.localizedDescription)")
         }
     }
 
-    /// Stop a running container
     public func stopContainer(id: String) async {
-        guard !actionInProgress.contains(id) else { return }
-        actionInProgress.insert(id)
-        defer { actionInProgress.remove(id) }
-
-        logger.info("Stopping container: \(id)")
-
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            return
-        }
-
-        do {
+        await performContainerAction(id: id, progressive: "Stopping", infinitive: "stop") { fetcher in
             try await fetcher.stopContainer(id: id)
-            lastActionError = nil
-            await refresh(force: true)
-        } catch {
-            logger.error("Failed to stop container: \(error.localizedDescription)")
-            lastActionError = ActionError(message: "Failed to stop container: \(error.localizedDescription)")
         }
     }
 
-    /// Restart a container
     public func restartContainer(id: String) async {
-        guard !actionInProgress.contains(id) else { return }
-        actionInProgress.insert(id)
-        defer { actionInProgress.remove(id) }
-
-        logger.info("Restarting container: \(id)")
-
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            return
-        }
-
-        do {
+        await performContainerAction(id: id, progressive: "Restarting", infinitive: "restart") { fetcher in
             try await fetcher.restartContainer(id: id)
-            lastActionError = nil
-            await refresh(force: true)
-        } catch {
-            logger.error("Failed to restart container: \(error.localizedDescription)")
-            lastActionError = ActionError(message: "Failed to restart container: \(error.localizedDescription)")
         }
     }
 
-    /// Remove a container
     public func removeContainer(id: String, force: Bool = false) async {
-        guard !actionInProgress.contains(id) else { return }
-        actionInProgress.insert(id)
-        defer { actionInProgress.remove(id) }
-
-        logger.info("Removing container: \(id)")
-
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            return
-        }
-
-        do {
+        await performContainerAction(id: id, progressive: "Removing", infinitive: "remove") { fetcher in
             try await fetcher.removeContainer(id: id, force: force)
-            lastActionError = nil
-            await refresh(force: true)
-        } catch {
-            logger.error("Failed to remove container: \(error.localizedDescription)")
-            lastActionError = ActionError(message: "Failed to remove container: \(error.localizedDescription)")
         }
     }
 
-    /// Dismiss the current action error
     public func dismissActionError() {
         lastActionError = nil
+    }
+
+    private func performContainerAction(
+        id: String,
+        progressive: String,
+        infinitive: String,
+        _ action: (ContainerFetcher) async throws -> Void
+    ) async {
+        guard !actionInProgress.contains(id) else { return }
+        actionInProgress.insert(id)
+        defer { actionInProgress.remove(id) }
+
+        logger.info("\(progressive) container: \(id)")
+
+        guard let fetcher else {
+            logger.error("No fetcher available")
+            return
+        }
+
+        do {
+            try await action(fetcher)
+            lastActionError = nil
+            await refresh(force: true)
+        } catch {
+            logger.error("Failed to \(infinitive) container: \(error.localizedDescription)")
+            lastActionError = ActionError(
+                message: "Failed to \(infinitive) container: \(error.localizedDescription)"
+            )
+        }
     }
 
     // MARK: - Timer Management
@@ -405,29 +299,4 @@ public final class ContainerStore {
         }
     }
 
-    // MARK: - Error Handling
-
-    private func userFriendlyErrorMessage(for error: Error) -> String {
-        if let dockerError = error as? DockerAPIError {
-            switch dockerError {
-            case .socketNotFound:
-                return "Docker not running. Please start Docker Desktop."
-            case .connectionFailed:
-                return "Cannot connect to Docker. Make sure Docker is running."
-            case .unauthorized:
-                return "Access denied. Check Docker permissions."
-            case .sshConnectionFailed(let message):
-                return "SSH connection failed: \(message)"
-            case .tlsConnectionFailed(let message):
-                return "TLS connection failed: \(message)"
-            case .invalidResponse:
-                return "Invalid response from Docker. Check if Docker is running on the selected host."
-            default:
-                return dockerError.localizedDescription
-            }
-        }
-
-        // Generic error
-        return "Connection error: \(error.localizedDescription)"
-    }
 }

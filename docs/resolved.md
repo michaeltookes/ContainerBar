@@ -130,3 +130,15 @@
 ## ~~CB-012: Add scoped SwiftLint configuration to avoid linting dependencies~~
 **Resolved**: 2026-05-02
 **Description**: Added `.swiftlint.yml` scoping linting to `Sources/` and `Tests/` and excluding `.build`, `dist`, and `Distribution`. Fixed two pre-existing serious violations (force_try in a `#Preview`, an over-long line in `UnixSocketConnection.swift`) so the lint job is green from the start.
+
+## ~~CB-004: `TLSConnection.swift` is 308 lines - extract connection lifecycle or parsing helpers~~
+**Resolved**: 2026-05-02
+**Description**: Extracted the HTTP-receive helpers (`receiveHTTPResponse`, `receiveChunk`) from `TLSConnection.swift` into a new `Sources/ContainerBarCore/API/TLSHTTPReceive.swift` as free functions, since they don't touch any private state on the type. `TLSConnection.swift` drops from 308 to 224 lines, comfortably under the 300-line guideline.
+
+## ~~CB-005: `ContainerMenuCardView.swift` appears to be dead code~~
+**Resolved**: 2026-05-02
+**Description**: Confirmed `ContainerMenuCardView` had zero references outside its own file (superseded by `DashboardMenuView`). Deleted `Sources/ContainerBar/Views/ContainerMenuCardView.swift` to reduce maintenance surface.
+
+## ~~CB-006: `ContainerStore.swift` is 430 lines - extract metrics logic~~
+**Resolved**: 2026-05-02
+**Description**: Three-pronged extraction. (1) Pulled rate-of-change calculation and its previous-snapshot state into a new `MetricsRateTracker` type (`Sources/ContainerBar/Stores/MetricsRateTracker.swift`). (2) Lifted the connection-error-to-string switch into a free `userFriendlyConnectionErrorMessage(for:)` in `ConnectionErrorMessage.swift`. (3) Deduplicated the four near-identical container-action methods (start/stop/restart/remove) behind a single `performContainerAction` helper. `ContainerStore.swift` drops from 433 to 302 lines.

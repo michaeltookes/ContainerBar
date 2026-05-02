@@ -9,22 +9,13 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 1. **CB-003: Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`**
     Remove the explicit `Sendable` conformance from the main-actor-isolated dashboard presentation struct so Swift 6 does not warn about redundant sendability.
 
-2. **CB-004: `TLSConnection.swift` is 308 lines - extract connection lifecycle or parsing helpers**
-    Request I/O serialization is now in place, but lifecycle coordination still leaves `TLSConnection.swift` just over the 300-line guideline. Extract additional connection-state helpers or parsing-adjacent utilities so the transport stays easier to audit.
-
-3. **CB-005: `ContainerMenuCardView.swift` appears to be dead code**
-    The 324-line `ContainerMenuCardView` seems superseded by `DashboardMenuView`. If unused, remove it to reduce maintenance surface.
-
-4. **CB-006: `ContainerStore.swift` is 430 lines - extract metrics logic**
-    Rate calculation and metrics history updates could be extracted to a dedicated type, bringing the file under the 300-line convention.
-
-5. **CB-007: Podman rootless socket path hardcodes UID 1000**
+2. **CB-007: Podman rootless socket path hardcodes UID 1000**
     `ContainerRuntime.swift` line 53 hardcodes `/run/user/1000/podman/podman.sock` for remote Podman. This fails for non-default user IDs. Consider making it configurable via `DockerHost`.
 
-6. **CB-010: `getContainerStats(stream:)` ignores the streaming contract**
+3. **CB-010: `getContainerStats(stream:)` ignores the streaming contract**
     `DockerAPIClientImpl.getContainerStats` accepts `stream`, but currently parses a single payload and finishes for all calls. Implement true streaming behavior when `stream=true`, or remove/rename the API contract.
 
-7. **CB-029: Validate and document strict SSH host-key onboarding**
+4. **CB-029: Validate and document strict SSH host-key onboarding**
     With `StrictHostKeyChecking=yes`, first-time and rotated-host connections are rejected until the host key is explicitly trusted in `known_hosts`. Document the onboarding flow in user docs and run manual tests covering new host, rotated key, and mismatch scenarios so support has a clear path.
 
 ## Low Priority
