@@ -1,5 +1,3 @@
-import Foundation
-
 /// Actions that can be performed on a container.
 enum ContainerAction {
     case start(String)
