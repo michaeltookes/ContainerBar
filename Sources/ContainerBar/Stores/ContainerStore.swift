@@ -40,7 +40,7 @@ public final class ContainerStore {
     public private(set) var isRefreshing: Bool = false
 
     /// Set of container IDs currently being acted upon
-    public private(set) var actionInProgress: Set<String> = []
+    public internal(set) var actionInProgress: Set<String> = []
 
     // MARK: - Action Error State
 
@@ -52,12 +52,12 @@ public final class ContainerStore {
     }
 
     /// Most recent action error, displayed as a transient banner
-    public private(set) var lastActionError: ActionError?
+    public internal(set) var lastActionError: ActionError?
 
     // MARK: - Private Properties
 
     @ObservationIgnored
-    private var fetcher: ContainerFetcher?
+    var fetcher: ContainerFetcher?
 
     @ObservationIgnored
     private var timerTask: Task<Void, Never>?
@@ -69,7 +69,7 @@ public final class ContainerStore {
     private let settings: SettingsStore
 
     @ObservationIgnored
-    private let logger = Logger(label: "com.containerbar.store.container")
+    let logger = Logger(label: "com.containerbar.store.container")
 
     @ObservationIgnored
     private let rateTracker = MetricsRateTracker()
@@ -214,39 +214,6 @@ public final class ContainerStore {
     public func removeContainer(id: String, force: Bool = false) async {
         await performContainerAction(id: id, progressive: "Removing", infinitive: "remove") { fetcher in
             try await fetcher.removeContainer(id: id, force: force)
-        }
-    }
-
-    public func dismissActionError() {
-        lastActionError = nil
-    }
-
-    private func performContainerAction(
-        id: String,
-        progressive: String,
-        infinitive: String,
-        _ action: (ContainerFetcher) async throws -> Void
-    ) async {
-        guard !actionInProgress.contains(id) else { return }
-        actionInProgress.insert(id)
-        defer { actionInProgress.remove(id) }
-
-        logger.info("\(progressive) container: \(id)")
-
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            return
-        }
-
-        do {
-            try await action(fetcher)
-            lastActionError = nil
-            await refresh(force: true)
-        } catch {
-            logger.error("Failed to \(infinitive) container: \(error.localizedDescription)")
-            lastActionError = ActionError(
-                message: "Failed to \(infinitive) container: \(error.localizedDescription)"
-            )
         }
     }
 

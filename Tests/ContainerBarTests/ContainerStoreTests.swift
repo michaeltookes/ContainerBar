@@ -222,6 +222,28 @@ struct ContainerStoreTests {
         #expect(store.actionInProgress.isEmpty)
     }
 
+    @Test("Action reports error when fetcher is unavailable")
+    @MainActor
+    func actionReportsErrorWhenFetcherUnavailable() async {
+        let userDefaults = UserDefaults(suiteName: "test.\(UUID())")!
+        let settings = SettingsStore(userDefaults: userDefaults)
+        let missingSocketHost = DockerHost(
+            name: "Missing Socket",
+            connectionType: .unixSocket,
+            isDefault: true,
+            socketPath: "/tmp/containerbar-missing-\(UUID()).sock"
+        )
+        settings.addHost(missingSocketHost)
+        settings.selectedHostId = missingSocketHost.id
+
+        let store = ContainerStore(settings: settings)
+
+        await store.startContainer(id: "c1")
+
+        #expect(store.lastActionError?.message.contains("Docker connection is not configured") == true)
+        #expect(store.actionInProgress.isEmpty)
+    }
+
     // MARK: - Metrics History Tests
 
     @Test("Metrics history updates after refresh with stats")

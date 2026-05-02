@@ -140,6 +140,24 @@ struct DockerAPITests {
         }
     }
 
+    @Test("TLS content length parser rejects malformed or oversized values")
+    func tlsContentLengthParserRejectsInvalidValues() throws {
+        #expect(try parseTLSContentLength("0") == 0)
+        #expect(try parseTLSContentLength("42") == 42)
+
+        for invalidValue in ["", "-1", "1.5", "abc", "134217729", "999999999999999999999999"] {
+            do {
+                _ = try parseTLSContentLength(invalidValue)
+                Issue.record("Expected invalid Content-Length value to throw: \(invalidValue)")
+            } catch let error as DockerAPIError {
+                if case .invalidResponse = error {
+                    continue
+                }
+                Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
+            }
+        }
+    }
+
     @Test("HTTPResponse success detection")
     func httpResponseSuccess() {
         let success = HTTPResponse(statusCode: 200, headers: [:], body: Data())
