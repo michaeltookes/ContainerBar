@@ -58,21 +58,17 @@ ContainerBar automatically uses the correct socket path and API compatibility la
 
 To monitor containers on a remote server:
 
-1. Click the ContainerBar icon in your menu bar
-2. Hover over **Hosts** to see the submenu
-3. Click **Add Host...**
-
-![Hosts Menu](images/hosts-menu.png)
-
-4. Select the **Runtime** (Docker or Podman)
-5. Fill in your server details:
+1. Open **Settings** (or press `Cmd + ,`) and switch to the **Connections** tab
+2. Click **Add Host**
+3. Select the **Runtime** (Docker or Podman)
+4. Fill in your server details:
    - **Name**: A friendly name for this host (e.g., "My Server")
    - **Host**: The IP address or hostname (e.g., `192.168.1.100` or `myserver.local`)
    - **SSH User**: The SSH username (defaults to `root`)
 
 ![Add Remote Host](images/add-remote-host.png)
 
-6. Click **Add** to save the host
+5. Click **Add** to save the host
 
 The remote socket path is set automatically based on the selected runtime:
 - **Docker**: `/var/run/docker.sock`

@@ -90,3 +90,27 @@
 ## ~~CB-001: Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle~~
 **Resolved**: 2026-04-14 (shipped as v2.0.2)
 **Description**: Rebuilt and shipped the hotfix as v2.0.2 with the corrected Sparkle appcast EdDSA signature and file size for the v2.0.1 update path, so users on the broken 2.0.1 bundle can update cleanly.
+
+## ~~CB-014: Extract `ContainerAction` enum to its own file~~
+**Resolved**: 2026-05-01
+**Description**: Moved the `ContainerAction` enum out of `ContainerRowView.swift` into a dedicated `Sources/ContainerBar/ContainerAction.swift` so the type is discoverable to the views and `StatusItemController` extensions that consume it.
+
+## ~~CB-021: `ContainerFetchStrategy` protocol appears unused~~
+**Resolved**: 2026-05-01
+**Description**: Confirmed the protocol and its descriptor types had no consumers outside the file itself. Deleted `Sources/ContainerBarCore/Strategies/ContainerFetchStrategy.swift` and removed the now-empty `Strategies/` directory.
+
+## ~~CB-024: Docs still describe a Hosts submenu flow that no longer matches the menu UI~~
+**Resolved**: 2026-05-01
+**Description**: Rewrote the "Adding a Remote Host" sections in `README.md` and `docs/GETTING_STARTED.md` to route users through Settings > Connections > Add Host, matching the dashboard-card-first menu UI. Dropped the stale `images/hosts-menu.png` reference.
+
+## ~~CB-025: Release date metadata mismatch for v2.0.0~~
+**Resolved**: 2026-05-01
+**Description**: Aligned the v2.0.0 entry in `CHANGELOG.md` to the actual git tag date (`2026-02-12`), matching `docs/appcast.xml`.
+
+## ~~CB-026: Stale orchestration document still references DockerBar and early MVP phase~~
+**Resolved**: 2026-05-01
+**Description**: Refreshed `.claude/agents/PROJECT_ORCHESTRATION.md` to use the current ContainerBar product name throughout and updated the header phase to "Release & Maintenance (post-2.0 beta preview)".
+
+## ~~CB-027: `ContainerBarCore` usage docs reference a missing `UnixSocketStrategy` type~~
+**Resolved**: 2026-05-01
+**Description**: Replaced the broken docs example in `Sources/ContainerBarCore/ContainerBarCore.swift` with the real public API: `try DockerAPIClientImpl.local()` followed by `listContainers(all:)`.
