@@ -3,6 +3,7 @@ import Network
 
 private let maxTLSHTTPHeaderSize = 64 * 1024
 private let maxTLSHTTPBodySize = 128 * 1024 * 1024
+private let tlsHTTPLineSeparator = Data("\r\n".utf8)
 
 /// Reads a complete HTTP/1.1 response off an `NWConnection`, honoring either
 /// `Content-Length` or `Transfer-Encoding: chunked` framing.
@@ -126,20 +127,107 @@ private func receiveTLSContentLengthBody(
 }
 
 private func receiveTLSChunkedBody(conn: NWConnection, initialBody: Data) async throws -> Data {
-    let endMarker = Data("0\r\n\r\n".utf8)
-    var body = initialBody
-    try validateTLSHTTPBodySize(body)
+    var pending = initialBody
+    var rawBody = Data()
+    var decodedBody = Data()
 
-    while body.range(of: endMarker) == nil {
-        let chunk = try await receiveChunk(conn: conn, length: 8192)
-        guard !chunk.isEmpty else {
-            throw DockerAPIError.tlsConnectionFailed("Connection closed before receiving complete HTTP body")
+    while true {
+        let sizeLine = try await receiveTLSChunkedLine(conn: conn, pending: &pending)
+        rawBody.append(sizeLine)
+
+        let chunkSize = try parseTLSChunkSize(sizeLine)
+        if chunkSize == 0 {
+            try await receiveTLSTrailers(conn: conn, pending: &pending, rawBody: &rawBody)
+            return rawBody
         }
-        body.append(chunk)
-        try validateTLSHTTPBodySize(body)
+
+        let chunkFrame = try await receiveTLSChunkFrame(conn: conn, pending: &pending, chunkSize: chunkSize)
+        rawBody.append(chunkFrame.payload)
+        rawBody.append(tlsHTTPLineSeparator)
+
+        decodedBody.append(chunkFrame.payload)
+        try validateTLSHTTPBodySize(decodedBody)
+    }
+}
+
+private func receiveTLSChunkedLine(conn: NWConnection, pending: inout Data) async throws -> Data {
+    while pending.range(of: tlsHTTPLineSeparator) == nil {
+        guard pending.count <= maxTLSHTTPHeaderSize else {
+            throw DockerAPIError.tlsConnectionFailed("HTTP chunk metadata exceeded \(maxTLSHTTPHeaderSize) bytes")
+        }
+        pending.append(try await receiveRequiredTLSChunk(conn: conn, length: 8192))
     }
 
-    return body
+    guard let lineEnd = pending.range(of: tlsHTTPLineSeparator) else {
+        throw DockerAPIError.invalidResponse
+    }
+
+    let line = Data(pending[..<lineEnd.upperBound])
+    pending.removeSubrange(pending.startIndex..<lineEnd.upperBound)
+    return line
+}
+
+private func parseTLSChunkSize(_ line: Data) throws -> Int {
+    let sizeData = line.dropLast(tlsHTTPLineSeparator.count)
+    guard let sizeLine = String(data: Data(sizeData), encoding: .utf8) else {
+        throw DockerAPIError.invalidResponse
+    }
+
+    let sizeToken = sizeLine
+        .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+        .first?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+    guard !sizeToken.isEmpty,
+          sizeToken.allSatisfy(\.isHexDigit),
+          let chunkSize = UInt64(sizeToken, radix: 16),
+          chunkSize <= UInt64(Int.max) else {
+        throw DockerAPIError.invalidResponse
+    }
+
+    return Int(chunkSize)
+}
+
+private func receiveTLSChunkFrame(
+    conn: NWConnection,
+    pending: inout Data,
+    chunkSize: Int
+) async throws -> (payload: Data, terminator: Data) {
+    let frameSize = chunkSize + tlsHTTPLineSeparator.count
+    while pending.count < frameSize {
+        pending.append(try await receiveRequiredTLSChunk(conn: conn, length: min(8192, frameSize - pending.count)))
+    }
+
+    let payloadEnd = pending.index(pending.startIndex, offsetBy: chunkSize)
+    let frameEnd = pending.index(payloadEnd, offsetBy: tlsHTTPLineSeparator.count)
+    let payload = Data(pending[..<payloadEnd])
+    let terminator = Data(pending[payloadEnd..<frameEnd])
+
+    guard terminator == tlsHTTPLineSeparator else {
+        throw DockerAPIError.invalidResponse
+    }
+
+    pending.removeSubrange(pending.startIndex..<frameEnd)
+    return (payload, terminator)
+}
+
+private func receiveTLSTrailers(conn: NWConnection, pending: inout Data, rawBody: inout Data) async throws {
+    while true {
+        let trailerLine = try await receiveTLSChunkedLine(conn: conn, pending: &pending)
+        rawBody.append(trailerLine)
+
+        if trailerLine == tlsHTTPLineSeparator {
+            return
+        }
+    }
+}
+
+private func receiveRequiredTLSChunk(conn: NWConnection, length: Int) async throws -> Data {
+    let chunk = try await receiveChunk(conn: conn, length: length)
+    guard !chunk.isEmpty else {
+        throw DockerAPIError.tlsConnectionFailed("Connection closed before receiving complete HTTP body")
+    }
+    return chunk
 }
 
 private func validateTLSHTTPBodySize(_ body: Data) throws {
