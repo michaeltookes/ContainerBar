@@ -118,7 +118,9 @@ final class UnixSocketConnection: @unchecked Sendable {
     func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
         let (fd, generation) = try snapshotSocketState()
 
-        let requestData = try request.toHTTPData(resolvedHost: "localhost") // HTTP/1.1 requires a Host header; Unix sockets have no network host, so "localhost" is the appropriate local placeholder for Docker 28.x.
+        // HTTP/1.1 requires a Host header; Unix sockets have no network host,
+        // so "localhost" is the appropriate local placeholder for Docker 28.x.
+        let requestData = try request.toHTTPData(resolvedHost: "localhost")
 
         // Send request
         var totalSent = 0

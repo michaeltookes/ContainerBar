@@ -21,23 +21,12 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 5. **CB-007: Podman rootless socket path hardcodes UID 1000**
     `ContainerRuntime.swift` line 53 hardcodes `/run/user/1000/podman/podman.sock` for remote Podman. This fails for non-default user IDs. Consider making it configurable via `DockerHost`.
 
-6. **CB-008: No CI build/test step in GitHub Actions**
-    `claude-code-review.yml` runs code review on PRs but doesn't run `swift build` or `swift test`. PRs can pass review without compiling. Add a build+test job.
-
-7. **CB-009: Build scripts hardcode arm64 architecture**
-    `build-release.sh` (line 19) hardcodes `.build/arm64-apple-macosx/release`. Will fail on Intel Macs. Detect architecture or allow override via environment variable.
-
-8. **CB-010: `getContainerStats(stream:)` ignores the streaming contract**
+6. **CB-010: `getContainerStats(stream:)` ignores the streaming contract**
     `DockerAPIClientImpl.getContainerStats` accepts `stream`, but currently parses a single payload and finishes for all calls. Implement true streaming behavior when `stream=true`, or remove/rename the API contract.
 
-9. **CB-011: Release validation metadata drift: Homebrew cask path mismatch**
-    `CLAUDE.md` points to `~/Desktop/Current Projects/homebrew-tap/`, while `scripts/validate-release.py` checks `~/Desktop/homebrew-tap/Casks/containerbar.rb`. Align to a single canonical path.
-
-10. **CB-012: Add scoped SwiftLint configuration to avoid linting dependencies**
-    Running `swiftlint` currently scans `.build/checkouts` (Sparkle), producing external violations and hiding project-scope signal. Add `.swiftlint.yml` with includes/excludes for project sources only.
-
-11. **CB-029: Validate and document strict SSH host-key onboarding**
+7. **CB-029: Validate and document strict SSH host-key onboarding**
     With `StrictHostKeyChecking=yes`, first-time and rotated-host connections are rejected until the host key is explicitly trusted in `known_hosts`. Document the onboarding flow in user docs and run manual tests covering new host, rotated key, and mismatch scenarios so support has a clear path.
+
 ## Low Priority
 
 1. **CB-013: Remove or consolidate duplicate add-host dialogs**

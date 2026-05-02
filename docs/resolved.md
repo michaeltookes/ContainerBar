@@ -114,3 +114,19 @@
 ## ~~CB-027: `ContainerBarCore` usage docs reference a missing `UnixSocketStrategy` type~~
 **Resolved**: 2026-05-01
 **Description**: Replaced the broken docs example in `Sources/ContainerBarCore/ContainerBarCore.swift` with the real public API: `try DockerAPIClientImpl.local()` followed by `listContainers(all:)`.
+
+## ~~CB-008: No CI build/test step in GitHub Actions~~
+**Resolved**: 2026-05-02
+**Description**: Added `.github/workflows/swift-ci.yml` running `swift build`, `swift test`, and `swiftlint` on every PR and push to main. Build/test job uses macos-latest with SPM build cache; lint job runs in parallel.
+
+## ~~CB-009: Build scripts hardcode arm64 architecture~~
+**Resolved**: 2026-05-02
+**Description**: Replaced the hardcoded `.build/arm64-apple-macosx/release` path in `scripts/build-release.sh` with arch detection via `uname -m`, with a `BUILD_DIR` env var override for callers that need to point elsewhere.
+
+## ~~CB-011: Release validation metadata drift: Homebrew cask path mismatch~~
+**Resolved**: 2026-04-14 (already shipped in v2.0.2)
+**Description**: Backlog discovery only — `scripts/validate-release.py` was already aligned to `~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb`, matching `CLAUDE.md`. CHANGELOG 2.0.2 records the fix as "Corrected Homebrew tap path in release validator". The backlog item just never got closed.
+
+## ~~CB-012: Add scoped SwiftLint configuration to avoid linting dependencies~~
+**Resolved**: 2026-05-02
+**Description**: Added `.swiftlint.yml` scoping linting to `Sources/` and `Tests/` and excluding `.build`, `dist`, and `Distribution`. Fixed two pre-existing serious violations (force_try in a `#Preview`, an over-long line in `UnixSocketConnection.swift`) so the lint job is green from the start.
