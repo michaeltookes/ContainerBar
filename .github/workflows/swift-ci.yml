@@ -1,0 +1,76 @@
+name: Swift CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcode-select -p
+
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned SwiftLint
+        run: |
+          VERSION="0.62.0"
+          INSTALL_DIR="$RUNNER_TEMP/swiftlint-$VERSION"
+          ARCHIVE="$RUNNER_TEMP/swiftlint.zip"
+
+          curl -fsSL \
+            --connect-timeout 10 \
+            --max-time 120 \
+            --retry 3 \
+            --retry-delay 5 \
+            -o "$ARCHIVE" \
+            "https://github.com/realm/SwiftLint/releases/download/$VERSION/portable_swiftlint.zip"
+
+          mkdir -p "$INSTALL_DIR"
+          unzip -q "$ARCHIVE" -d "$INSTALL_DIR"
+
+          SWIFTLINT_BIN="$(find "$INSTALL_DIR" -type f -name swiftlint | head -n 1)"
+          if [[ -z "$SWIFTLINT_BIN" ]]; then
+            echo "::error::swiftlint binary not found in release archive."
+            exit 1
+          fi
+
+          chmod +x "$SWIFTLINT_BIN"
+          echo "$(dirname "$SWIFTLINT_BIN")" >> "$GITHUB_PATH"
+          "$SWIFTLINT_BIN" version
+
+      - name: Lint
+        run: swiftlint lint --reporter github-actions-logging

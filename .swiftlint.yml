@@ -1,0 +1,19 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+  - dist
+  - Distribution
+
+line_length:
+  warning: 140
+  error: 200
+
+identifier_name:
+  min_length: 2
+  excluded:
+    - id
+    - x
+    - y

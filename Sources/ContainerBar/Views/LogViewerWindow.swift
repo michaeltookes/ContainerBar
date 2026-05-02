@@ -255,6 +255,7 @@ final class LogViewerWindowController {
     LogViewerView(
         containerId: "abc123",
         containerName: "nginx-proxy",
+        // swiftlint:disable:next force_try
         fetcher: try! ContainerFetcher.local()
     )
     .frame(width: 700, height: 500)

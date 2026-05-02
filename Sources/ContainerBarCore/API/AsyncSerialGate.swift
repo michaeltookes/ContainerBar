@@ -4,7 +4,7 @@ actor AsyncSerialGate {
     private var isLocked = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    func withExclusiveAccess<T>(
+    func withExclusiveAccess<T: Sendable>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
         try await acquire()
