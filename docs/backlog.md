@@ -4,11 +4,6 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 ## High Priority
 
-1. **CB-001: Cut and verify a replacement hotfix release for the broken 2.0.1 app bundle**
-    The release tooling is now patched in source, but users with the already-built 2.0.1 app can still hit the Sparkle loader failure until a rebuilt hotfix is packaged, validated, and redistributed.
-
-2. **CB-002: Add Mission Control backlog sync workflow**
-    Add `.github/workflows/sync-backlog.yml` so this repo's `docs/backlog.md` syncs to Mission Control on every push to `main` (and via manual `workflow_dispatch`). Copy the canonical template and instructions from the Mission Control repo at `docs/backlog-sync-workflow.md`. Set `PROJECT_SLUG` to this repo's project slug in Mission Control and add the `INGEST_API_KEY` repo secret (key will be provided separately).
 ## Medium Priority
 
 1. **CB-003: Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`**
@@ -40,6 +35,9 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 10. **CB-012: Add scoped SwiftLint configuration to avoid linting dependencies**
     Running `swiftlint` currently scans `.build/checkouts` (Sparkle), producing external violations and hiding project-scope signal. Add `.swiftlint.yml` with includes/excludes for project sources only.
+
+11. **CB-029: Validate and document strict SSH host-key onboarding**
+    With `StrictHostKeyChecking=yes`, first-time and rotated-host connections are rejected until the host key is explicitly trusted in `known_hosts`. Document the onboarding flow in user docs and run manual tests covering new host, rotated key, and mismatch scenarios so support has a clear path.
 ## Low Priority
 
 1. **CB-013: Remove or consolidate duplicate add-host dialogs**
@@ -89,37 +87,7 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 16. **CB-028: App-level tests are still mostly smoke-level**
     `Tests/ContainerBarTests/ContainerBarTests.swift` contains a compile/link smoke test and TODO notes. Add targeted tests around menu-building behavior and controller actions to improve regression coverage.
-## Risks & Unknowns
 
-1. **Notarization/appcast release pipeline not validated in this audit run**
-    The full release path (`build-release.sh`, `notarize.sh`, appcast publication) requires signing credentials and external services that were not executed in this pass.
-
-2. **Remote SSH/TLS integration behavior was not validated against live hosts**
-    Audit conclusions are based on static review and unit tests. End-to-end behavior under real network conditions (latency, host key rotation, reconnect edge cases) remains a validation gap.
-
-3. **`StrictHostKeyChecking=yes` requires explicit `known_hosts` onboarding for new or rotated SSH hosts**
-    With `StrictHostKeyChecking=yes`, first-time or rotated-host connections are rejected until the host key is explicitly verified and added to `known_hosts`, so document the onboarding steps for trusting new or changed host keys.
-
-4. **Interactive UI/accessibility behavior was not runtime-verified in this pass**
-    UI findings are code-based. Live interaction checks (VoiceOver navigation, keyboard-only flows, menu timing behavior on real hardware) remain outstanding.
-## Recommended Next Actions
-
-1. **Validate and document strict SSH host-key onboarding**
-    Add/update docs for first-time host trust setup (`known_hosts` flow), and run manual tests for new host, rotated key, and mismatch scenarios.
-
-2. **Cut and smoke-test a replacement hotfix app build**
-    Rebuild the release bundle with the fixed framework rpath, run `scripts/validate-release.py`, and confirm the packaged app launches from `/Applications` before publishing the replacement release.
-
-3. **Align transport API contracts with behavior**
-    Resolve the stats streaming contract mismatch (`getContainerStats(stream:)`) either by implementing true streaming or simplifying the API.
-
-4. **Fix release metadata and validation drift**
-    Align Homebrew tap paths, appcast/changelog dates, and stale docs to keep release operations auditable and reproducible.
-
-5. **Add real CI quality gates plus scoped linting**
-    Add `swift build`/`swift test` to PR workflows and scope SwiftLint to project sources so failures are actionable.
-
-6. **Schedule targeted integration validation**
-    Run live SSH/TLS host tests and an interactive UI/accessibility pass to close current unknowns.
-
+17. **CB-030: Schedule targeted integration validation pass**
+    Audit findings are based on static review and unit tests. Run a live SSH/TLS pass against a real host (latency, host key rotation, reconnect edges) and an interactive UI/accessibility pass (VoiceOver, keyboard-only, menu timing on real hardware) to close the validation gaps called out in Risks & Unknowns.
 Completed items live in [`docs/resolved.md`](resolved.md).
