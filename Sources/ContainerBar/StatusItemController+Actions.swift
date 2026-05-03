@@ -4,47 +4,7 @@ import ContainerBarCore
 // MARK: - Container Actions
 
 extension StatusItemController {
-    func handleContainerAction(_ action: ContainerAction) {
-        logger.debug("Handling container action: \(action)")
-        switch action {
-        case .start(let id):
-            logger.info("Starting container: \(id)")
-            Task {
-                await containerStore.startContainer(id: id)
-            }
-            reopenMenu()
-
-        case .stop(let id):
-            logger.info("Stopping container: \(id)")
-            Task {
-                await containerStore.stopContainer(id: id)
-            }
-            reopenMenu()
-
-        case .restart(let id):
-            logger.info("Restarting container: \(id)")
-            Task {
-                await containerStore.restartContainer(id: id)
-            }
-            reopenMenu()
-
-        case .remove(let id):
-            logger.info("Remove requested for container: \(id)")
-            showRemoveConfirmation(for: id)
-
-        case .copyId(let id):
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(id, forType: .string)
-            logger.info("Copied container ID to clipboard")
-
-        case .viewLogs(let id):
-            logger.info("View logs requested for container: \(id)")
-            closeMenuIfOpen()
-            showLogViewer(for: id)
-        }
-    }
-
-    private func showRemoveConfirmation(for containerId: String) {
+    func showRemoveConfirmation(for containerId: String) {
         guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
             return
         }
@@ -80,7 +40,7 @@ extension StatusItemController {
         }
     }
 
-    private func showLogViewer(for containerId: String) {
+    func showLogViewer(for containerId: String) {
         logger.debug("Opening log viewer for container: \(containerId)")
         guard let container = containerStore.containers.first(where: { $0.id == containerId }) else {
             logger.warning("Container not found for log viewer: \(containerId)")
@@ -105,23 +65,6 @@ extension StatusItemController {
         }
     }
 
-    // MARK: - Host Management
-
-    @objc func switchHost(_ sender: NSMenuItem) {
-        guard let hostId = sender.representedObject as? UUID else { return }
-        logger.info("Switching to host: \(hostId)")
-        settingsStore.selectedHostId = hostId
-        containerStore.reinitializeFetcher()
-
-        // Reopen menu immediately with loading state
-        reopenMenu()
-
-        // Fetch data in background - UI will update reactively
-        Task {
-            await containerStore.refresh(force: true)
-        }
-    }
-
     func reopenMenu() {
         // Small delay to let the menu fully close first
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -129,90 +72,7 @@ extension StatusItemController {
         }
     }
 
-    @objc func addHost() {
-        logger.info("Opening add host dialog")
-
-        let alert = NSAlert()
-        alert.messageText = "Add Remote Host"
-        alert.informativeText = "Enter the SSH connection details for your remote Docker host."
-        alert.alertStyle = .informational
-
-        // Helper to create properly styled editable text field
-        func makeTextField(placeholder: String) -> NSTextField {
-            let field = NSTextField()
-            field.placeholderString = placeholder
-            field.isEditable = true
-            field.isSelectable = true
-            field.isBordered = true
-            field.isBezeled = true
-            field.bezelStyle = .roundedBezel
-            field.translatesAutoresizingMaskIntoConstraints = false
-            field.widthAnchor.constraint(equalToConstant: 250).isActive = true
-            return field
-        }
-
-        // Create fields
-        let nameLabel = NSTextField(labelWithString: "Name:")
-        let nameField = makeTextField(placeholder: "My Server")
-
-        let hostLabel = NSTextField(labelWithString: "Host (IP or hostname):")
-        let hostField = makeTextField(placeholder: "192.168.1.100 or myserver.local")
-
-        let userLabel = NSTextField(labelWithString: "SSH User:")
-        let userField = makeTextField(placeholder: "root")
-
-        // Create stack view
-        let stackView = NSStackView()
-        stackView.orientation = .vertical
-        stackView.alignment = .leading
-        stackView.spacing = 6
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-
-        stackView.addArrangedSubview(nameLabel)
-        stackView.addArrangedSubview(nameField)
-        stackView.addArrangedSubview(hostLabel)
-        stackView.addArrangedSubview(hostField)
-        stackView.addArrangedSubview(userLabel)
-        stackView.addArrangedSubview(userField)
-
-        // Set stack view size
-        stackView.setFrameSize(stackView.fittingSize)
-
-        alert.accessoryView = stackView
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-
-        NSApp.activate(ignoringOtherApps: true)
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            do {
-                let hostDraft = try RemoteHostDraftBuilder.build(
-                    nameInput: nameField.stringValue,
-                    hostInput: hostField.stringValue,
-                    userInput: userField.stringValue
-                )
-                let newHost = hostDraft.makeDockerHost()
-
-                settingsStore.addHost(newHost)
-                logger.info("Added remote host '\(newHost.name)' [\(newHost.id.uuidString)]")
-            } catch {
-                logger.warning("Rejected remote host from menu add flow: \(error.localizedDescription)")
-                return
-            }
-        }
-    }
-
-    // MARK: - Menu Actions
-
-    @objc func refreshAction() {
-        logger.info("Manual refresh triggered")
-        Task {
-            await containerStore.refresh(force: true)
-        }
-    }
-
-    @objc func openSettings() {
+    func openSettings() {
         logger.info("Opening settings")
         SettingsWindowController.shared.showSettings(
             settings: settingsStore,
