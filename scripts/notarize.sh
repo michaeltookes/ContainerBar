@@ -47,6 +47,15 @@ echo_error() {
     echo -e "${RED}Error:${NC} $1"
 }
 
+has_matching_notary_credentials() {
+    xcrun notarytool history \
+        --keychain-profile "$NOTARY_PROFILE" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$TEAM_ID" \
+        --output-format json \
+        --no-progress &> /dev/null 2>&1
+}
+
 # Check requirements
 check_requirements() {
     echo_step "Checking requirements..."
@@ -70,14 +79,13 @@ check_requirements() {
 store_credentials() {
     echo_step "Checking notarization credentials..."
 
-    # Check if credentials are already stored
-    if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" &> /dev/null 2>&1; then
-        if [ "$APPLE_ID" = "$DEFAULT_APPLE_ID" ] && [ "$TEAM_ID" = "$DEFAULT_TEAM_ID" ]; then
-            echo "  ✓ Credentials already stored"
-            return 0
-        fi
+    if has_matching_notary_credentials; then
+        echo "  ✓ Credentials already stored for $APPLE_ID / $TEAM_ID"
+        return 0
+    fi
 
-        echo_warning "APPLE_ID or TEAM_ID override detected; recreating notarization profile"
+    if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" &> /dev/null 2>&1; then
+        echo_warning "Stored notarization profile does not match $APPLE_ID / $TEAM_ID; recreating profile"
     fi
 
     echo ""

@@ -23,9 +23,18 @@ struct DockerRawStatsTimestampParsingTests {
             )
         )
 
-        let stats = ContainerStats(from: raw, containerId: "test")
+        let stats = try ContainerStats(from: raw, containerId: "test")
 
         #expect(abs(stats.timestamp.timeIntervalSince(expected)) < 0.001)
+    }
+
+    @Test("ContainerStats init from raw stats rejects invalid timestamp")
+    func invalidTimestampThrows() {
+        let raw = makeRawStats(read: "not-a-date")
+
+        #expect(throws: DockerRawStatsError.invalidTimestamp(containerId: "test", rawRead: "not-a-date")) {
+            _ = try ContainerStats(from: raw, containerId: "test")
+        }
     }
 
     private func makeRawStats(read: String) -> DockerRawStats {

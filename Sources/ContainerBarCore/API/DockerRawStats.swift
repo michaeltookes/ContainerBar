@@ -97,6 +97,17 @@ struct DockerRawStats: Codable, Sendable {
     }
 }
 
+enum DockerRawStatsError: Error, LocalizedError, Sendable, Equatable {
+    case invalidTimestamp(containerId: String, rawRead: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidTimestamp(let containerId, let rawRead):
+            return "Invalid stats timestamp for container \(containerId): \(rawRead)"
+        }
+    }
+}
+
 // MARK: - ContainerStats Extension
 
 extension ContainerStats {
@@ -106,8 +117,8 @@ extension ContainerStats {
     private static let fractionalTimestampFormatter = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 
     /// Initialize from raw Docker API stats response
-    init(from raw: DockerRawStats, containerId: String) {
-        let timestamp = Self.parseDockerTimestamp(raw.read) ?? Date()
+    init(from raw: DockerRawStats, containerId: String) throws {
+        let timestamp = try Self.validatedDockerTimestamp(raw.read, containerId: containerId)
 
         // Calculate CPU percentage
         // Formula: (container_delta / system_delta) * num_cpus * 100
@@ -173,5 +184,12 @@ extension ContainerStats {
     private static func parseDockerTimestamp(_ value: String) -> Date? {
         (try? Date(value, strategy: fractionalTimestampFormatter))
             ?? (try? Date(value, strategy: timestampFormatter))
+    }
+
+    private static func validatedDockerTimestamp(_ value: String, containerId: String) throws -> Date {
+        guard let timestamp = parseDockerTimestamp(value) else {
+            throw DockerRawStatsError.invalidTimestamp(containerId: containerId, rawRead: value)
+        }
+        return timestamp
     }
 }

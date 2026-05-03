@@ -143,7 +143,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
             let decoder = JSONDecoder()
             let rawStats = try decoder.decode(DockerRawStats.self, from: response.body)
-            return ContainerStats(from: rawStats, containerId: id)
+            return try ContainerStats(from: rawStats, containerId: id)
         } catch {
             logger.error("Stats fetch error: \(error.localizedDescription)")
             throw error
