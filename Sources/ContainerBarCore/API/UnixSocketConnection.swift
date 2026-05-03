@@ -113,16 +113,30 @@ final class UnixSocketConnection: @unchecked Sendable {
                     logger.debug("Unix socket connected: \(socketPath)")
                     return
                 } catch {
-                    lock.withLock {
-                        connection?.cancel()
+                    let shouldCancelFailedConnection = lock.withLock { () -> Bool in
+                        guard Self.shouldCleanupFailedConnection(current: connection, failed: conn) else {
+                            return false
+                        }
+
                         connection = nil
                         _isConnected = false
                         _isConnecting = false
+                        return true
+                    }
+                    if shouldCancelFailedConnection {
+                        conn.cancel()
                     }
                     throw error
                 }
             }
         }
+    }
+
+    static func shouldCleanupFailedConnection(current: NWConnection?, failed: NWConnection) -> Bool {
+        guard let current else {
+            return false
+        }
+        return current === failed
     }
 
     private func disconnectImmediately() {
