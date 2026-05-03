@@ -190,3 +190,7 @@
 ## ~~CB-032: Remove stale DockerBar VS Code launch configurations~~
 **Resolved**: 2026-05-03
 **Description**: Verified `Package.swift` defines the executable target as `ContainerBar`, then removed the dead `.vscode/launch.json` debug/release launch entries that still targeted `DockerBar`. The remaining launch configurations target `ContainerBar` and use the current `${workspaceFolder}` as their working directory.
+
+## ~~CB-033: Remove fixed-delay wait from router tests~~
+**Resolved**: 2026-05-03
+**Description**: Replaced the router test suite's hard-coded 50ms dispatch wait with a bounded `waitForCall` helper that polls for the specific mock client method and fails with the calls observed on timeout. Callback-only router actions now assert synchronously because those callbacks are invoked directly.

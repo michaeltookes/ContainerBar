@@ -5,6 +5,16 @@ import Testing
 
 @Suite("Container Action Router")
 struct ContainerActionRouterTests {
+    private enum WaitError: Error, CustomStringConvertible {
+        case timedOut(method: String, calls: [String])
+
+        var description: String {
+            switch self {
+            case .timedOut(let method, let calls):
+                "Timed out waiting for \(method). Calls recorded: \(calls)"
+            }
+        }
+    }
 
     @MainActor
     private func makeRouter(
@@ -19,10 +29,20 @@ struct ContainerActionRouterTests {
         return (router, mock)
     }
 
-    /// Wait long enough for any `Task { ... }` spawned inside
-    /// `handleContainerAction` to reach the mock client's call recorder.
-    private func waitForDispatch() async throws {
-        try await Task.sleep(for: .milliseconds(50))
+    private func waitForCall(
+        _ method: String,
+        in mock: MockDockerAPIClient,
+        timeout: Duration = .seconds(1)
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+
+        while !mock.calledMethods.contains(method) {
+            guard clock.now < deadline else {
+                throw WaitError.timedOut(method: method, calls: mock.calledMethods)
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     // MARK: - Store-mutating actions
@@ -36,7 +56,7 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.start("abc"))
 
-        try await waitForDispatch()
+        try await waitForCall("startContainer", in: mock)
         #expect(mock.calledMethods.contains("startContainer"))
         #expect(reopenCount == 1)
     }
@@ -50,7 +70,7 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.stop("abc"))
 
-        try await waitForDispatch()
+        try await waitForCall("stopContainer", in: mock)
         #expect(mock.calledMethods.contains("stopContainer"))
         #expect(reopenCount == 1)
     }
@@ -64,7 +84,7 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.restart("abc"))
 
-        try await waitForDispatch()
+        try await waitForCall("restartContainer", in: mock)
         #expect(mock.calledMethods.contains("restartContainer"))
         #expect(reopenCount == 1)
     }
@@ -80,7 +100,6 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.remove("abc"))
 
-        try await waitForDispatch()
         #expect(capturedId == "abc")
         // Removal goes through the host's confirmation alert, NOT directly
         // through the store. The store-side call only happens after the user
@@ -97,7 +116,6 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.viewLogs("abc"))
 
-        try await waitForDispatch()
         #expect(capturedId == "abc")
         #expect(!mock.calledMethods.contains("getContainerLogs"))
     }
@@ -111,7 +129,6 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.copyId("abc"))
 
-        try await waitForDispatch()
         #expect(capturedId == "abc")
     }
 
@@ -132,7 +149,6 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.copyId("abc"))
 
-        try await waitForDispatch()
         #expect(copyIdFired == true)
         #expect(reopenCount == 0)
         #expect(removeFired == false)
@@ -147,7 +163,6 @@ struct ContainerActionRouterTests {
         router.handleContainerAction(.remove("abc"))
         router.handleContainerAction(.viewLogs("abc"))
         router.handleContainerAction(.copyId("abc"))
-        try await waitForDispatch()
     }
 
     @Test("Container ID is passed through verbatim, not via lookup")
@@ -161,7 +176,6 @@ struct ContainerActionRouterTests {
 
         router.handleContainerAction(.remove("nonexistent-id"))
 
-        try await waitForDispatch()
         #expect(capturedId == "nonexistent-id")
     }
 }
