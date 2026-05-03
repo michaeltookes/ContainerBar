@@ -206,3 +206,7 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-033: Remove fixed-delay wait from router tests~~
 **Resolved**: 2026-05-03
 **Description**: Replaced the router test suite's hard-coded 50ms dispatch wait with a bounded `waitForCall` helper that polls for the specific mock client method and fails with the calls observed on timeout. Callback-only router actions now assert synchronously because those callbacks are invoked directly.
+
+## ~~CB-034: Let Unix socket disconnect preempt in-flight I/O~~
+**Resolved**: 2026-05-03
+**Description**: Updated `UnixSocketConnection.disconnect()` to cancel the underlying `NWConnection` immediately instead of waiting behind the send/receive `ioGate`, allowing recovery paths to tear down stalled socket I/O. `DockerAPIClientImpl.getConnection()` now fails closed when the SSH tunnel guard is false, clears any cached Unix socket, and rechecks the guard after awaiting a new socket connection. Unix socket requests now receive a caller-derived `resolvedHost` instead of hardcoding `localhost` inside the transport.

@@ -131,7 +131,7 @@ struct DockerAPITests {
             Issue.record("Expected malformed chunked payload to throw")
         } catch let error as DockerAPIError {
             if case .invalidResponse = error {
-                #expect(true)
+                return
             } else {
                 Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
             }
@@ -232,6 +232,64 @@ struct DockerAPITests {
                 fallbackPath: fallback
             ) == fallback
         )
+    }
+
+    @Test("Unix socket resolved host comes from SSH host when tunneled")
+    func unixSocketResolvedHostUsesRuntimeHost() throws {
+        let localSocketURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("containerbar-\(UUID().uuidString).sock")
+        _ = FileManager.default.createFile(atPath: localSocketURL.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: localSocketURL) }
+
+        let localClient = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Local Docker",
+                connectionType: .unixSocket,
+                socketPath: localSocketURL.path
+            )
+        )
+        #expect(localClient.unixSocketResolvedHost == "localhost")
+
+        let sshClient = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Remote Docker",
+                connectionType: .ssh,
+                host: "docker.example.com",
+                sshUser: "deploy"
+            )
+        )
+        #expect(sshClient.unixSocketResolvedHost == "docker.example.com")
+    }
+
+    @Test("SSH guard failure clears cached Unix socket before throwing")
+    func sshGuardFailureClearsCachedUnixSocket() async throws {
+        let client = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Remote Docker",
+                connectionType: .ssh,
+                host: "docker.example.com",
+                sshUser: "deploy"
+            )
+        )
+        let staleConnection = UnixSocketConnection(socketPath: "/tmp/stale-containerbar.sock")
+
+        client.connectionLock.withLock {
+            client.effectiveSocketPath = "/tmp/stale-containerbar.sock"
+            client.connection = staleConnection
+        }
+
+        do {
+            _ = try await client.getConnection()
+            Issue.record("Expected getConnection to fail while SSH tunnel is disconnected")
+        } catch DockerAPIError.connectionFailed {
+        } catch {
+            Issue.record("Expected DockerAPIError.connectionFailed, got \(error)")
+        }
+
+        let cachedConnection = client.connectionLock.withLock {
+            client.connection
+        }
+        #expect(cachedConnection == nil)
     }
 }
 

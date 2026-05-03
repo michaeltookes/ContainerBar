@@ -1,11 +1,21 @@
 import Foundation
 
 extension DockerAPIClientImpl {
+    var unixSocketResolvedHost: String {
+        switch host.connectionType {
+        case .ssh:
+            return host.host ?? "localhost"
+        case .unixSocket, .tcpTLS:
+            return "localhost"
+        }
+    }
+
     func getConnection() async throws -> UnixSocketConnection {
         let snapshot: (
             existing: UnixSocketConnection?,
             socketPath: String?,
-            sshGuardOK: Bool
+            sshGuardOK: Bool,
+            staleConnection: UnixSocketConnection?
         ) = connectionLock.withLock {
             let existing = connection
             let socketPath = effectiveSocketPath
@@ -15,7 +25,17 @@ extension DockerAPIClientImpl {
             } else {
                 sshGuardOK = true
             }
-            return (existing, socketPath, sshGuardOK)
+
+            if !sshGuardOK {
+                connection = nil
+                return (nil, socketPath, sshGuardOK, existing)
+            }
+
+            return (existing, socketPath, sshGuardOK, nil)
+        }
+
+        if let staleConnection = snapshot.staleConnection {
+            staleConnection.disconnectForTeardown()
         }
 
         if let existing = snapshot.existing {
@@ -30,17 +50,44 @@ extension DockerAPIClientImpl {
             throw DockerAPIError.invalidConfiguration("No socket path configured")
         }
 
-        let candidate = UnixSocketConnection(socketPath: socketPath)
+        let candidate = UnixSocketConnection(socketPath: socketPath, resolvedHost: unixSocketResolvedHost)
         try await candidate.connect()
 
         // Adopt the candidate, or discard it if a peer beat us to the cache
-        // while we were awaiting connect().
-        let adopted: UnixSocketConnection = connectionLock.withLock {
-            if let existing = connection {
-                return existing
+        // while we were awaiting connect(). Re-check the SSH guard here too:
+        // the tunnel can die while `candidate.connect()` is suspended.
+        let adoption: (
+            adopted: UnixSocketConnection?,
+            staleConnection: UnixSocketConnection?
+        ) = connectionLock.withLock {
+            let sshGuardOK: Bool
+            if host.connectionType == .ssh {
+                sshGuardOK = sshTunnel?.isConnected ?? false
+            } else {
+                sshGuardOK = true
             }
+
+            guard sshGuardOK else {
+                let staleConnection = connection
+                connection = nil
+                return (nil, staleConnection)
+            }
+
+            if let existing = connection {
+                return (existing, nil)
+            }
+
             connection = candidate
-            return candidate
+            return (candidate, nil)
+        }
+
+        if let staleConnection = adoption.staleConnection {
+            staleConnection.disconnectForTeardown()
+        }
+
+        guard let adopted = adoption.adopted else {
+            candidate.disconnectForTeardown()
+            throw DockerAPIError.connectionFailed
         }
 
         if adopted !== candidate {

@@ -7,10 +7,11 @@ import Logging
 /// `NWConnection` with `NWEndpoint.unix(path:)` owns descriptor lifecycle and
 /// cancellation, so the previous hand-rolled fd/generation/lock machinery is
 /// gone. Synchronization mirrors `TLSConnection`: `lock` guards state
-/// inspection, `ioGate` serializes concurrent connect/send/disconnect work.
+/// inspection, while `ioGate` serializes connect/send work.
 final class UnixSocketConnection: @unchecked Sendable {
 
     private let socketPath: String
+    private let resolvedHost: String
     private let logger = Logger(label: "com.containerbar.unixsocket")
     private let lock = NSLock()
     private let ioGate = AsyncSerialGate()
@@ -19,8 +20,9 @@ final class UnixSocketConnection: @unchecked Sendable {
     private var _isConnected = false
     private var _isConnecting = false
 
-    init(socketPath: String) {
+    init(socketPath: String, resolvedHost: String = "localhost") {
         self.socketPath = socketPath
+        self.resolvedHost = resolvedHost
     }
 
     deinit {
@@ -38,9 +40,10 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     /// Async-safe disconnect.
     func disconnect() async throws {
-        try await ioGate.withExclusiveAccess {
-            self.disconnectImmediately()
-        }
+        // Do not wait for `ioGate`: a stalled `sendRequest` holds that gate
+        // for send+receive, and disconnect must be able to preempt it by
+        // cancelling the underlying NWConnection.
+        disconnectImmediately()
     }
 
     /// Synchronous teardown for `deinit` paths where awaiting is impossible.
@@ -151,10 +154,7 @@ final class UnixSocketConnection: @unchecked Sendable {
                 throw DockerAPIError.connectionFailed
             }
 
-            // HTTP/1.1 requires a Host header; Unix sockets have no network
-            // host, so "localhost" is the appropriate placeholder for Docker
-            // 28.x.
-            let requestData = try request.toHTTPData(resolvedHost: "localhost")
+            let requestData = try request.toHTTPData(resolvedHost: resolvedHost)
 
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 conn.send(content: requestData, completion: .contentProcessed { error in
