@@ -119,6 +119,21 @@ struct ContainerMenuOrderingTests {
         #expect(result.map(\.id) == ["z", "a"])
     }
 
+    @Test("Identical display names tie-break deterministically by id")
+    func identicalNamesTieBreakById() {
+        // Two containers can share a display name across hosts. The order
+        // must not depend on input order or sort stability — it should be
+        // determined solely by id.
+        let containers: [DockerContainer] = [
+            .mock(id: "z-host-id", name: "redis", state: .running),
+            .mock(id: "a-host-id", name: "redis", state: .running)
+        ]
+
+        let result = sortedFilteredContainersForMenu(containers, showStopped: true)
+
+        #expect(result.map(\.id) == ["a-host-id", "z-host-id"])
+    }
+
     @Test("Mixed full set produces stable, predictable order")
     func mixedRealisticSet() {
         let containers: [DockerContainer] = [
