@@ -73,4 +73,4 @@ jobs:
           "$SWIFTLINT_BIN" version
 
       - name: Lint
-        run: swiftlint lint --reporter github-actions-logging
+        run: swiftlint lint --reporter github-actions-logging --no-cache

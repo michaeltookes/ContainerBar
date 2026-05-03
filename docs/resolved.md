@@ -210,3 +210,7 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-034: Let Unix socket disconnect preempt in-flight I/O~~
 **Resolved**: 2026-05-03
 **Description**: Updated `UnixSocketConnection.disconnect()` to cancel the underlying `NWConnection` immediately instead of waiting behind the send/receive `ioGate`, allowing recovery paths to tear down stalled socket I/O. `DockerAPIClientImpl.getConnection()` now fails closed when the SSH tunnel guard is false, clears any cached Unix socket, and rechecks the guard after awaiting a new socket connection. Unix socket requests now receive a caller-derived `resolvedHost` instead of hardcoding `localhost` inside the transport.
+
+## ~~CB-035: Fix SwiftLint failure on Unix socket branch~~
+**Resolved**: 2026-05-03
+**Description**: Replaced the large tuple in `DockerAPIClientImpl+UnixSocket.swift` with named snapshot/adoption structs so SwiftLint reports no serious violations. The CI lint step now passes `--no-cache`, matching local verification and avoiding dependence on SwiftLint cache writes.
