@@ -2,7 +2,7 @@
 
 ## ~~CB-031: Make `StatusItemController` instantiable in tests for routing coverage~~
 **Resolved**: 2026-05-03
-Extracted the routing switch into `ContainerActionRouter` (`@MainActor`, headless-instantiable) with closure callbacks for AppKit-touching side effects. Eight tests in `ContainerActionRouterTests` now cover every `ContainerAction` case, callback wiring, and isolation. The `@objc` per-action selectors that CB-031 wanted covered were dead code from the legacy NSMenu builder and were deleted in the same change.
+Extracted the routing switch into `ContainerActionRouter` (`@MainActor`, headless-instantiable) with closure callbacks for AppKit-touching side effects. Eight tests in `ContainerActionRouterTests` now cover every `ContainerAction` case, callback wiring, and isolation. The `@objc` per-action selectors that CB-031 wanted to be covered were dead code from the legacy NSMenu builder and were deleted in the same change.
 
 ## ~~CB-013: Remove or consolidate duplicate add-host dialogs~~
 **Resolved**: 2026-05-03
