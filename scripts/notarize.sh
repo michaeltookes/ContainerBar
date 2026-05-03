@@ -12,10 +12,23 @@ BUNDLE_ID="com.tookes.ContainerBar"
 DEFAULT_APPLE_ID="tookes92@att.net"
 DEFAULT_TEAM_ID="6739LM5834"
 DEFAULT_SIGNING_IDENTITY="Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
-NOTARY_PROFILE="${NOTARY_PROFILE:-ContainerBar-Notarize}"
+DEFAULT_NOTARY_PROFILE="ContainerBar-Notarize"
 APPLE_ID="${APPLE_ID:-$DEFAULT_APPLE_ID}"
 TEAM_ID="${TEAM_ID:-$DEFAULT_TEAM_ID}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-$DEFAULT_SIGNING_IDENTITY}"
+
+sanitize_profile_component() {
+    local value="$1"
+    echo "${value//[^[:alnum:]]/-}"
+}
+
+if [ -z "${NOTARY_PROFILE:-}" ]; then
+    if [ "$APPLE_ID" != "$DEFAULT_APPLE_ID" ] || [ "$TEAM_ID" != "$DEFAULT_TEAM_ID" ]; then
+        NOTARY_PROFILE="$DEFAULT_NOTARY_PROFILE-$(sanitize_profile_component "$APPLE_ID")-$(sanitize_profile_component "$TEAM_ID")"
+    else
+        NOTARY_PROFILE="$DEFAULT_NOTARY_PROFILE"
+    fi
+fi
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,8 +63,6 @@ echo_error() {
 has_matching_notary_credentials() {
     xcrun notarytool history \
         --keychain-profile "$NOTARY_PROFILE" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$TEAM_ID" \
         --output-format json \
         --no-progress &> /dev/null 2>&1
 }
@@ -80,13 +91,11 @@ store_credentials() {
     echo_step "Checking notarization credentials..."
 
     if has_matching_notary_credentials; then
-        echo "  ✓ Credentials already stored for $APPLE_ID / $TEAM_ID"
+        echo "  ✓ Credentials already stored in profile: $NOTARY_PROFILE"
         return 0
     fi
 
-    if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" &> /dev/null 2>&1; then
-        echo_warning "Stored notarization profile does not match $APPLE_ID / $TEAM_ID; recreating profile"
-    fi
+    echo_warning "No valid notarization profile found for $NOTARY_PROFILE; storing credentials"
 
     echo ""
     echo_info "You need to store your credentials in the keychain."
