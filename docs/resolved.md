@@ -1,5 +1,13 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-031: Make `StatusItemController` instantiable in tests for routing coverage~~
+**Resolved**: 2026-05-03
+Extracted the routing switch into `ContainerActionRouter` (`@MainActor`, headless-instantiable) with closure callbacks for AppKit-touching side effects. Eight tests in `ContainerActionRouterTests` now cover every `ContainerAction` case, callback wiring, and isolation. The `@objc` per-action selectors that CB-031 wanted covered were dead code from the legacy NSMenu builder and were deleted in the same change.
+
+## ~~CB-013: Remove or consolidate duplicate add-host dialogs~~
+**Resolved**: 2026-05-03
+The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of the routing-coverage cleanup. `HostPanelView.addHostForm` is now the only add-host path.
+
 ## ~~Implement TCP+TLS connection support~~
 **Resolved**: 2026-02-18
 
