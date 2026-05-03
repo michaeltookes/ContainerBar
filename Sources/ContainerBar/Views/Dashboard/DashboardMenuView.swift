@@ -209,29 +209,22 @@ struct DashboardMenuView: View {
     }
 
     private var displayedContainers: [DockerContainer] {
-        var containers = store.containers
-
-        // When searching, search ALL containers (active and inactive)
         if isSearching && !searchText.isEmpty {
+            // While searching, ignore the showStopped setting and only filter
+            // by the query, then apply the menu's sort rule.
             let query = searchText.lowercased()
-            containers = containers.filter { container in
+            let matches = store.containers.filter { container in
                 container.displayName.lowercased().contains(query) ||
                 container.image.lowercased().contains(query) ||
                 container.id.lowercased().hasPrefix(query)
             }
-        } else if !isSearching {
-            // When not searching, filter based on settings
-            if !settings.showStoppedContainers {
-                containers = containers.filter { $0.state.isActive }
-            }
+            return sortedFilteredContainersForMenu(matches, showStopped: true)
         }
 
-        // Sort: running containers first, then by name
-        return containers.sorted { lhs, rhs in
-            if lhs.state == .running && rhs.state != .running { return true }
-            if lhs.state != .running && rhs.state == .running { return false }
-            return lhs.displayName < rhs.displayName
-        }
+        return sortedFilteredContainersForMenu(
+            store.containers,
+            showStopped: settings.showStoppedContainers
+        )
     }
 }
 

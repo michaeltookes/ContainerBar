@@ -186,3 +186,11 @@
 ## ~~CB-028: App-level tests are still mostly smoke-level~~
 **Resolved**: 2026-05-02
 **Description**: Extracted the menu's container sort+filter logic out of `addContainerActionsSubmenu` into a free function `sortedFilteredContainersForMenu(_:showStopped:)` (`Sources/ContainerBar/ContainerMenuOrdering.swift`). Added `ContainerMenuOrderingTests` covering 10 scenarios — empty input, running-before-stopped tiering, case-insensitive alphabetical sort within tier, `showStopped` filtering, paused/restarting always kept (since they're `.isActive`), and a realistic mixed set. The earlier-cited gaps (`ContainerStore` refresh and `SettingsStore` persistence) are already covered by `ContainerStoreTests` and `SettingsStoreTests`; the stale TODO comment in `ContainerBarTests.swift` is removed. App-target test count: 64 -> 74; total: 108 -> 118.
+
+## ~~CB-032: Remove stale DockerBar VS Code launch configurations~~
+**Resolved**: 2026-05-03
+**Description**: Verified `Package.swift` defines the executable target as `ContainerBar`, then removed the dead `.vscode/launch.json` debug/release launch entries that still targeted `DockerBar`. The remaining launch configurations target `ContainerBar` and use the current `${workspaceFolder}` as their working directory.
+
+## ~~CB-033: Remove fixed-delay wait from router tests~~
+**Resolved**: 2026-05-03
+**Description**: Replaced the router test suite's hard-coded 50ms dispatch wait with a bounded `waitForCall` helper that polls for the specific mock client method and fails with the calls observed on timeout. Callback-only router actions now assert synchronously because those callbacks are invoked directly.

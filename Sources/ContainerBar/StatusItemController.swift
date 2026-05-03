@@ -26,24 +26,48 @@ final class StatusItemController: NSObject {
     /// Logger for status item operations
     let logger = Logger(label: "com.containerbar.statusitem")
 
+    /// Routes container actions from the SwiftUI dashboard into the store
+    /// plus closure callbacks for AppKit-touching side effects.
+    let router: ContainerActionRouter
+
     /// Task for observing store changes
     private var observationTask: Task<Void, Never>?
 
     init(containerStore: ContainerStore, settingsStore: SettingsStore) {
         self.containerStore = containerStore
         self.settingsStore = settingsStore
+        self.router = ContainerActionRouter(containerStore: containerStore)
 
         // Create status item with variable width
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         super.init()
 
+        wireRouterCallbacks()
         setupStatusItem()
         setupMenu()
         startObservation()
         setupGlobalHotkey()
 
         logger.info("StatusItemController initialized")
+    }
+
+    private func wireRouterCallbacks() {
+        router.onMenuReopenRequested = { [weak self] in
+            self?.reopenMenu()
+        }
+        router.onRemoveRequested = { [weak self] containerId in
+            self?.showRemoveConfirmation(for: containerId)
+        }
+        router.onViewLogsRequested = { [weak self] containerId in
+            self?.closeMenuIfOpen()
+            self?.showLogViewer(for: containerId)
+        }
+        router.onCopyIdRequested = { [weak self] containerId in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(containerId, forType: .string)
+            self?.logger.info("Copied container ID to clipboard")
+        }
     }
 
     deinit {
