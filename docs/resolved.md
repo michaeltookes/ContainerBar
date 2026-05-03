@@ -206,3 +206,27 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-033: Remove fixed-delay wait from router tests~~
 **Resolved**: 2026-05-03
 **Description**: Replaced the router test suite's hard-coded 50ms dispatch wait with a bounded `waitForCall` helper that polls for the specific mock client method and fails with the calls observed on timeout. Callback-only router actions now assert synchronously because those callbacks are invoked directly.
+
+## ~~CB-034: Let Unix socket disconnect preempt in-flight I/O~~
+**Resolved**: 2026-05-03
+**Description**: Updated `UnixSocketConnection.disconnect()` to cancel the underlying `NWConnection` immediately instead of waiting behind the send/receive `ioGate`, allowing recovery paths to tear down stalled socket I/O. `DockerAPIClientImpl.getConnection()` now fails closed when the SSH tunnel guard is false, clears any cached Unix socket, and rechecks the guard after awaiting a new socket connection. Unix socket requests now receive a caller-derived `resolvedHost` instead of hardcoding `localhost` inside the transport.
+
+## ~~CB-035: Fix SwiftLint failure on Unix socket branch~~
+**Resolved**: 2026-05-03
+**Description**: Replaced the large tuple in `DockerAPIClientImpl+UnixSocket.swift` with named snapshot/adoption structs so SwiftLint reports no serious violations. The CI lint step now passes `--no-cache`, matching local verification and avoiding dependence on SwiftLint cache writes.
+
+## ~~CB-036: Address Unix socket review follow-ups~~
+**Resolved**: 2026-05-03
+**Description**: Revalidated candidate adoption in `DockerAPIClientImpl+UnixSocket.swift` so a socket connected for a stale `effectiveSocketPath` is discarded instead of cached, and `performRequest(_:)` now rethrows cancellation before cleanup/reconnect retry work. Updated the stale cached-socket test to derive its socket path from `FileManager.default.temporaryDirectory`.
+
+## ~~CB-037: Preserve cached Unix socket on stale candidate path mismatch~~
+**Resolved**: 2026-05-03
+**Description**: Updated Unix socket adoption so a candidate connected for a stale `effectiveSocketPath` is returned as the stale connection to tear down while the shared cached connection remains untouched. Added a focused test for the path-mismatch adoption decision.
+
+## ~~CB-038: Avoid closing shared socket after stale candidate mismatch~~
+**Resolved**: 2026-05-03
+**Description**: Added a distinct stale-candidate mismatch path in `DockerAPIClientImpl+UnixSocket.swift` so `performRequest(_:)` retries without `closeConnection()` or SSH reconnect cleanup when a suspended candidate was built for an old `effectiveSocketPath`. SSH guard and genuine connection failures still close/reconnect normally. Added focused tests for stale-path and SSH-guard adoption decisions.
+
+## ~~CB-039: Guard Unix socket connect-failure cleanup to failed NWConnection~~
+**Resolved**: 2026-05-03
+**Description**: Updated `UnixSocketConnection.connectLocked()` so a connect failure only clears and cancels the cached `NWConnection` when the cached instance is the same candidate that failed. Added `UnixSocketConnectionTests` coverage for same-instance, replacement-instance, and empty-cache cleanup decisions.

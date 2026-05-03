@@ -131,7 +131,7 @@ struct DockerAPITests {
             Issue.record("Expected malformed chunked payload to throw")
         } catch let error as DockerAPIError {
             if case .invalidResponse = error {
-                #expect(true)
+                return
             } else {
                 Issue.record("Expected DockerAPIError.invalidResponse, got \(error)")
             }
@@ -232,6 +232,114 @@ struct DockerAPITests {
                 fallbackPath: fallback
             ) == fallback
         )
+    }
+
+    @Test("Unix socket resolved host comes from SSH host when tunneled")
+    func unixSocketResolvedHostUsesRuntimeHost() throws {
+        let localSocketURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("containerbar-\(UUID().uuidString).sock")
+        _ = FileManager.default.createFile(atPath: localSocketURL.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: localSocketURL) }
+
+        let localClient = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Local Docker",
+                connectionType: .unixSocket,
+                socketPath: localSocketURL.path
+            )
+        )
+        #expect(localClient.unixSocketResolvedHost == "localhost")
+
+        let sshClient = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Remote Docker",
+                connectionType: .ssh,
+                host: "docker.example.com",
+                sshUser: "deploy"
+            )
+        )
+        #expect(sshClient.unixSocketResolvedHost == "docker.example.com")
+    }
+
+    @Test("SSH guard failure clears cached Unix socket before throwing")
+    func sshGuardFailureClearsCachedUnixSocket() async throws {
+        let client = try DockerAPIClientImpl(
+            host: DockerHost(
+                name: "Remote Docker",
+                connectionType: .ssh,
+                host: "docker.example.com",
+                sshUser: "deploy"
+            )
+        )
+        let staleSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stale-containerbar-\(UUID().uuidString).sock")
+            .path
+        let staleConnection = UnixSocketConnection(socketPath: staleSocketPath)
+
+        client.connectionLock.withLock {
+            client.effectiveSocketPath = staleSocketPath
+            client.connection = staleConnection
+        }
+
+        do {
+            _ = try await client.getConnection()
+            Issue.record("Expected getConnection to fail while SSH tunnel is disconnected")
+        } catch DockerAPIError.connectionFailed {
+        } catch {
+            Issue.record("Expected DockerAPIError.connectionFailed, got \(error)")
+        }
+
+        let cachedConnection = client.connectionLock.withLock {
+            client.connection
+        }
+        #expect(cachedConnection == nil)
+    }
+
+    @Test("Path mismatch adoption preserves the cached Unix socket")
+    func pathMismatchAdoptionPreservesCachedUnixSocket() throws {
+        let oldSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("old-containerbar-\(UUID().uuidString).sock")
+            .path
+        let newSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-containerbar-\(UUID().uuidString).sock")
+            .path
+        let candidate = UnixSocketConnection(socketPath: oldSocketPath)
+        let cachedConnection = UnixSocketConnection(socketPath: newSocketPath)
+
+        let adoption = DockerAPIClientImpl.adoptionForConnectedUnixSocketCandidate(
+            candidate,
+            candidateSocketPath: oldSocketPath,
+            currentSocketPath: newSocketPath,
+            cachedConnection: cachedConnection,
+            sshGuardOK: true
+        )
+
+        #expect(adoption.adopted == nil)
+        #expect(adoption.staleConnection === candidate)
+        #expect(adoption.failure == .staleCandidatePath)
+        #expect(DockerAPIClientImpl.shouldCloseConnectionAfterUnixSocketError(StaleUnixSocketCandidateError()) == false)
+    }
+
+    @Test("SSH guard adoption failure still requires closing cached Unix socket")
+    func sshGuardAdoptionFailureClosesCachedUnixSocket() throws {
+        let socketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("containerbar-\(UUID().uuidString).sock")
+            .path
+        let candidate = UnixSocketConnection(socketPath: socketPath)
+        let cachedConnection = UnixSocketConnection(socketPath: socketPath)
+
+        let adoption = DockerAPIClientImpl.adoptionForConnectedUnixSocketCandidate(
+            candidate,
+            candidateSocketPath: socketPath,
+            currentSocketPath: socketPath,
+            cachedConnection: cachedConnection,
+            sshGuardOK: false
+        )
+
+        #expect(adoption.adopted == nil)
+        #expect(adoption.staleConnection === cachedConnection)
+        #expect(adoption.failure == .sshGuardFailed)
+        #expect(DockerAPIClientImpl.shouldCloseConnectionAfterUnixSocketError(DockerAPIError.connectionFailed) == true)
     }
 }
 

@@ -42,7 +42,7 @@ extension DockerAPIClientImpl {
         let localSocket: String
         if state.tunnelState.hasDied {
             logger.warning("SSH tunnel died, attempting reconnect")
-            closeConnection()
+            await closeConnection()
             localSocket = try await tunnel.reconnect()
         } else {
             localSocket = try await tunnel.connect()

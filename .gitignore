@@ -3,6 +3,14 @@
 .build_backup/
 dist/
 
+# Swift incremental-compile sidecars that escape to the repo root when an
+# editor (sourcekit-lsp, VS Code Swift extension) invokes swiftc directly
+# instead of going through `swift build`. Anchored to root so the
+# legitimate copies under .build/ aren't double-matched.
+/*.swiftdeps
+/*.dia
+/*.d
+
 # Xcode
 *.xcodeproj/
 xcuserdata/

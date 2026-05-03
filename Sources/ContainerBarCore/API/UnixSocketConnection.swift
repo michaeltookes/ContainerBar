@@ -1,246 +1,187 @@
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#endif
+import Network
+import Logging
 
-/// Handles raw HTTP communication over Unix domain sockets
+/// Handles HTTP/1.1 communication over Unix domain sockets via Network.framework.
 ///
-/// Synchronization: `socketLock` protects `socketFD` lifecycle state while `ioLock`
-/// serializes descriptor snapshots and rotation. Blocking socket I/O runs without
-/// holding `ioLock` or `socketLock`; in-flight requests rely on the generation
-/// token plus `shutdown()` on invalidation to fail promptly when the descriptor rotates.
+/// `NWConnection` with `NWEndpoint.unix(path:)` owns descriptor lifecycle and
+/// cancellation, so the previous hand-rolled fd/generation/lock machinery is
+/// gone. Synchronization mirrors `TLSConnection`: `lock` guards state
+/// inspection, while `ioGate` serializes connect/send work.
 final class UnixSocketConnection: @unchecked Sendable {
 
     private let socketPath: String
-    private var socketFD: Int32 = -1
-    private var socketGeneration: UInt64 = 0
-    private let socketLock = NSLock()
-    private let ioLock = NSLock()
+    private let resolvedHost: String
+    private let logger = Logger(label: "com.containerbar.unixsocket")
+    private let lock = NSLock()
+    private let ioGate = AsyncSerialGate()
 
-    init(socketPath: String) {
+    private var connection: NWConnection?
+    private var _isConnected = false
+    private var _isConnecting = false
+
+    init(socketPath: String, resolvedHost: String = "localhost") {
         self.socketPath = socketPath
+        self.resolvedHost = resolvedHost
     }
 
     deinit {
-        disconnect()
+        disconnectForTeardown()
     }
 
     // MARK: - Connection Management
 
-    /// Connect to the Unix socket
-    func connect() throws {
-        let (generation, existingFD) = ioLock.withLock { () -> (UInt64, Int32) in
-            socketLock.withLock { () -> (UInt64, Int32) in
-                socketGeneration &+= 1
-                let generation = socketGeneration
-                let existingFD = socketFD
-                socketFD = -1
-                return (generation, existingFD)
-            }
-        }
-
-        invalidateSocketDescriptor(existingFD)
-
-        // Create socket
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            throw DockerAPIError.connectionFailed
-        }
-
-        // Set up address
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-
-        // Copy socket path to sun_path
-        let pathBytes = socketPath.utf8CString
-        guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            invalidateSocketDescriptor(fd)
-            throw DockerAPIError.invalidConfiguration("Socket path too long")
-        }
-
-        withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: pathBytes.count) { dest in
-                for (i, byte) in pathBytes.enumerated() {
-                    dest[i] = byte
-                }
-            }
-        }
-
-        // Connect
-        let result = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                Darwin.connect(fd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-
-        guard result == 0 else {
-            let errorCode = errno
-            invalidateSocketDescriptor(fd)
-            if errorCode == ENOENT {
-                throw DockerAPIError.socketNotFound(socketPath)
-            }
-            throw DockerAPIError.connectionFailed
-        }
-
-        let adopted = ioLock.withLock { () -> Bool in
-            socketLock.withLock { () -> Bool in
-                guard socketGeneration == generation, socketFD == -1 else {
-                    return false
-                }
-                socketFD = fd
-                return true
-            }
-        }
-
-        guard adopted else {
-            invalidateSocketDescriptor(fd)
-            throw DockerAPIError.connectionFailed
+    /// Establish the Unix-socket connection.
+    func connect() async throws {
+        try await ioGate.withExclusiveAccess {
+            try await self.connectLocked()
         }
     }
 
-    /// Disconnect from the Unix socket
-    func disconnect() {
-        let fd = ioLock.withLock { () -> Int32 in
-            socketLock.withLock { () -> Int32 in
-                socketGeneration &+= 1
-                let fd = socketFD
-                socketFD = -1
-                return fd
-            }
+    /// Async-safe disconnect.
+    func disconnect() async throws {
+        // Do not wait for `ioGate`: a stalled `sendRequest` holds that gate
+        // for send+receive, and disconnect must be able to preempt it by
+        // cancelling the underlying NWConnection.
+        disconnectImmediately()
+    }
+
+    /// Synchronous teardown for `deinit` paths where awaiting is impossible.
+    func disconnectForTeardown() {
+        disconnectImmediately()
+    }
+
+    private func connectLocked() async throws {
+        enum ConnectAction {
+            case start(NWConnection)
+            case wait
+            case ready
         }
 
-        invalidateSocketDescriptor(fd)
+        while true {
+            let action = lock.withLock { () -> ConnectAction in
+                if _isConnected { return .ready }
+                if _isConnecting { return .wait }
+
+                let endpoint = NWEndpoint.unix(path: socketPath)
+                let conn = NWConnection(to: endpoint, using: .tcp)
+                connection = conn
+                _isConnecting = true
+                return .start(conn)
+            }
+
+            switch action {
+            case .ready:
+                return
+            case .wait:
+                try await Task.sleep(for: .milliseconds(50))
+            case .start(let conn):
+                do {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        conn.stateUpdateHandler = { [socketPath] state in
+                            switch state {
+                            case .ready:
+                                conn.stateUpdateHandler = nil
+                                continuation.resume()
+                            case .failed(let error):
+                                conn.stateUpdateHandler = nil
+                                continuation.resume(throwing: Self.mapStartError(error, socketPath: socketPath))
+                            case .cancelled:
+                                conn.stateUpdateHandler = nil
+                                continuation.resume(throwing: DockerAPIError.connectionFailed)
+                            default:
+                                break
+                            }
+                        }
+                        conn.start(queue: DispatchQueue.global(qos: .userInitiated))
+                    }
+
+                    let adopted = lock.withLock { () -> Bool in
+                        guard let current = connection, current === conn else {
+                            return false
+                        }
+                        _isConnected = true
+                        _isConnecting = false
+                        return true
+                    }
+
+                    guard adopted else {
+                        conn.cancel()
+                        throw DockerAPIError.connectionFailed
+                    }
+
+                    logger.debug("Unix socket connected: \(socketPath)")
+                    return
+                } catch {
+                    let shouldCancelFailedConnection = lock.withLock { () -> Bool in
+                        guard Self.shouldCleanupFailedConnection(current: connection, failed: conn) else {
+                            return false
+                        }
+
+                        connection = nil
+                        _isConnected = false
+                        _isConnecting = false
+                        return true
+                    }
+                    if shouldCancelFailedConnection {
+                        conn.cancel()
+                    }
+                    throw error
+                }
+            }
+        }
+    }
+
+    static func shouldCleanupFailedConnection(current: NWConnection?, failed: NWConnection) -> Bool {
+        guard let current else {
+            return false
+        }
+        return current === failed
+    }
+
+    private func disconnectImmediately() {
+        lock.withLock {
+            connection?.cancel()
+            connection = nil
+            _isConnected = false
+            _isConnecting = false
+        }
+    }
+
+    // ENOENT comes through as a POSIX error from Network.framework when the
+    // socket file is missing — mirror the previous implementation's behavior
+    // by surfacing the more specific `socketNotFound` case.
+    private static func mapStartError(_ error: NWError, socketPath: String) -> DockerAPIError {
+        if case .posix(let code) = error, code == .ENOENT {
+            return .socketNotFound(socketPath)
+        }
+        return .connectionFailed
     }
 
     // MARK: - HTTP Operations
 
-    /// Send an HTTP request and receive the response
-    func sendRequest(_ request: HTTPRequest) throws -> HTTPResponse {
-        let (fd, generation) = try snapshotSocketState()
-
-        // HTTP/1.1 requires a Host header; Unix sockets have no network host,
-        // so "localhost" is the appropriate local placeholder for Docker 28.x.
-        let requestData = try request.toHTTPData(resolvedHost: "localhost")
-
-        // Send request
-        var totalSent = 0
-        try requestData.withUnsafeBytes { buffer in
-            guard let baseAddress = buffer.baseAddress else {
-                throw DockerAPIError.invalidConfiguration("Could not access request data")
+    /// Send an HTTP request and receive the response.
+    func sendRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
+        try await ioGate.withExclusiveAccess {
+            let conn: NWConnection? = self.lock.withLock { self.connection }
+            guard let conn else {
+                throw DockerAPIError.connectionFailed
             }
 
-            while totalSent < buffer.count {
-                try ensureSocketIsCurrent(expectedGeneration: generation)
-                let sent = Darwin.send(
-                    fd,
-                    baseAddress.advanced(by: totalSent),
-                    buffer.count - totalSent,
-                    0
-                )
+            let requestData = try request.toHTTPData(resolvedHost: resolvedHost)
 
-                if sent <= 0 {
-                    throw DockerAPIError.connectionFailed
-                }
-
-                totalSent += sent
-            }
-        }
-
-        return try receiveResponse(socketFD: fd, expectedGeneration: generation)
-    }
-
-    private func receiveResponse(socketFD: Int32, expectedGeneration: UInt64) throws -> HTTPResponse {
-        var responseData = Data()
-        let bufferSize = 8192
-
-        // Read headers first
-        var headersComplete = false
-        var headerEndIndex = 0
-
-        while !headersComplete {
-            let chunk = try receiveChunk(socketFD: socketFD, length: bufferSize, expectedGeneration: expectedGeneration)
-            guard !chunk.isEmpty else {
-                break
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                conn.send(content: requestData, completion: .contentProcessed { error in
+                    if error != nil {
+                        continuation.resume(throwing: DockerAPIError.connectionFailed)
+                    } else {
+                        continuation.resume()
+                    }
+                })
             }
 
-            responseData.append(chunk)
-
-            // Check for end of headers
-            if let range = responseData.range(of: HTTPResponseParser.headerSeparator) {
-                headersComplete = true
-                headerEndIndex = range.upperBound
-            }
+            let responseData = try await receiveHTTPResponse(conn: conn)
+            return try parseTLSHTTPResponse(responseData)
         }
-
-        // Parse headers
-        guard headersComplete else {
-            throw DockerAPIError.invalidResponse
-        }
-
-        let headerData = responseData[0..<headerEndIndex]
-        guard let headerString = String(data: headerData, encoding: .utf8) else {
-            throw DockerAPIError.invalidResponse
-        }
-
-        let (statusCode, headers) = try HTTPResponseParser.parseStatusAndHeaders(headerString)
-
-        // Determine how to read body
-        let bodyData = try HTTPResponseParser.readBody(
-            headers: headers,
-            initialBody: Data(responseData[headerEndIndex...])
-        ) { length in
-            try self.receiveChunk(socketFD: socketFD, length: length, expectedGeneration: expectedGeneration)
-        }
-
-        return HTTPResponse(statusCode: statusCode, headers: headers, body: bodyData)
-    }
-
-    private func snapshotSocketState() throws -> (fd: Int32, generation: UInt64) {
-        let state = ioLock.withLock { () -> (Int32, UInt64) in
-            socketLock.withLock { (socketFD, socketGeneration) }
-        }
-
-        guard state.0 >= 0 else {
-            throw DockerAPIError.connectionFailed
-        }
-
-        return (state.0, state.1)
-    }
-
-    private func ensureSocketIsCurrent(expectedGeneration: UInt64) throws {
-        let isCurrent = socketLock.withLock {
-            socketGeneration == expectedGeneration
-        }
-
-        guard isCurrent else {
-            throw DockerAPIError.connectionFailed
-        }
-    }
-
-    private func receiveChunk(socketFD: Int32, length: Int, expectedGeneration: UInt64) throws -> Data {
-        try ensureSocketIsCurrent(expectedGeneration: expectedGeneration)
-
-        var buffer = [UInt8](repeating: 0, count: max(1, length))
-        let bytesRead = Darwin.recv(socketFD, &buffer, buffer.count, 0)
-
-        guard bytesRead >= 0 else {
-            throw DockerAPIError.connectionFailed
-        }
-
-        try ensureSocketIsCurrent(expectedGeneration: expectedGeneration)
-        guard bytesRead > 0 else {
-            return Data()
-        }
-
-        return Data(buffer[0..<bytesRead])
-    }
-
-    private func invalidateSocketDescriptor(_ fd: Int32) {
-        guard fd >= 0 else {
-            return
-        }
-
-        _ = Darwin.shutdown(fd, SHUT_RDWR)
-        Darwin.close(fd)
     }
 }
