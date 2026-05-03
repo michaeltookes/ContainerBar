@@ -59,7 +59,8 @@ public enum ContainerRuntime: String, Codable, CaseIterable, Sendable, Equatable
         case .docker:
             return "/var/run/docker.sock"
         case .podman:
-            return "/run/user/\(podmanUID)/podman/podman.sock"
+            let safeUID = podmanUID > 0 ? podmanUID : ContainerRuntime.defaultPodmanUID
+            return "/run/user/\(safeUID)/podman/podman.sock"
         }
     }
 

@@ -244,6 +244,18 @@ struct ContainerStoreTests {
         #expect(store.actionInProgress.isEmpty)
     }
 
+    @Test("Mock stats endpoint honors response delay")
+    func mockStatsEndpointHonorsResponseDelay() async throws {
+        let mock = MockDockerAPIClient()
+        mock.mockStats["c1"] = ContainerStats.mock(containerId: "c1")
+        mock.responseDelay = .milliseconds(100)
+
+        let start = Date()
+        _ = try await mock.getContainerStats(id: "c1")
+
+        #expect(Date().timeIntervalSince(start) >= 0.09)
+    }
+
     // MARK: - Metrics History Tests
 
     @Test("Metrics history updates after refresh with stats")

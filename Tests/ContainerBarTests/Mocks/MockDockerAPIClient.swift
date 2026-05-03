@@ -137,6 +137,7 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     func getContainerStats(id: String) async throws -> ContainerStats {
         recordCall("getContainerStats")
+        try await maybeDelayResponse()
         let snapshot = statsSnapshot(for: id)
         if snapshot.shouldFail {
             throw snapshot.error

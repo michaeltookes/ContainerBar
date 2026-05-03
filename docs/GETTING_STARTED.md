@@ -93,7 +93,7 @@ ssh user@your.host
 
 SSH will prompt:
 
-```
+```text
 The authenticity of host 'your.host (1.2.3.4)' can't be established.
 ED25519 key fingerprint is SHA256:...
 Are you sure you want to continue connecting (yes/no/[fingerprint])?
@@ -105,7 +105,7 @@ Verify the fingerprint matches the host (compare against the host's `/etc/ssh/ss
 
 If the host's SSH key changes, SSH will refuse to connect:
 
-```
+```text
 WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!
 ```
 
