@@ -231,6 +231,10 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 **Resolved**: 2026-05-03
 **Description**: Updated `UnixSocketConnection.connectLocked()` so a connect failure only clears and cancels the cached `NWConnection` when the cached instance is the same candidate that failed. Added `UnixSocketConnectionTests` coverage for same-instance, replacement-instance, and empty-cache cleanup decisions.
 
+## ~~CB-040: Add missing 2.0.3 changelog reference link~~
+**Resolved**: 2026-05-03
+**Description**: Added the missing `[2.0.3]` reference definition to `CHANGELOG.md` using the existing GitHub compare-link format so the `## [2.0.3] - 2026-05-03` header resolves correctly.
+
 ## ~~CB-018: Evaluate replacing raw Unix socket with NIOTransportServices or URLSession~~
 **Resolved**: 2026-05-03 (PR #33)
 **Description**: Rebuilt `UnixSocketConnection` on Network.framework (`NWConnection` over `NWEndpoint.unix(path:)`), retiring the hand-rolled POSIX `socket(2)`/`recv(2)` loop, dual `NSLock`s, and `socketGeneration` rotation guard — about 150 of the previous 246 lines. Mirrors `TLSConnection`'s pattern (NWConnection + AsyncSerialGate) and reuses the existing async receive helpers in `TLSHTTPReceive.swift`, leaving the `HTTPResponseParser` surface untouched. Connect/send/disconnect became async; `deinit` uses a new `disconnectForTeardown()`. Evaluated SwiftNIO and URLSession and rejected both — NIO was overkill for the request volume and URLSession has no Unix-socket support on Darwin. Hardening landed via the follow-up tickets CB-036 through CB-039 covering stale-candidate paths, post-await SSH guard re-checks, cancellation propagation, and same-instance failed-connection cleanup, plus a new `UnixSocketConnectionTests` suite.
