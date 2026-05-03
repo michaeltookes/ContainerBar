@@ -55,25 +55,17 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         return container
     }
 
-    public func getContainerStats(id: String, stream: Bool) async throws -> AsyncThrowingStream<ContainerStats, Error> {
+    public func getContainerStats(id: String) async throws -> ContainerStats {
         callCount += 1
         lastCalledMethod = "getContainerStats"
 
-        return AsyncThrowingStream { [weak self] continuation in
-            guard let self else {
-                continuation.finish()
-                return
-            }
-
-            if self.shouldFail {
-                continuation.finish(throwing: self.failureError)
-            } else if let stats = self.mockStats[id] {
-                continuation.yield(stats)
-                continuation.finish()
-            } else {
-                continuation.finish()
-            }
+        if shouldFail {
+            throw failureError
         }
+        guard let stats = mockStats[id] else {
+            throw DockerAPIError.notFound("Stats for \(id)")
+        }
+        return stats
     }
 
     public func startContainer(id: String) async throws {

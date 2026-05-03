@@ -61,9 +61,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             }
             let sshPort = host.sshPort ?? 22
 
+            let podmanUID = host.remotePodmanUID ?? ContainerRuntime.defaultPodmanUID
             let remoteSocketPath = Self.validatedRemoteSocketPath(
                 configuredPath: host.socketPath,
-                fallbackPath: host.runtime.defaultRemoteSocketPath
+                fallbackPath: host.runtime.defaultRemoteSocketPath(podmanUID: podmanUID)
             )
 
             // Create SSH tunnel (connection established lazily via ensureSSHTunnel)
@@ -131,35 +132,21 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         return try decoder.decode(DockerContainer.self, from: response.body)
     }
 
-    public func getContainerStats(id: String, stream: Bool) async throws -> AsyncThrowingStream<ContainerStats, Error> {
-        let path = "/\(apiVersion)/containers/\(id)/stats?stream=\(stream)"
-        logger.debug("Fetching stats for container \(id) (stream=\(stream))")
+    public func getContainerStats(id: String) async throws -> ContainerStats {
+        let path = "/\(apiVersion)/containers/\(id)/stats?stream=false"
+        logger.debug("Fetching stats for container \(id)")
 
-        return AsyncThrowingStream { [weak self] continuation in
-            guard let self else {
-                continuation.finish()
-                return
-            }
+        do {
+            let request = HTTPRequest(path: path)
+            let response = try await performRequest(request)
+            try validateResponse(response)
 
-            Task {
-                do {
-                    let request = HTTPRequest(path: path)
-                    let response = try await self.performRequest(request)
-                    try self.validateResponse(response)
-
-                    // Parse stats from response body
-                    // For non-streaming, we get a single JSON object
-                    let decoder = JSONDecoder()
-                    let rawStats = try decoder.decode(DockerRawStats.self, from: response.body)
-                    let stats = ContainerStats(from: rawStats, containerId: id)
-
-                    continuation.yield(stats)
-                    continuation.finish()
-                } catch {
-                    self.logger.error("Stats fetch error: \(error.localizedDescription)")
-                    continuation.finish(throwing: error)
-                }
-            }
+            let decoder = JSONDecoder()
+            let rawStats = try decoder.decode(DockerRawStats.self, from: response.body)
+            return ContainerStats(from: rawStats, containerId: id)
+        } catch {
+            logger.error("Stats fetch error: \(error.localizedDescription)")
+            throw error
         }
     }
 

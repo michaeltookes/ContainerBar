@@ -21,6 +21,12 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
     public var tlsClientCert: String?
     public var tlsClientKey: String?
 
+    /// Override for the rootless Podman UID used to compute the fallback remote
+    /// socket path when `socketPath` isn't set explicitly. Defaults to `1000`
+    /// when nil. Only meaningful for SSH connections to Podman hosts whose
+    /// rootless socket lives under a UID other than 1000.
+    public var remotePodmanUID: Int?
+
     /// Port for TLS connections (default 2376)
     public var tlsPort: Int {
         port ?? 2376
@@ -40,7 +46,8 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         sshPort: Int? = nil,
         tlsCACert: String? = nil,
         tlsClientCert: String? = nil,
-        tlsClientKey: String? = nil
+        tlsClientKey: String? = nil,
+        remotePodmanUID: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -56,6 +63,7 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         self.tlsCACert = tlsCACert
         self.tlsClientCert = tlsClientCert
         self.tlsClientKey = tlsClientKey
+        self.remotePodmanUID = remotePodmanUID
     }
 
     /// Creates a default local Docker host configuration

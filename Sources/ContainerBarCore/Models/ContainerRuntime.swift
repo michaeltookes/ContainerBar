@@ -43,14 +43,24 @@ public enum ContainerRuntime: String, Codable, CaseIterable, Sendable, Equatable
         }
     }
 
-    /// Default socket path on Linux servers (for SSH connections)
+    /// Default rootless Podman UID assumed when the caller doesn't specify one.
+    public static let defaultPodmanUID = 1000
+
+    /// Default socket path on Linux servers (for SSH connections), assuming the
+    /// rootless Podman socket lives under UID `1000`.
     public var defaultRemoteSocketPath: String {
+        defaultRemoteSocketPath(podmanUID: ContainerRuntime.defaultPodmanUID)
+    }
+
+    /// Default socket path on Linux servers, parameterized by rootless Podman UID
+    /// for hosts whose user IDs aren't `1000`.
+    public func defaultRemoteSocketPath(podmanUID: Int) -> String {
         switch self {
         case .docker:
             return "/var/run/docker.sock"
         case .podman:
-            // Rootless Podman socket (most common for non-root SSH users)
-            return "/run/user/1000/podman/podman.sock"
+            let safeUID = podmanUID > 0 ? podmanUID : ContainerRuntime.defaultPodmanUID
+            return "/run/user/\(safeUID)/podman/podman.sock"
         }
     }
 

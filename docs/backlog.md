@@ -6,18 +6,6 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 ## Medium Priority
 
-1. **CB-003: Address review follow-up for redundant `Sendable` on `@MainActor` `ConnectionStatusPresentation`**
-    Remove the explicit `Sendable` conformance from the main-actor-isolated dashboard presentation struct so Swift 6 does not warn about redundant sendability.
-
-2. **CB-007: Podman rootless socket path hardcodes UID 1000**
-    `ContainerRuntime.swift` line 53 hardcodes `/run/user/1000/podman/podman.sock` for remote Podman. This fails for non-default user IDs. Consider making it configurable via `DockerHost`.
-
-3. **CB-010: `getContainerStats(stream:)` ignores the streaming contract**
-    `DockerAPIClientImpl.getContainerStats` accepts `stream`, but currently parses a single payload and finishes for all calls. Implement true streaming behavior when `stream=true`, or remove/rename the API contract.
-
-4. **CB-029: Validate and document strict SSH host-key onboarding**
-    With `StrictHostKeyChecking=yes`, first-time and rotated-host connections are rejected until the host key is explicitly trusted in `known_hosts`. Document the onboarding flow in user docs and run manual tests covering new host, rotated key, and mismatch scenarios so support has a clear path.
-
 ## Low Priority
 
 1. **CB-013: Remove or consolidate duplicate add-host dialogs**

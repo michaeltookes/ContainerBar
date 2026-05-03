@@ -26,6 +26,26 @@ struct DockerHostTests {
         #expect(host.socketPath == "/var/run/docker.sock")
     }
 
+    @Test("Podman remote socket path clamps invalid UID")
+    func podmanRemoteSocketPathClampsInvalidUID() {
+        let fallbackPath = ContainerRuntime.podman.defaultRemoteSocketPath(
+            podmanUID: ContainerRuntime.defaultPodmanUID
+        )
+
+        #expect(
+            ContainerRuntime.podman.defaultRemoteSocketPath(podmanUID: -1)
+                == fallbackPath
+        )
+        #expect(
+            ContainerRuntime.podman.defaultRemoteSocketPath(podmanUID: 0)
+                == fallbackPath
+        )
+        #expect(
+            ContainerRuntime.podman.defaultRemoteSocketPath(podmanUID: 501)
+                == "/run/user/501/podman/podman.sock"
+        )
+    }
+
     @Test("SSH host sets default port")
     func sshDefaultPort() {
         let host = DockerHost(
