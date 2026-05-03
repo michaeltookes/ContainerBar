@@ -11,10 +11,7 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 1. **CB-018: Evaluate replacing raw Unix socket with NIOTransportServices or URLSession**
     The custom `UnixSocketConnection` handles HTTP/1.1 manually (headers, chunked encoding). This works but is fragile. Evaluate whether SwiftNIO or Foundation's `URLSession` with Unix socket support could reduce maintenance surface.
 
-2. **CB-020: `menuWillOpen` uses 50ms sleep workaround**
-    `StatusItemController+MenuBuilding.swift` sleeps 50ms in `menuWillOpen` to work around an AppKit/SwiftUI layout race. This should be replaced with proper event-based coordination.
-
-3. **CB-030: Schedule targeted integration validation pass**
+2. **CB-030: Schedule targeted integration validation pass**
     Audit findings are based on static review and unit tests. Run a live SSH/TLS pass against a real host (latency, host key rotation, reconnect edges) and an interactive UI/accessibility pass (VoiceOver, keyboard-only, menu timing on real hardware) to close the validation gaps called out in Risks & Unknowns.
 
 Completed items live in [`docs/resolved.md`](resolved.md).

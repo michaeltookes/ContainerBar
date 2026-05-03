@@ -183,6 +183,10 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 **Resolved**: 2026-05-02
 **Description**: Added a hard cap (`iconCacheLimit = 128`) to `ServiceIcon.iconCache`. When the cache hits the ceiling we evict the dictionary's first key before inserting, so the static cache can no longer grow without bound if new icon variants get added.
 
+## ~~CB-020: `menuWillOpen` uses 50ms sleep workaround~~
+**Resolved**: 2026-05-03
+**Description**: Replaced the fixed 50ms wait in `Sources/ContainerBar/StatusItemController+MenuBuilding.swift` / `menuWillOpen` with the event-based `rebuildAndAwaitFirstAppear(...)` path. The refresh now waits on `MenuOpenGate`, which is fired by the dashboard root's first `.onAppear`, with a safety timeout only to avoid leaking the continuation if the menu never appears.
+
 ## ~~CB-022: Health status thresholds are hardcoded~~
 **Resolved**: 2026-05-02
 **Description**: Lifted the magic numbers from `ContainerMetricsSnapshot.overallHealth` into named static constants on the type (`cpuWarningThresholdPercent = 90`, `memoryWarningThresholdFraction = 0.95`). Behavior unchanged; the thresholds are now discoverable and ready to be wired to user settings later if desired.
