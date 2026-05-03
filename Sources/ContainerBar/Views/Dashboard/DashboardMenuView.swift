@@ -10,6 +10,10 @@ struct DashboardMenuView: View {
     let onSettings: () -> Void
     var onQuit: (() -> Void)? = nil
     var onHostChanged: (() -> Void)? = nil
+    /// Fires once SwiftUI has run the body and the view appears in the
+    /// hierarchy. The host uses this to gate menu-open state mutations
+    /// until after the initial render pass, replacing a fixed-delay sleep.
+    var onFirstAppear: (() -> Void)? = nil
 
     @State private var isSearching = false
     @State private var searchText = ""
@@ -183,6 +187,7 @@ struct DashboardMenuView: View {
         }
         .frame(width: 400)
         .background(.regularMaterial)
+        .onAppear { onFirstAppear?() }
     }
 
     // MARK: - Computed Properties
