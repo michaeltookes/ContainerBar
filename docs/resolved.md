@@ -182,3 +182,7 @@
 ## ~~CB-023: Build scripts hardcode signing identity~~
 **Resolved**: 2026-05-02
 **Description**: `scripts/build-release.sh` now reads `SIGNING_IDENTITY` and `TEAM_ID` from the environment (with the existing values as fallback defaults), and `scripts/notarize.sh` does the same for `APPLE_ID` and `TEAM_ID`. CI and contributors with a different Apple Developer team can now run the release pipeline without editing the scripts.
+
+## ~~CB-028: App-level tests are still mostly smoke-level~~
+**Resolved**: 2026-05-02
+**Description**: Extracted the menu's container sort+filter logic out of `addContainerActionsSubmenu` into a free function `sortedFilteredContainersForMenu(_:showStopped:)` (`Sources/ContainerBar/ContainerMenuOrdering.swift`). Added `ContainerMenuOrderingTests` covering 10 scenarios — empty input, running-before-stopped tiering, case-insensitive alphabetical sort within tier, `showStopped` filtering, paused/restarting always kept (since they're `.isActive`), and a realistic mixed set. The earlier-cited gaps (`ContainerStore` refresh and `SettingsStore` persistence) are already covered by `ContainerStoreTests` and `SettingsStoreTests`; the stale TODO comment in `ContainerBarTests.swift` is removed. App-target test count: 64 -> 74; total: 108 -> 118.

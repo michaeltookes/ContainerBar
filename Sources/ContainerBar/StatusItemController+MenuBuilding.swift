@@ -56,17 +56,10 @@ extension StatusItemController {
         let containersItem = NSMenuItem(title: "Container Actions", action: nil, keyEquivalent: "")
         let containersSubmenu = NSMenu()
 
-        // Sort containers: running first, then alphabetically by name
-        // Also filter based on showStoppedContainers setting
-        let sortedContainers = containerStore.containers
-            .sorted { lhs, rhs in
-                if lhs.state == .running && rhs.state != .running { return true }
-                if lhs.state != .running && rhs.state == .running { return false }
-                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
-            }
-            .filter { container in
-                settingsStore.showStoppedContainers || container.state.isActive
-            }
+        let sortedContainers = sortedFilteredContainersForMenu(
+            containerStore.containers,
+            showStopped: settingsStore.showStoppedContainers
+        )
 
         for container in sortedContainers {
             let containerItem = NSMenuItem(title: container.displayName, action: nil, keyEquivalent: "")
