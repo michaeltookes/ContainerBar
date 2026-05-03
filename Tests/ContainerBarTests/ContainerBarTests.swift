@@ -110,8 +110,3 @@ struct ContainerBarTests {
     }
 }
 
-// TODO: Add tests for:
-// - ContainerStore refresh behavior
-// - SettingsStore persistence
-// - StatusItemController menu building
-// These require @MainActor testing support
