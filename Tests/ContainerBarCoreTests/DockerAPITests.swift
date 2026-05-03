@@ -271,10 +271,13 @@ struct DockerAPITests {
                 sshUser: "deploy"
             )
         )
-        let staleConnection = UnixSocketConnection(socketPath: "/tmp/stale-containerbar.sock")
+        let staleSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stale-containerbar-\(UUID().uuidString).sock")
+            .path
+        let staleConnection = UnixSocketConnection(socketPath: staleSocketPath)
 
         client.connectionLock.withLock {
-            client.effectiveSocketPath = "/tmp/stale-containerbar.sock"
+            client.effectiveSocketPath = staleSocketPath
             client.connection = staleConnection
         }
 

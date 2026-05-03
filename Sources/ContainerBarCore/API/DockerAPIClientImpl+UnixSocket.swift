@@ -74,6 +74,12 @@ extension DockerAPIClientImpl {
         // while we were awaiting connect(). Re-check the SSH guard here too:
         // the tunnel can die while `candidate.connect()` is suspended.
         let adoption: UnixSocketConnectionAdoption = connectionLock.withLock {
+            guard effectiveSocketPath == socketPath else {
+                let staleConnection = connection
+                connection = nil
+                return UnixSocketConnectionAdoption(adopted: nil, staleConnection: staleConnection)
+            }
+
             let sshGuardOK: Bool
             if host.connectionType == .ssh {
                 sshGuardOK = sshTunnel?.isConnected ?? false
@@ -134,6 +140,10 @@ extension DockerAPIClientImpl {
             let conn = try await getConnection()
             return try await conn.sendRequest(request)
         } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw error
+            }
+
             await closeConnection()
 
             if host.connectionType == .ssh, let tunnel = sshTunnel {

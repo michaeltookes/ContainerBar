@@ -214,3 +214,7 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-035: Fix SwiftLint failure on Unix socket branch~~
 **Resolved**: 2026-05-03
 **Description**: Replaced the large tuple in `DockerAPIClientImpl+UnixSocket.swift` with named snapshot/adoption structs so SwiftLint reports no serious violations. The CI lint step now passes `--no-cache`, matching local verification and avoiding dependence on SwiftLint cache writes.
+
+## ~~CB-036: Address Unix socket review follow-ups~~
+**Resolved**: 2026-05-03
+**Description**: Revalidated candidate adoption in `DockerAPIClientImpl+UnixSocket.swift` so a socket connected for a stale `effectiveSocketPath` is discarded instead of cached, and `performRequest(_:)` now rethrows cancellation before cleanup/reconnect retry work. Updated the stale cached-socket test to derive its socket path from `FileManager.default.temporaryDirectory`.
