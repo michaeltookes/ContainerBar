@@ -10,7 +10,15 @@ private struct UnixSocketConnectionSnapshot {
 struct UnixSocketConnectionAdoption {
     let adopted: UnixSocketConnection?
     let staleConnection: UnixSocketConnection?
+    let failure: UnixSocketConnectionAdoptionFailure?
 }
+
+enum UnixSocketConnectionAdoptionFailure {
+    case staleCandidatePath
+    case sshGuardFailed
+}
+
+struct StaleUnixSocketCandidateError: Error {}
 
 extension DockerAPIClientImpl {
     var unixSocketResolvedHost: String {
@@ -106,6 +114,9 @@ extension DockerAPIClientImpl {
             if adoption.staleConnection !== candidate {
                 candidate.disconnectForTeardown()
             }
+            if adoption.failure == .staleCandidatePath {
+                throw StaleUnixSocketCandidateError()
+            }
             throw DockerAPIError.connectionFailed
         }
 
@@ -124,18 +135,26 @@ extension DockerAPIClientImpl {
         sshGuardOK: Bool
     ) -> UnixSocketConnectionAdoption {
         guard currentSocketPath == candidateSocketPath else {
-            return UnixSocketConnectionAdoption(adopted: nil, staleConnection: candidate)
+            return UnixSocketConnectionAdoption(
+                adopted: nil,
+                staleConnection: candidate,
+                failure: .staleCandidatePath
+            )
         }
 
         guard sshGuardOK else {
-            return UnixSocketConnectionAdoption(adopted: nil, staleConnection: cachedConnection)
+            return UnixSocketConnectionAdoption(
+                adopted: nil,
+                staleConnection: cachedConnection,
+                failure: .sshGuardFailed
+            )
         }
 
         if let cachedConnection {
-            return UnixSocketConnectionAdoption(adopted: cachedConnection, staleConnection: nil)
+            return UnixSocketConnectionAdoption(adopted: cachedConnection, staleConnection: nil, failure: nil)
         }
 
-        return UnixSocketConnectionAdoption(adopted: candidate, staleConnection: nil)
+        return UnixSocketConnectionAdoption(adopted: candidate, staleConnection: nil, failure: nil)
     }
 
     func closeConnection() async {
@@ -165,9 +184,12 @@ extension DockerAPIClientImpl {
                 throw error
             }
 
-            await closeConnection()
+            let shouldCloseConnection = Self.shouldCloseConnectionAfterUnixSocketError(error)
+            if shouldCloseConnection {
+                await closeConnection()
+            }
 
-            if host.connectionType == .ssh, let tunnel = sshTunnel {
+            if shouldCloseConnection, host.connectionType == .ssh, let tunnel = sshTunnel {
                 let tunnelState = tunnel.snapshotState()
                 if !tunnelState.isConnected {
                     logger.warning("SSH tunnel lost during request, attempting reconnect")
@@ -182,5 +204,9 @@ extension DockerAPIClientImpl {
             let conn = try await getConnection()
             return try await conn.sendRequest(request)
         }
+    }
+
+    static func shouldCloseConnectionAfterUnixSocketError(_ error: Error) -> Bool {
+        !(error is StaleUnixSocketCandidateError)
     }
 }

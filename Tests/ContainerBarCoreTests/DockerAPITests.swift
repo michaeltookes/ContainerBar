@@ -316,6 +316,30 @@ struct DockerAPITests {
 
         #expect(adoption.adopted == nil)
         #expect(adoption.staleConnection === candidate)
+        #expect(adoption.failure == .staleCandidatePath)
+        #expect(DockerAPIClientImpl.shouldCloseConnectionAfterUnixSocketError(StaleUnixSocketCandidateError()) == false)
+    }
+
+    @Test("SSH guard adoption failure still requires closing cached Unix socket")
+    func sshGuardAdoptionFailureClosesCachedUnixSocket() throws {
+        let socketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("containerbar-\(UUID().uuidString).sock")
+            .path
+        let candidate = UnixSocketConnection(socketPath: socketPath)
+        let cachedConnection = UnixSocketConnection(socketPath: socketPath)
+
+        let adoption = DockerAPIClientImpl.adoptionForConnectedUnixSocketCandidate(
+            candidate,
+            candidateSocketPath: socketPath,
+            currentSocketPath: socketPath,
+            cachedConnection: cachedConnection,
+            sshGuardOK: false
+        )
+
+        #expect(adoption.adopted == nil)
+        #expect(adoption.staleConnection === cachedConnection)
+        #expect(adoption.failure == .sshGuardFailed)
+        #expect(DockerAPIClientImpl.shouldCloseConnectionAfterUnixSocketError(DockerAPIError.connectionFailed) == true)
     }
 }
 

@@ -222,3 +222,7 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-037: Preserve cached Unix socket on stale candidate path mismatch~~
 **Resolved**: 2026-05-03
 **Description**: Updated Unix socket adoption so a candidate connected for a stale `effectiveSocketPath` is returned as the stale connection to tear down while the shared cached connection remains untouched. Added a focused test for the path-mismatch adoption decision.
+
+## ~~CB-038: Avoid closing shared socket after stale candidate mismatch~~
+**Resolved**: 2026-05-03
+**Description**: Added a distinct stale-candidate mismatch path in `DockerAPIClientImpl+UnixSocket.swift` so `performRequest(_:)` retries without `closeConnection()` or SSH reconnect cleanup when a suspended candidate was built for an old `effectiveSocketPath`. SSH guard and genuine connection failures still close/reconnect normally. Added focused tests for stale-path and SSH-guard adoption decisions.
