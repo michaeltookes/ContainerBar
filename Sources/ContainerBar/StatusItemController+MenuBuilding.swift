@@ -5,17 +5,17 @@ import ContainerBarCore
 // MARK: - Menu Building
 
 extension StatusItemController {
-    func rebuildMenu() {
+    func rebuildMenu(onFirstAppear: (() -> Void)? = nil) {
         guard let menu = statusItem.menu else { return }
 
         menu.removeAllItems()
 
         // Main content card (SwiftUI)
-        let cardItem = createCardMenuItem()
+        let cardItem = createCardMenuItem(onFirstAppear: onFirstAppear)
         menu.addItem(cardItem)
     }
 
-    func createCardMenuItem() -> NSMenuItem {
+    func createCardMenuItem(onFirstAppear: (() -> Void)? = nil) -> NSMenuItem {
         let item = NSMenuItem()
 
         let dashboardView = DashboardMenuView(
@@ -35,7 +35,8 @@ extension StatusItemController {
                 Task {
                     await self.containerStore.refresh(force: true)
                 }
-            }
+            },
+            onFirstAppear: onFirstAppear
         )
         .environment(containerStore)
         .environment(settingsStore)
@@ -61,17 +62,46 @@ extension StatusItemController: NSMenuDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
 
-            // Rebuild menu with fresh content
-            self.rebuildMenu()
+            // Rebuild and wait for SwiftUI's initial render to land before
+            // mutating @Observable state — otherwise the refresh can race
+            // the first body pass. The signal is `.onAppear` on the
+            // dashboard root; the safety timeout exists only to unwedge
+            // the refresh if `.onAppear` never fires (e.g. menu dismissed
+            // before display).
+            await self.rebuildAndAwaitFirstAppear(timeout: .milliseconds(250))
 
-            // Allow AppKit to finish menu layout and SwiftUI to complete
-            // its initial render pass before mutating @Observable state.
-            // Task.yield() alone is best-effort; a short sleep guarantees
-            // at least one full run loop cycle completes.
-            try? await Task.sleep(for: .milliseconds(50))
-
-            // Refresh data when menu opens (now a safe incremental update)
             await self.containerStore.refresh()
         }
+    }
+
+    @MainActor
+    private func rebuildAndAwaitFirstAppear(timeout: Duration) async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let gate = MenuOpenGate { cont.resume() }
+            self.rebuildMenu(onFirstAppear: { gate.fire() })
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                gate.fire()
+            }
+        }
+    }
+}
+
+/// One-shot main-actor gate that resumes a continuation on the first
+/// `fire()` and ignores subsequent calls. Used to race SwiftUI's
+/// `.onAppear` against a safety timeout without leaking continuations.
+@MainActor
+private final class MenuOpenGate {
+    private var fired = false
+    private let action: () -> Void
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+
+    func fire() {
+        guard !fired else { return }
+        fired = true
+        action()
     }
 }
