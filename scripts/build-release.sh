@@ -9,9 +9,11 @@ set -e
 APP_NAME="ContainerBar"
 BUNDLE_ID="com.tookes.ContainerBar"
 
-# Signing identity - Developer ID Application certificate
-SIGNING_IDENTITY="Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
-TEAM_ID="6739LM5834"
+# Signing identity - Developer ID Application certificate.
+# Override either via env vars for CI / contributors with a different Apple
+# Developer team (e.g. SIGNING_IDENTITY="Developer ID Application: ..."  TEAM_ID=ABCDE12345).
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)}"
+TEAM_ID="${TEAM_ID:-6739LM5834}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

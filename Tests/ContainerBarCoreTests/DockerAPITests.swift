@@ -376,7 +376,7 @@ struct AsyncSerialGateTests {
 struct DockerRawStatsTests {
 
     @Test("ContainerStats init from raw stats calculates CPU correctly")
-    func cpuCalculation() {
+    func cpuCalculation() throws {
         // Create mock raw stats with known values
         let raw = createMockRawStats(
             cpuUsage: 1_000_000,
@@ -386,7 +386,7 @@ struct DockerRawStatsTests {
             onlineCpus: 4
         )
 
-        let stats = ContainerStats(from: raw, containerId: "test")
+        let stats = try ContainerStats(from: raw, containerId: "test")
 
         // CPU delta = 100,000
         // System delta = 1,000,000
@@ -395,13 +395,13 @@ struct DockerRawStatsTests {
     }
 
     @Test("ContainerStats init from raw stats handles memory")
-    func memoryStats() {
+    func memoryStats() throws {
         let raw = createMockRawStats(
             memoryUsage: 134_217_728,  // 128 MB
             memoryLimit: 536_870_912   // 512 MB
         )
 
-        let stats = ContainerStats(from: raw, containerId: "test")
+        let stats = try ContainerStats(from: raw, containerId: "test")
 
         #expect(stats.memoryUsageBytes == 134_217_728)
         #expect(stats.memoryLimitBytes == 536_870_912)

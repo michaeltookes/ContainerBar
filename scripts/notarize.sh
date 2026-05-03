@@ -5,11 +5,30 @@
 
 set -e
 
-# Configuration
+# Configuration. Apple ID and team ID can be overridden via env vars for
+# CI / contributors notarizing under a different Apple Developer account.
 APP_NAME="ContainerBar"
 BUNDLE_ID="com.tookes.ContainerBar"
-APPLE_ID="tookes92@att.net"
-TEAM_ID="6739LM5834"
+DEFAULT_APPLE_ID="tookes92@att.net"
+DEFAULT_TEAM_ID="6739LM5834"
+DEFAULT_SIGNING_IDENTITY="Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
+DEFAULT_NOTARY_PROFILE="ContainerBar-Notarize"
+APPLE_ID="${APPLE_ID:-$DEFAULT_APPLE_ID}"
+TEAM_ID="${TEAM_ID:-$DEFAULT_TEAM_ID}"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-$DEFAULT_SIGNING_IDENTITY}"
+
+sanitize_profile_component() {
+    local value="$1"
+    echo "${value//[^[:alnum:]]/-}"
+}
+
+if [ -z "${NOTARY_PROFILE:-}" ]; then
+    if [ "$APPLE_ID" != "$DEFAULT_APPLE_ID" ] || [ "$TEAM_ID" != "$DEFAULT_TEAM_ID" ]; then
+        NOTARY_PROFILE="$DEFAULT_NOTARY_PROFILE-$(sanitize_profile_component "$APPLE_ID")-$(sanitize_profile_component "$TEAM_ID")"
+    else
+        NOTARY_PROFILE="$DEFAULT_NOTARY_PROFILE"
+    fi
+fi
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,6 +60,13 @@ echo_error() {
     echo -e "${RED}Error:${NC} $1"
 }
 
+has_matching_notary_credentials() {
+    xcrun notarytool history \
+        --keychain-profile "$NOTARY_PROFILE" \
+        --output-format json \
+        --no-progress &> /dev/null 2>&1
+}
+
 # Check requirements
 check_requirements() {
     echo_step "Checking requirements..."
@@ -64,14 +90,15 @@ check_requirements() {
 store_credentials() {
     echo_step "Checking notarization credentials..."
 
-    # Check if credentials are already stored
-    if xcrun notarytool history --keychain-profile "ContainerBar-Notarize" &> /dev/null 2>&1; then
-        echo "  ✓ Credentials already stored"
+    if has_matching_notary_credentials; then
+        echo "  ✓ Credentials already stored in profile: $NOTARY_PROFILE"
         return 0
     fi
 
+    echo_warning "No valid notarization profile found for $NOTARY_PROFILE; storing credentials"
+
     echo ""
-    echo_info "First-time setup: You need to store your credentials in the keychain."
+    echo_info "You need to store your credentials in the keychain."
     echo ""
     echo "You'll need your App-Specific Password from https://appleid.apple.com"
     echo "  1. Go to Sign-In and Security → App-Specific Passwords"
@@ -81,7 +108,7 @@ store_credentials() {
     read
 
     echo_step "Storing credentials in keychain..."
-    xcrun notarytool store-credentials "ContainerBar-Notarize" \
+    xcrun notarytool store-credentials "$NOTARY_PROFILE" \
         --apple-id "$APPLE_ID" \
         --team-id "$TEAM_ID"
 
@@ -96,7 +123,7 @@ submit_notarization() {
 
     # Submit and wait for completion
     xcrun notarytool submit "$ZIP_FILE" \
-        --keychain-profile "ContainerBar-Notarize" \
+        --keychain-profile "$NOTARY_PROFILE" \
         --wait
 
     echo ""
@@ -156,12 +183,12 @@ create_dmg() {
     rm -f "$TEMP_DMG"
 
     # Sign the DMG
-    codesign --force --sign "Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)" "$DMG_FILE"
+    codesign --force --sign "$SIGNING_IDENTITY" "$DMG_FILE"
 
     # Notarize the DMG
     echo "  Notarizing DMG..."
     xcrun notarytool submit "$DMG_FILE" \
-        --keychain-profile "ContainerBar-Notarize" \
+        --keychain-profile "$NOTARY_PROFILE" \
         --wait
 
     # Staple the DMG
