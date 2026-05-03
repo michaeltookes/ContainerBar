@@ -124,11 +124,19 @@ public struct ContainerMetricsSnapshot: Codable, Sendable, Equatable {
         self.updatedAt = updatedAt
     }
 
+    /// CPU usage above this percentage trips the aggregate health to `.warning`.
+    public static let cpuWarningThresholdPercent: Double = 90
+
+    /// Memory usage above this fraction (0...1) of the limit trips the
+    /// aggregate health to `.warning`.
+    public static let memoryWarningThresholdFraction: Double = 0.95
+
     public var overallHealth: HealthStatus {
         if runningCount == 0 && totalCount > 0 { return .critical }
         guard totalMemoryLimitBytes > 0 else { return .unknown }
-        let memoryPercent = Double(totalMemoryUsedBytes) / Double(totalMemoryLimitBytes)
-        if totalCPUPercent > 90 || memoryPercent > 0.95 {
+        let memoryFraction = Double(totalMemoryUsedBytes) / Double(totalMemoryLimitBytes)
+        if totalCPUPercent > Self.cpuWarningThresholdPercent
+            || memoryFraction > Self.memoryWarningThresholdFraction {
             return .warning
         }
         return .healthy

@@ -158,3 +158,27 @@
 ## ~~CB-029: Validate and document strict SSH host-key onboarding~~
 **Resolved**: 2026-05-02
 **Description**: Added a "First-Time Host Trust (SSH Host Keys)" subsection to `docs/GETTING_STARTED.md` covering new-host setup (`ssh user@host` once to populate `~/.ssh/known_hosts`), rotated-key recovery (`ssh-keygen -R host` then re-add), and the suspected-mismatch scenario as a security-incident path. The strict-key behavior in `SSHTunnelProcessLauncher` is unchanged; this just gives users a clear, supported onboarding path.
+
+## ~~CB-015: Add accessibility labels to container card interactive elements~~
+**Resolved**: 2026-05-02
+**Description**: Added `.accessibilityLabel(...)` to each branch of `ContainerCardView.quickActionButton` so screen-reader users get e.g. "Stop container nginx-proxy" instead of an unlabeled icon. Existing `.help()` tooltips kept for sighted hover users.
+
+## ~~CB-016: CPU percent clamping may hide multi-CPU spikes~~
+**Resolved**: 2026-05-02
+**Description**: Added a `.help(...)` tooltip on the CPU display in `ContainerCardView` showing total %, online-CPU count, and per-CPU normalized percentage (e.g. "120.0% across 4 CPUs (30.0% per CPU)"), giving readers context for values that exceed 100% on multi-core containers.
+
+## ~~CB-017: ISO8601DateFormatter created per stats parse~~
+**Resolved**: 2026-05-02
+**Description**: Replaced the per-call `ISO8601DateFormatter()` construction in `ContainerStats.init(from:containerId:)` with a single shared `static let timestampFormatter`. Annotated with `nonisolated(unsafe)` since `ISO8601DateFormatter.date(from:)` is documented thread-safe under Swift 6 strict concurrency.
+
+## ~~CB-019: `ServiceIcon` static cache never cleared~~
+**Resolved**: 2026-05-02
+**Description**: Added a hard cap (`iconCacheLimit = 128`) to `ServiceIcon.iconCache`. When the cache hits the ceiling we evict the dictionary's first key before inserting, so the static cache can no longer grow without bound if new icon variants get added.
+
+## ~~CB-022: Health status thresholds are hardcoded~~
+**Resolved**: 2026-05-02
+**Description**: Lifted the magic numbers from `ContainerMetricsSnapshot.overallHealth` into named static constants on the type (`cpuWarningThresholdPercent = 90`, `memoryWarningThresholdFraction = 0.95`). Behavior unchanged; the thresholds are now discoverable and ready to be wired to user settings later if desired.
+
+## ~~CB-023: Build scripts hardcode signing identity~~
+**Resolved**: 2026-05-02
+**Description**: `scripts/build-release.sh` now reads `SIGNING_IDENTITY` and `TEAM_ID` from the environment (with the existing values as fallback defaults), and `scripts/notarize.sh` does the same for `APPLE_ID` and `TEAM_ID`. CI and contributors with a different Apple Developer team can now run the release pipeline without editing the scripts.

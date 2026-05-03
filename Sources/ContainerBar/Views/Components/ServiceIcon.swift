@@ -88,6 +88,11 @@ struct ServiceIcon: View {
 
     // MARK: - Icon Loading
 
+    /// Hard upper bound on cached icons. Service-icon assets are a finite,
+    /// small set, so this is mostly a safety net against unbounded growth if
+    /// new variants get added without bounds.
+    private static let iconCacheLimit = 128
+
     @MainActor private static var iconCache: [String: NSImage] = [:]
 
     private func loadServiceIcon(named name: String) -> NSImage? {
@@ -98,6 +103,12 @@ struct ServiceIcon: View {
         // Load from bundled app resources (resources are flattened by .process()).
         if let url = AppResourceBundle.url(forResource: name, withExtension: "png"),
            let image = NSImage(contentsOf: url) {
+            // Drop a stable subset (the first key inserted into the dict's
+            // current ordering) when the cache hits its ceiling. Good enough
+            // for a small bounded set of bundled assets.
+            if Self.iconCache.count >= Self.iconCacheLimit, let evict = Self.iconCache.keys.first {
+                Self.iconCache.removeValue(forKey: evict)
+            }
             Self.iconCache[name] = image
             return image
         }

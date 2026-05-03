@@ -49,6 +49,7 @@ struct ContainerCardView: View {
                                 .foregroundStyle(.tertiary)
                             Text(formatPercent(stats.cpuPercent))
                                 .foregroundStyle(.secondary)
+                                .help(cpuTooltip(for: stats))
                         }
 
                         HStack(spacing: 3) {
@@ -170,6 +171,7 @@ struct ContainerCardView: View {
             }
             .buttonStyle(.plain)
             .help("Stop container")
+            .accessibilityLabel("Stop container \(container.displayName)")
 
         case .paused:
             // Paused containers need unpause - show disabled button until unpause is implemented
@@ -180,6 +182,7 @@ struct ContainerCardView: View {
                 .foregroundStyle(.yellow.opacity(0.5))
                 .clipShape(Circle())
                 .help("Container is paused")
+                .accessibilityLabel("Container \(container.displayName) is paused")
 
         case .restarting:
             // Container is restarting - show loading indicator
@@ -190,6 +193,7 @@ struct ContainerCardView: View {
                 .foregroundStyle(.orange.opacity(0.5))
                 .clipShape(Circle())
                 .help("Container is restarting")
+                .accessibilityLabel("Container \(container.displayName) is restarting")
 
         case .exited, .dead, .created, .removing:
             Button {
@@ -204,7 +208,18 @@ struct ContainerCardView: View {
             }
             .buttonStyle(.plain)
             .help("Start container")
+            .accessibilityLabel("Start container \(container.displayName)")
         }
+    }
+
+    private func cpuTooltip(for stats: ContainerStats) -> String {
+        let cpus = max(stats.onlineCPUs, 1)
+        let cpuLabel = cpus == 1 ? "CPU" : "CPUs"
+        let perCPU = stats.cpuPercent / Double(cpus)
+        return String(
+            format: "%.1f%% across %d %@ (%.1f%% per CPU)",
+            stats.cpuPercent, cpus, cpuLabel, perCPU
+        )
     }
 
     // MARK: - Computed Properties

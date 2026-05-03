@@ -5,11 +5,12 @@
 
 set -e
 
-# Configuration
+# Configuration. Apple ID and team ID can be overridden via env vars for
+# CI / contributors notarizing under a different Apple Developer account.
 APP_NAME="ContainerBar"
 BUNDLE_ID="com.tookes.ContainerBar"
-APPLE_ID="tookes92@att.net"
-TEAM_ID="6739LM5834"
+APPLE_ID="${APPLE_ID:-tookes92@att.net}"
+TEAM_ID="${TEAM_ID:-6739LM5834}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
