@@ -9,8 +9,13 @@ set -e
 # CI / contributors notarizing under a different Apple Developer account.
 APP_NAME="ContainerBar"
 BUNDLE_ID="com.tookes.ContainerBar"
-APPLE_ID="${APPLE_ID:-tookes92@att.net}"
-TEAM_ID="${TEAM_ID:-6739LM5834}"
+DEFAULT_APPLE_ID="tookes92@att.net"
+DEFAULT_TEAM_ID="6739LM5834"
+DEFAULT_SIGNING_IDENTITY="Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
+NOTARY_PROFILE="${NOTARY_PROFILE:-ContainerBar-Notarize}"
+APPLE_ID="${APPLE_ID:-$DEFAULT_APPLE_ID}"
+TEAM_ID="${TEAM_ID:-$DEFAULT_TEAM_ID}"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-$DEFAULT_SIGNING_IDENTITY}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,13 +71,17 @@ store_credentials() {
     echo_step "Checking notarization credentials..."
 
     # Check if credentials are already stored
-    if xcrun notarytool history --keychain-profile "ContainerBar-Notarize" &> /dev/null 2>&1; then
-        echo "  ✓ Credentials already stored"
-        return 0
+    if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" &> /dev/null 2>&1; then
+        if [ "$APPLE_ID" = "$DEFAULT_APPLE_ID" ] && [ "$TEAM_ID" = "$DEFAULT_TEAM_ID" ]; then
+            echo "  ✓ Credentials already stored"
+            return 0
+        fi
+
+        echo_warning "APPLE_ID or TEAM_ID override detected; recreating notarization profile"
     fi
 
     echo ""
-    echo_info "First-time setup: You need to store your credentials in the keychain."
+    echo_info "You need to store your credentials in the keychain."
     echo ""
     echo "You'll need your App-Specific Password from https://appleid.apple.com"
     echo "  1. Go to Sign-In and Security → App-Specific Passwords"
@@ -82,7 +91,7 @@ store_credentials() {
     read
 
     echo_step "Storing credentials in keychain..."
-    xcrun notarytool store-credentials "ContainerBar-Notarize" \
+    xcrun notarytool store-credentials "$NOTARY_PROFILE" \
         --apple-id "$APPLE_ID" \
         --team-id "$TEAM_ID"
 
@@ -97,7 +106,7 @@ submit_notarization() {
 
     # Submit and wait for completion
     xcrun notarytool submit "$ZIP_FILE" \
-        --keychain-profile "ContainerBar-Notarize" \
+        --keychain-profile "$NOTARY_PROFILE" \
         --wait
 
     echo ""
@@ -157,12 +166,12 @@ create_dmg() {
     rm -f "$TEMP_DMG"
 
     # Sign the DMG
-    codesign --force --sign "Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)" "$DMG_FILE"
+    codesign --force --sign "$SIGNING_IDENTITY" "$DMG_FILE"
 
     # Notarize the DMG
     echo "  Notarizing DMG..."
     xcrun notarytool submit "$DMG_FILE" \
-        --keychain-profile "ContainerBar-Notarize" \
+        --keychain-profile "$NOTARY_PROFILE" \
         --wait
 
     # Staple the DMG

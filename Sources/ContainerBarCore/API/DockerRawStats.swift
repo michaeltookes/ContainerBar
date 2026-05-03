@@ -100,15 +100,14 @@ struct DockerRawStats: Codable, Sendable {
 // MARK: - ContainerStats Extension
 
 extension ContainerStats {
-    /// Shared formatter — `ISO8601DateFormatter` is expensive to construct, so
-    /// we keep one instance per process to amortize the cost across every
-    /// stats parse. `date(from:)` is documented as thread-safe, so the
-    /// `nonisolated(unsafe)` shim is sound under Swift 6 strict concurrency.
-    nonisolated(unsafe) private static let timestampFormatter = ISO8601DateFormatter()
+    /// Shared ISO 8601 parse styles are value types, so concurrent stats
+    /// parsing does not share mutable formatter state.
+    private static let timestampFormatter = Date.ISO8601FormatStyle()
+    private static let fractionalTimestampFormatter = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
 
     /// Initialize from raw Docker API stats response
     init(from raw: DockerRawStats, containerId: String) {
-        let timestamp = Self.timestampFormatter.date(from: raw.read) ?? Date()
+        let timestamp = Self.parseDockerTimestamp(raw.read) ?? Date()
 
         // Calculate CPU percentage
         // Formula: (container_delta / system_delta) * num_cpus * 100
@@ -169,5 +168,10 @@ extension ContainerStats {
             blockReadBytes: totalReadBytes,
             blockWriteBytes: totalWriteBytes
         )
+    }
+
+    private static func parseDockerTimestamp(_ value: String) -> Date? {
+        (try? Date(value, strategy: fractionalTimestampFormatter))
+            ?? (try? Date(value, strategy: timestampFormatter))
     }
 }

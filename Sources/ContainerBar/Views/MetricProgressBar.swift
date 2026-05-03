@@ -1,3 +1,4 @@
+import ContainerBarCore
 import SwiftUI
 
 /// A progress bar for displaying metrics with label and optional subtitle
@@ -66,7 +67,7 @@ struct MetricProgressBar: View {
 
     /// Color based on usage level
     private var barColor: Color {
-        if percent >= 90 {
+        if percent >= ContainerMetricsSnapshot.cpuWarningThresholdPercent {
             return .red
         } else if percent >= 75 {
             return .orange
