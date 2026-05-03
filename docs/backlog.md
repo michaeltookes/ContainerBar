@@ -20,4 +20,7 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 4. **CB-030: Schedule targeted integration validation pass**
     Audit findings are based on static review and unit tests. Run a live SSH/TLS pass against a real host (latency, host key rotation, reconnect edges) and an interactive UI/accessibility pass (VoiceOver, keyboard-only, menu timing on real hardware) to close the validation gaps called out in Risks & Unknowns.
 
+5. **CB-031: Make `StatusItemController` instantiable in tests for routing coverage**
+    `StatusItemController.init` calls `NSStatusBar.system.statusItem(...)` and registers a global hotkey, which prevents headless `swift test` instantiation. As a result, the `@objc` action methods (`startContainerAction`, `stopContainerAction`, `restartContainerAction`, `removeContainerAction`, `copyIdAction`, `viewLogsAction`) and the `handleContainerAction` switch are not unit-tested — only the menu sort+filter helper from CB-028 is. Refactor for testability — either inject the status item via a protocol seam, or add a `#if DEBUG` test-only init that skips status-bar/hotkey setup — then add tests verifying each `@objc` selector extracts the right `representedObject` and dispatches the correct `ContainerAction` enum case. Follow-up to CB-028.
+
 Completed items live in [`docs/resolved.md`](resolved.md).
