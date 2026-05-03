@@ -218,3 +218,7 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 ## ~~CB-036: Address Unix socket review follow-ups~~
 **Resolved**: 2026-05-03
 **Description**: Revalidated candidate adoption in `DockerAPIClientImpl+UnixSocket.swift` so a socket connected for a stale `effectiveSocketPath` is discarded instead of cached, and `performRequest(_:)` now rethrows cancellation before cleanup/reconnect retry work. Updated the stale cached-socket test to derive its socket path from `FileManager.default.temporaryDirectory`.
+
+## ~~CB-037: Preserve cached Unix socket on stale candidate path mismatch~~
+**Resolved**: 2026-05-03
+**Description**: Updated Unix socket adoption so a candidate connected for a stale `effectiveSocketPath` is returned as the stale connection to tear down while the shared cached connection remains untouched. Added a focused test for the path-mismatch adoption decision.

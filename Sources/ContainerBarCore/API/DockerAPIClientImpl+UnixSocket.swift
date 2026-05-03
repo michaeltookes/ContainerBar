@@ -7,7 +7,7 @@ private struct UnixSocketConnectionSnapshot {
     let staleConnection: UnixSocketConnection?
 }
 
-private struct UnixSocketConnectionAdoption {
+struct UnixSocketConnectionAdoption {
     let adopted: UnixSocketConnection?
     let staleConnection: UnixSocketConnection?
 }
@@ -74,12 +74,6 @@ extension DockerAPIClientImpl {
         // while we were awaiting connect(). Re-check the SSH guard here too:
         // the tunnel can die while `candidate.connect()` is suspended.
         let adoption: UnixSocketConnectionAdoption = connectionLock.withLock {
-            guard effectiveSocketPath == socketPath else {
-                let staleConnection = connection
-                connection = nil
-                return UnixSocketConnectionAdoption(adopted: nil, staleConnection: staleConnection)
-            }
-
             let sshGuardOK: Bool
             if host.connectionType == .ssh {
                 sshGuardOK = sshTunnel?.isConnected ?? false
@@ -87,18 +81,21 @@ extension DockerAPIClientImpl {
                 sshGuardOK = true
             }
 
-            guard sshGuardOK else {
-                let staleConnection = connection
+            let adoption = Self.adoptionForConnectedUnixSocketCandidate(
+                candidate,
+                candidateSocketPath: socketPath,
+                currentSocketPath: effectiveSocketPath,
+                cachedConnection: connection,
+                sshGuardOK: sshGuardOK
+            )
+
+            if !sshGuardOK {
                 connection = nil
-                return UnixSocketConnectionAdoption(adopted: nil, staleConnection: staleConnection)
+            } else if adoption.adopted === candidate {
+                connection = candidate
             }
 
-            if let existing = connection {
-                return UnixSocketConnectionAdoption(adopted: existing, staleConnection: nil)
-            }
-
-            connection = candidate
-            return UnixSocketConnectionAdoption(adopted: candidate, staleConnection: nil)
+            return adoption
         }
 
         if let staleConnection = adoption.staleConnection {
@@ -106,7 +103,9 @@ extension DockerAPIClientImpl {
         }
 
         guard let adopted = adoption.adopted else {
-            candidate.disconnectForTeardown()
+            if adoption.staleConnection !== candidate {
+                candidate.disconnectForTeardown()
+            }
             throw DockerAPIError.connectionFailed
         }
 
@@ -115,6 +114,28 @@ extension DockerAPIClientImpl {
         }
 
         return adopted
+    }
+
+    static func adoptionForConnectedUnixSocketCandidate(
+        _ candidate: UnixSocketConnection,
+        candidateSocketPath: String,
+        currentSocketPath: String?,
+        cachedConnection: UnixSocketConnection?,
+        sshGuardOK: Bool
+    ) -> UnixSocketConnectionAdoption {
+        guard currentSocketPath == candidateSocketPath else {
+            return UnixSocketConnectionAdoption(adopted: nil, staleConnection: candidate)
+        }
+
+        guard sshGuardOK else {
+            return UnixSocketConnectionAdoption(adopted: nil, staleConnection: cachedConnection)
+        }
+
+        if let cachedConnection {
+            return UnixSocketConnectionAdoption(adopted: cachedConnection, staleConnection: nil)
+        }
+
+        return UnixSocketConnectionAdoption(adopted: candidate, staleConnection: nil)
     }
 
     func closeConnection() async {

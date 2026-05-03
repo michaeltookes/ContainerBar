@@ -294,6 +294,29 @@ struct DockerAPITests {
         }
         #expect(cachedConnection == nil)
     }
+
+    @Test("Path mismatch adoption preserves the cached Unix socket")
+    func pathMismatchAdoptionPreservesCachedUnixSocket() throws {
+        let oldSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("old-containerbar-\(UUID().uuidString).sock")
+            .path
+        let newSocketPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("new-containerbar-\(UUID().uuidString).sock")
+            .path
+        let candidate = UnixSocketConnection(socketPath: oldSocketPath)
+        let cachedConnection = UnixSocketConnection(socketPath: newSocketPath)
+
+        let adoption = DockerAPIClientImpl.adoptionForConnectedUnixSocketCandidate(
+            candidate,
+            candidateSocketPath: oldSocketPath,
+            currentSocketPath: newSocketPath,
+            cachedConnection: cachedConnection,
+            sshGuardOK: true
+        )
+
+        #expect(adoption.adopted == nil)
+        #expect(adoption.staleConnection === candidate)
+    }
 }
 
 @Suite("Mock Docker API Client Tests")
