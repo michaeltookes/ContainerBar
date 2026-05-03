@@ -5,6 +5,15 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-05-03
+
+### Changed
+- Menu open responds to SwiftUI's first-render signal instead of a fixed 50ms delay, so the dashboard appears as soon as it's ready rather than after a timer
+- Unix socket transport rebuilt on Network.framework (`NWConnection`), retiring the hand-rolled POSIX socket loop and lock machinery for more reliable connection lifecycle and cancellation
+
+### Fixed
+- Container list ordering is now stable when two containers share a display name (tie-break on container id)
+
 ## [2.0.2] - 2026-04-14
 
 ### Changed
