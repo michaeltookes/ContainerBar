@@ -1,36 +1,65 @@
 import Foundation
 
 extension DockerAPIClientImpl {
-    func getConnection() throws -> UnixSocketConnection {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
+    func getConnection() async throws -> UnixSocketConnection {
+        let snapshot: (
+            existing: UnixSocketConnection?,
+            socketPath: String?,
+            sshGuardOK: Bool
+        ) = connectionLock.withLock {
+            let existing = connection
+            let socketPath = effectiveSocketPath
+            let sshGuardOK: Bool
+            if host.connectionType == .ssh {
+                sshGuardOK = sshTunnel?.isConnected ?? false
+            } else {
+                sshGuardOK = true
+            }
+            return (existing, socketPath, sshGuardOK)
+        }
 
-        if let existing = connection {
+        if let existing = snapshot.existing {
             return existing
         }
 
-        guard let socketPath = effectiveSocketPath else {
+        guard snapshot.sshGuardOK else {
+            throw DockerAPIError.connectionFailed
+        }
+
+        guard let socketPath = snapshot.socketPath else {
             throw DockerAPIError.invalidConfiguration("No socket path configured")
         }
 
-        if host.connectionType == .ssh {
-            guard let tunnel = sshTunnel, tunnel.isConnected else {
-                throw DockerAPIError.connectionFailed
+        let candidate = UnixSocketConnection(socketPath: socketPath)
+        try await candidate.connect()
+
+        // Adopt the candidate, or discard it if a peer beat us to the cache
+        // while we were awaiting connect().
+        let adopted: UnixSocketConnection = connectionLock.withLock {
+            if let existing = connection {
+                return existing
             }
+            connection = candidate
+            return candidate
         }
 
-        let conn = UnixSocketConnection(socketPath: socketPath)
-        try conn.connect()
-        connection = conn
-        return conn
+        if adopted !== candidate {
+            candidate.disconnectForTeardown()
+        }
+
+        return adopted
     }
 
-    func closeConnection() {
-        connectionLock.lock()
-        defer { connectionLock.unlock() }
+    func closeConnection() async {
+        let closing: UnixSocketConnection? = connectionLock.withLock {
+            let c = connection
+            connection = nil
+            return c
+        }
 
-        connection?.disconnect()
-        connection = nil
+        if let closing {
+            try? await closing.disconnect()
+        }
     }
 
     func performRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
@@ -41,10 +70,10 @@ extension DockerAPIClientImpl {
         try await ensureSSHTunnel()
 
         do {
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
+            let conn = try await getConnection()
+            return try await conn.sendRequest(request)
         } catch {
-            closeConnection()
+            await closeConnection()
 
             if host.connectionType == .ssh, let tunnel = sshTunnel {
                 let tunnelState = tunnel.snapshotState()
@@ -58,8 +87,8 @@ extension DockerAPIClientImpl {
                 }
             }
 
-            let conn = try getConnection()
-            return try conn.sendRequest(request)
+            let conn = try await getConnection()
+            return try await conn.sendRequest(request)
         }
     }
 }
