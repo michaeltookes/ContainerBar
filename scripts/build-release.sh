@@ -120,7 +120,7 @@ build() {
         -scheme "$APP_NAME" \
         -configuration Release \
         -destination "platform=macOS,arch=$(uname -m)" \
-        -derivedDataPath "$DERIVED_DATA" \
+        -derivedDataPath "${DERIVED_DATA}" \
         CODE_SIGNING_ALLOWED=NO \
         CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
         build 2>&1 | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)"
