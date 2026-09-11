@@ -122,6 +122,7 @@ build() {
         -destination "platform=macOS,arch=$(uname -m)" \
         -derivedDataPath "$DERIVED_DATA" \
         CODE_SIGNING_ALLOWED=NO \
+        CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
         build 2>&1 | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)"
     local build_statuses=("${PIPESTATUS[@]}")
     set -e
