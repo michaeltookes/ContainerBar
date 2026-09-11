@@ -29,6 +29,10 @@ BUILD_DIR="${BUILD_DIR:-$DERIVED_DATA/Build/Products/Release}"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
+REQUIRED_RESOURCE_BUNDLES=(
+    "ContainerBar_ContainerBar.bundle"
+    "KeyboardShortcuts_KeyboardShortcuts.bundle"
+)
 
 # Read version from Info.plist (single source of truth)
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DIST_DIR/Info.plist")
@@ -163,6 +167,13 @@ create_bundle() {
     fi
 
     # Copy SPM resource bundles (e.g., app resources + KeyboardShortcuts localization)
+    for name in "${REQUIRED_RESOURCE_BUNDLES[@]}"; do
+        if [ ! -d "$BUILD_DIR/$name" ]; then
+            echo_error "Required resource bundle $name missing from $BUILD_DIR"
+            exit 1
+        fi
+    done
+
     for bundle in "$BUILD_DIR"/*.bundle; do
         if [ -d "$bundle" ]; then
             cp -R "$bundle" "$APP_BUNDLE/Contents/Resources/"
@@ -281,9 +292,7 @@ verify() {
     # Bundle.main.resourceURL first.
     local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
     local swiftpm_release_path="$PROJECT_ROOT/.build/$(uname -m)-apple-macosx/release"
-    for bundle in "$BUILD_DIR"/*.bundle; do
-        local name
-        name="$(basename "$bundle")"
+    for name in "${REQUIRED_RESOURCE_BUNDLES[@]}"; do
         if [ ! -d "$APP_BUNDLE/Contents/Resources/$name" ]; then
             echo_error "Resource bundle $name missing from Contents/Resources"
             exit 1
