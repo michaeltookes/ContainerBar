@@ -6,10 +6,6 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## High Priority
 
-### CB-041: Release build crashes on Settings open on every Mac except the build machine
-**Priority**: High
-**Description**: v2.0.3 was built with `swift build -c release`, whose generated `Bundle.module` accessor for the KeyboardShortcuts dependency looks for `KeyboardShortcuts_KeyboardShortcuts.bundle` at the app root and then at the absolute `.build/arm64-apple-macosx/release/...` path of the build machine, and calls `fatalError` otherwise. The release script copies the bundle to `Contents/Resources`, so only the dev-machine fallback ever resolves. The General settings pane renders `KeyboardShortcuts.Recorder`, whose first localized string triggers the crash. Same bug class was fixed for the app's own bundle in Feb 2026 (`AppResourceBundle.swift`) but not for the dependency. Fix: build releases with xcodebuild (its accessor checks `Bundle.main.resourceURL` first), and make `build-release.sh` and `validate-release.py` fail when a bundle is missing from `Contents/Resources` or the binary embeds the broken SwiftPM release `.build/<arch>-apple-macosx/release` path. Ship as 2.0.4.
-
 ### CB-042: Prowl QA pull-request gate on the Lucius Mac mini
 **Priority**: High
 **Description**: Mirror sentwise's `.github/workflows/prowl-qa.yml`: a `pull_request` gate on a self-hosted `[self-hosted, macOS]` runner registered for this repo on the private Mac runner endpoint (`<SELF_HOSTED_MAC_RUNNER_ENDPOINT>`, kept in local-only private context), fork PRs excluded. Pin the Prowl version, build the app into `.prowl/DerivedData` via xcodebuild, run `prowl ci --junit`, upload `.prowl/runs/` as an artifact. Requires CB-043 so hunts never touch a real Docker host. First hunts: menu smoke (open menu, dashboard renders), settings window (open Settings, every tab renders without the app exiting), add-host sheet opens and cancels. Add `.prowl/config.yml` with `allowedApps` limited to the built app and `forbiddenSelectors` for anything that mutates containers.
