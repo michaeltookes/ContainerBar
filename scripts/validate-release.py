@@ -189,7 +189,7 @@ def check_codesign():
 
 def check_framework_rpath():
     """Verify the app binary can resolve embedded frameworks from Contents/Frameworks."""
-    binary = os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    binary = app_executable_path()
     sparkle_framework = os.path.join(APP_BUNDLE, "Contents", "Frameworks", "Sparkle.framework")
 
     if not os.path.isfile(binary):
@@ -239,9 +239,14 @@ def check_framework_rpath():
     )
 
 
+def app_executable_path():
+    """Return the packaged app executable path."""
+    return os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+
+
 def check_no_build_machine_path():
     """Verify the binary does not embed the build machine's .build path (CB-041)."""
-    binary = os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    binary = app_executable_path()
     if not os.path.isfile(binary):
         check("No build-machine path embedded", False, f"binary not found: {binary}")
         return
