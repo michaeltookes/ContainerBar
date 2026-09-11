@@ -28,6 +28,11 @@ REQUIRED_RESOURCE_BUNDLES = (
     "ContainerBar_ContainerBar.bundle",
     "KeyboardShortcuts_KeyboardShortcuts.bundle",
 )
+BROKEN_SWIFTPM_RELEASE_PATHS = (
+    b".build/arm64-apple-macosx/release",
+    b".build/arm64e-apple-macosx/release",
+    b".build/x86_64-apple-macosx/release",
+)
 # ───────────────────────────────────────────────────────────────────────────────
 
 passed = 0
@@ -244,19 +249,26 @@ def app_executable_path():
     return os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
 
 
-def check_no_build_machine_path():
-    """Verify the binary does not embed the build machine's .build path (CB-041)."""
+def check_no_swiftpm_release_resource_path():
+    """Verify the binary does not embed SwiftPM release resource fallback paths."""
     binary = app_executable_path()
     if not os.path.isfile(binary):
-        check("No build-machine path embedded", False, f"binary not found: {binary}")
+        check("No SwiftPM release resource path embedded", False, f"binary not found: {binary}")
         return
-    build_path = os.path.join(PROJECT_ROOT, ".build")
     with open(binary, "rb") as f:
-        embedded = build_path.encode() in f.read()
+        binary_contents = f.read()
+    embedded_path = next(
+        (path for path in BROKEN_SWIFTPM_RELEASE_PATHS if path in binary_contents),
+        None,
+    )
     check(
-        "No build-machine path embedded",
-        not embedded,
-        "binary references .build; SwiftPM resource accessor would crash on other Macs" if embedded else "",
+        "No SwiftPM release resource path embedded",
+        embedded_path is None,
+        (
+            f"binary references {embedded_path.decode()}; SwiftPM resource accessor would crash on other Macs"
+            if embedded_path
+            else ""
+        ),
     )
 
 
@@ -295,7 +307,7 @@ def main():
     check_codesign()
     check_framework_rpath()
     check_required_resource_bundles()
-    check_no_build_machine_path()
+    check_no_swiftpm_release_resource_path()
     check_notarization()
 
     total = passed + failed

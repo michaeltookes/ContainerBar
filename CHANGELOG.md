@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Opening Settings no longer quits the app on Macs other than the build machine. Release builds now go through xcodebuild so the KeyboardShortcuts resource bundle is resolved from the app's Resources folder instead of a hardcoded build-machine path
-- Release build script and validator now fail if a resource bundle is missing from the app or the binary embeds a build-machine path
+- Release build script and validator now fail if a resource bundle is missing from the app or the binary embeds the broken SwiftPM release resource path
 
 ### Removed
 - Mission Control backlog sync workflow

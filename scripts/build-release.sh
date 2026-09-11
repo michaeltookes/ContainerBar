@@ -19,10 +19,11 @@ TEAM_ID="${TEAM_ID:-6739LM5834}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Release builds go through xcodebuild rather than `swift build`. SwiftPM's own
-# resource-bundle accessor hardcodes the absolute .build path of the machine
-# that produced the binary and fatalErrors when it is missing, which crashed
-# Settings on every Mac except the dev machine (CB-041). Xcode's accessor looks
-# in Contents/Resources first, so the bundles copied below are found.
+# resource-bundle accessor hardcodes the absolute .build/<arch>-apple-macosx/release
+# path of the machine that produced the binary and fatalErrors when it is
+# missing, which crashed Settings on every Mac except the dev machine (CB-041).
+# Xcode's accessor looks in Contents/Resources first, so the bundles copied
+# below are found.
 DERIVED_DATA="${DERIVED_DATA:-$PROJECT_ROOT/.build/xcode-release}"
 BUILD_DIR="${BUILD_DIR:-$DERIVED_DATA/Build/Products/Release}"
 DIST_DIR="$PROJECT_ROOT/Distribution"
@@ -274,8 +275,11 @@ verify() {
     fi
 
     # Resource bundles must be inside the sealed bundle, and the binary must not
-    # carry the build machine's absolute path (the CB-041 crash signature).
+    # carry the SwiftPM release build path that caused CB-041. Xcode's generated
+    # accessor may still embed its DerivedData fallback, but it checks
+    # Bundle.main.resourceURL first.
     local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+    local swiftpm_release_path="$PROJECT_ROOT/.build/$(uname -m)-apple-macosx/release"
     for bundle in "$BUILD_DIR"/*.bundle; do
         local name
         name="$(basename "$bundle")"
@@ -284,11 +288,11 @@ verify() {
             exit 1
         fi
     done
-    if strings "$binary" | grep -Fq "$PROJECT_ROOT/.build"; then
-        echo_error "Binary embeds the build machine path $PROJECT_ROOT/.build; resource lookup would crash on other Macs"
+    if strings "$binary" | grep -Fq "$swiftpm_release_path"; then
+        echo_error "Binary embeds the SwiftPM release resource path $swiftpm_release_path; resource lookup would crash on other Macs"
         exit 1
     fi
-    echo "  ✓ Resource bundles sealed, no build-machine paths embedded"
+    echo "  ✓ Resource bundles sealed, no SwiftPM release resource paths embedded"
 
     echo "  ✓ Signature verified"
 }
