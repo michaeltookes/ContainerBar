@@ -70,17 +70,18 @@ Referenced by the `/release-prep` skill:
 
 ## Backlog Management
 
-The backlog lives in this repo:
+The authoritative backlog remains outside the repository per `AGENTS.md`:
 
-- `docs/backlog.md` — open items under `## High Priority`, `## Medium Priority`, `## Low Priority`
-- `docs/resolved.md` — completed items
+- `~/Desktop/Backlogs/projects/containerbar-backlog.md`
 
-Items use stable `CB-NNN` ids that are never reused or renumbered. Format in the backlog:
+Update that backlog before and after every feature or bug fix. Add missing work items, findings, risks, unknowns, and recommended next actions before editing code. Move completed items into its `## Completed` section with `(completed: YYYY-MM-DD)`.
+
+Committed planning files such as `docs/backlog.md` and `docs/resolved.md`, when present, are public, non-sensitive project mirrors only. Do not put secrets, private endpoints, key material, or credential values in them.
+
+Items use stable `CB-NNN` ids that are never reused or renumbered. Format:
 
 ```
 ### CB-NNN: Title
 **Priority**: High | Medium | Low
 **Description**: what, why, and enough detail for any agent to pick it up
 ```
-
-When you complete work that matches an item, move it to the top of `docs/resolved.md` as `## ~~CB-NNN: Title~~` followed by `**Resolved**: YYYY-MM-DD` and a short description of what changed. When you discover bugs, tech debt, or feature opportunities, add them to the appropriate tier with the next unused id. The `/update-backlog` skill automates matching commits to items.

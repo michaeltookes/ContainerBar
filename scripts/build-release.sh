@@ -114,13 +114,22 @@ clean() {
 build() {
     echo_step "Building $APP_NAME in release mode..."
     cd "$PROJECT_ROOT"
+    set +e
     xcodebuild \
         -scheme "$APP_NAME" \
         -configuration Release \
         -destination "platform=macOS,arch=$(uname -m)" \
         -derivedDataPath "$DERIVED_DATA" \
         CODE_SIGNING_ALLOWED=NO \
-        build | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)" || true
+        build 2>&1 | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)"
+    local build_statuses=("${PIPESTATUS[@]}")
+    set -e
+
+    local xcodebuild_status="${build_statuses[0]}"
+    if [ "$xcodebuild_status" -ne 0 ]; then
+        echo_error "xcodebuild failed with exit code $xcodebuild_status"
+        exit "$xcodebuild_status"
+    fi
 
     if [ ! -x "$BUILD_DIR/$APP_NAME" ]; then
         echo_error "xcodebuild did not produce $BUILD_DIR/$APP_NAME"

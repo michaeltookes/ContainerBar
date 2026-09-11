@@ -24,6 +24,10 @@ APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", "ContainerBar.app")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
+REQUIRED_RESOURCE_BUNDLES = (
+    "ContainerBar_ContainerBar.bundle",
+    "KeyboardShortcuts_KeyboardShortcuts.bundle",
+)
 # ───────────────────────────────────────────────────────────────────────────────
 
 passed = 0
@@ -251,6 +255,21 @@ def check_no_build_machine_path():
     )
 
 
+def check_required_resource_bundles():
+    """Verify release-critical resource bundles are packaged inside the app."""
+    resources_dir = os.path.join(APP_BUNDLE, "Contents", "Resources")
+    missing = [
+        name
+        for name in REQUIRED_RESOURCE_BUNDLES
+        if not os.path.isdir(os.path.join(resources_dir, name))
+    ]
+    check(
+        "Required resource bundles packaged",
+        not missing,
+        ", ".join(missing) if missing else ", ".join(REQUIRED_RESOURCE_BUNDLES),
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <VERSION>")
@@ -270,6 +289,7 @@ def main():
     check_appcast(version)
     check_codesign()
     check_framework_rpath()
+    check_required_resource_bundles()
     check_no_build_machine_path()
     check_notarization()
 

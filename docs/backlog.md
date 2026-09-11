@@ -12,7 +12,7 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ### CB-042: Prowl QA pull-request gate on the Lucius Mac mini
 **Priority**: High
-**Description**: Mirror sentwise's `.github/workflows/prowl-qa.yml`: a `pull_request` gate on a self-hosted `[self-hosted, macOS]` runner registered for this repo on the Mac mini (`luciusfox@192.168.86.28`, already hosts runners for other repos), fork PRs excluded. Pin the Prowl version, build the app into `.prowl/DerivedData` via xcodebuild, run `prowl ci --junit`, upload `.prowl/runs/` as an artifact. Requires CB-043 so hunts never touch a real Docker host. First hunts: menu smoke (open menu, dashboard renders), settings window (open Settings, every tab renders without the app exiting), add-host sheet opens and cancels. Add `.prowl/config.yml` with `allowedApps` limited to the built app and `forbiddenSelectors` for anything that mutates containers.
+**Description**: Mirror sentwise's `.github/workflows/prowl-qa.yml`: a `pull_request` gate on a self-hosted `[self-hosted, macOS]` runner registered for this repo on the private Mac runner endpoint (`<SELF_HOSTED_MAC_RUNNER_ENDPOINT>`, kept in local-only private context), fork PRs excluded. Pin the Prowl version, build the app into `.prowl/DerivedData` via xcodebuild, run `prowl ci --junit`, upload `.prowl/runs/` as an artifact. Requires CB-043 so hunts never touch a real Docker host. First hunts: menu smoke (open menu, dashboard renders), settings window (open Settings, every tab renders without the app exiting), add-host sheet opens and cancels. Add `.prowl/config.yml` with `allowedApps` limited to the built app and `forbiddenSelectors` for anything that mutates containers.
 
 ### CB-043: Offline hunt mode with a fixture Docker client for QA
 **Priority**: High
@@ -42,7 +42,7 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ### CB-049: Documentation refresh
 **Priority**: Medium
-**Description**: `docs/GETTING_STARTED.md`, README, and the `.claude/agents/*.md` files predate the 2.0.x transport rewrite, the xcodebuild release path, and the in-repo backlog. Update install instructions (Silicon-only note, Homebrew and direct download), the architecture section, the release process description, and remove references to Mission Control and the old Desktop backlog path.
+**Description**: `docs/GETTING_STARTED.md`, README, and the `.claude/agents/*.md` files predate the 2.0.x transport rewrite, the xcodebuild release path, and the current backlog discipline. Update install instructions (Silicon-only note, Homebrew and direct download), the architecture section, the release process description, and remove stale Mission Control references.
 
 ### CB-050: CI hardening
 **Priority**: Medium
