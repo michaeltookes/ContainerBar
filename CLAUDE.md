@@ -70,18 +70,17 @@ Referenced by the `/release-prep` skill:
 
 ## Backlog Management
 
-Set `BACKLOG_ROOT` to your local backlog workspace before using these instructions, for example `export BACKLOG_ROOT="$HOME/Desktop/Backlogs"`.
+The backlog lives in this repo:
 
-This project's backlog is tracked at: `${BACKLOG_ROOT}/projects/containerbar-backlog.md`
+- `docs/backlog.md` — open items under `## High Priority`, `## Medium Priority`, `## Low Priority`
+- `docs/resolved.md` — completed items
 
-When you complete work that corresponds to a backlog item:
-- Read the backlog file and find the matching item
-- Move it to the `## Completed` section with the date: `(completed: YYYY-MM-DD)`
-- Re-number remaining items if needed
+Items use stable `CB-NNN` ids that are never reused or renumbered. Format in the backlog:
 
-When you discover new bugs, tech debt, or feature opportunities:
-- Read the backlog file
-- Add the item to the appropriate priority tier (High / Medium / Low)
-- Use the existing format: numbered, bold title, indented description
+```
+### CB-NNN: Title
+**Priority**: High | Medium | Low
+**Description**: what, why, and enough detail for any agent to pick it up
+```
 
-If the backlog file doesn't exist yet, create it in the `projects/` folder using the template at `${BACKLOG_ROOT}/backlog-template.md`.
+When you complete work that matches an item, move it to the top of `docs/resolved.md` as `## ~~CB-NNN: Title~~` followed by `**Resolved**: YYYY-MM-DD` and a short description of what changed. When you discover bugs, tech debt, or feature opportunities, add them to the appropriate tier with the next unused id. The `/update-backlog` skill automates matching commits to items.
