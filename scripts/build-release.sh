@@ -18,8 +18,13 @@ TEAM_ID="${TEAM_ID:-6739LM5834}"
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-ARCH="$(uname -m)"
-BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build/${ARCH}-apple-macosx/release}"
+# Release builds go through xcodebuild rather than `swift build`. SwiftPM's own
+# resource-bundle accessor hardcodes the absolute .build path of the machine
+# that produced the binary and fatalErrors when it is missing, which crashed
+# Settings on every Mac except the dev machine (CB-041). Xcode's accessor looks
+# in Contents/Resources first, so the bundles copied below are found.
+DERIVED_DATA="${DERIVED_DATA:-$PROJECT_ROOT/.build/xcode-release}"
+BUILD_DIR="${BUILD_DIR:-$DERIVED_DATA/Build/Products/Release}"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
@@ -64,6 +69,11 @@ check_requirements() {
         exit 1
     fi
 
+    if ! command -v xcodebuild &> /dev/null; then
+        echo_error "xcodebuild is not available; install Xcode"
+        exit 1
+    fi
+
     if ! command -v codesign &> /dev/null; then
         echo_error "codesign is not available"
         exit 1
@@ -104,7 +114,18 @@ clean() {
 build() {
     echo_step "Building $APP_NAME in release mode..."
     cd "$PROJECT_ROOT"
-    swift build -c release
+    xcodebuild \
+        -scheme "$APP_NAME" \
+        -configuration Release \
+        -destination "platform=macOS,arch=$(uname -m)" \
+        -derivedDataPath "$DERIVED_DATA" \
+        CODE_SIGNING_ALLOWED=NO \
+        build | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)" || true
+
+    if [ ! -x "$BUILD_DIR/$APP_NAME" ]; then
+        echo_error "xcodebuild did not produce $BUILD_DIR/$APP_NAME"
+        exit 1
+    fi
     echo "  ✓ Build complete"
 }
 
@@ -242,6 +263,23 @@ verify() {
         fi
         echo "  ✓ Framework rpath verified"
     fi
+
+    # Resource bundles must be inside the sealed bundle, and the binary must not
+    # carry the build machine's absolute path (the CB-041 crash signature).
+    local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+    for bundle in "$BUILD_DIR"/*.bundle; do
+        local name
+        name="$(basename "$bundle")"
+        if [ ! -d "$APP_BUNDLE/Contents/Resources/$name" ]; then
+            echo_error "Resource bundle $name missing from Contents/Resources"
+            exit 1
+        fi
+    done
+    if strings "$binary" | grep -Fq "$PROJECT_ROOT/.build"; then
+        echo_error "Binary embeds the build machine path $PROJECT_ROOT/.build; resource lookup would crash on other Macs"
+        exit 1
+    fi
+    echo "  ✓ Resource bundles sealed, no build-machine paths embedded"
 
     echo "  ✓ Signature verified"
 }

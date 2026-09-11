@@ -5,6 +5,15 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Opening Settings no longer quits the app on Macs other than the build machine. Release builds now go through xcodebuild so the KeyboardShortcuts resource bundle is resolved from the app's Resources folder instead of a hardcoded build-machine path
+- Release build script and validator now fail if a resource bundle is missing from the app or the binary embeds a build-machine path
+
+### Removed
+- Mission Control backlog sync workflow
+
 ## [2.0.3] - 2026-05-03
 
 ### Changed

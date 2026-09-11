@@ -21,6 +21,7 @@ VERSION="${1:-}"
 # Try to find generate_appcast in common locations
 GENERATE_APPCAST=""
 SPARKLE_LOCATIONS=(
+    "$PROJECT_ROOT/.build/xcode-release/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
     "$PROJECT_ROOT/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
     "/usr/local/bin/generate_appcast"
     "$HOME/Library/Developer/Sparkle/bin/generate_appcast"

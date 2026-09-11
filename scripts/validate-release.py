@@ -235,6 +235,22 @@ def check_framework_rpath():
     )
 
 
+def check_no_build_machine_path():
+    """Verify the binary does not embed the build machine's .build path (CB-041)."""
+    binary = os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    if not os.path.isfile(binary):
+        check("No build-machine path embedded", False, f"binary not found: {binary}")
+        return
+    build_path = os.path.join(PROJECT_ROOT, ".build")
+    with open(binary, "rb") as f:
+        embedded = build_path.encode() in f.read()
+    check(
+        "No build-machine path embedded",
+        not embedded,
+        "binary references .build; SwiftPM resource accessor would crash on other Macs" if embedded else "",
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <VERSION>")
@@ -254,6 +270,7 @@ def main():
     check_appcast(version)
     check_codesign()
     check_framework_rpath()
+    check_no_build_machine_path()
     check_notarization()
 
     total = passed + failed
