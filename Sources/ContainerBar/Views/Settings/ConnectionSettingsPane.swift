@@ -52,6 +52,8 @@ struct ConnectionSettingsPane: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Add Host")
+                .accessibilityIdentifier("openAddHostSheet")
 
                 Button(action: removeSelectedHost) {
                     Image(systemName: "minus")

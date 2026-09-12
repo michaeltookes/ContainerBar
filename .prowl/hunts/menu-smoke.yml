@@ -16,6 +16,11 @@ steps:
       selector: id=openSettings
       timeout: 10000
 
+  # Fixture data must flow through HuntMode.makeFetcher into the dashboard.
+  - waitForSelector:
+      selector: id=containerCard-web
+      timeout: 10000
+
   - assert:
       visible: id=refreshContainers
 

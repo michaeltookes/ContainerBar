@@ -43,12 +43,12 @@ guardrails:
     - "remove"
     - "Delete"
     - "delete"
-    # Host management and credentials.
+    # Host management mutations and credentials.
     - "Save"
     - "save"
     - "Test Connection"
-    - "Add Host"
-    - "addHost"
+    - "confirmAddHost"
+    - 'label="Add"'
     - "Remove Host"
     - "Set as Default"
     # System-level toggles and app lifecycle.

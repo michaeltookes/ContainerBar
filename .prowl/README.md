@@ -47,6 +47,7 @@ prowl list
 prowl run menu-smoke            # status-item menu opens; header controls render
 prowl run settings-window       # CB-041 guard: Settings opens, General pane renders
 prowl run settings-window-tabs  # every Settings tab renders; fixture host listed
+prowl run settings-add-host-sheet # Add Host sheet opens and cancels
 prowl ci --junit                # full suite, as CI runs it
 ```
 
@@ -63,8 +64,9 @@ window. Do not upload screenshots without a dedicated QA login on the runner.
   `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`; the settings
   window exposes `settingsWindow`; pane contents expose
   `refreshIntervalPicker`, `sectionsIntro`, `hostRow-<name-slug>` in the host
-  list (for example `hostRow-fixture-docker`), `host-<name-slug>` in the host
-  detail form, and `aboutVersion`
+  list (for example `hostRow-fixture-docker`), `openAddHostSheet`,
+  `addHostSheet`, `cancelAddHost`, `host-<name-slug>` in the host detail form,
+  `containerCard-<name-slug>` in the dashboard, and `aboutVersion`
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every
   `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s
@@ -77,9 +79,10 @@ Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,
 ## Writing hunts
 
 Hunts are open-and-assert. `config.yml` forbids selectors that would start,
-stop, restart, or remove containers, add or remove hosts, toggle login items or
-update checks, record shortcuts, or quit the app. Add a new identifier to the
-view rather than matching on visible text.
+stop, restart, or remove containers, save or remove hosts, toggle login items
+or update checks, record shortcuts, or quit the app. Opening and canceling the
+Add Host sheet is allowed. Add a new identifier to the view rather than
+matching on visible text.
 
 ## Runner requirements (Mac mini)
 

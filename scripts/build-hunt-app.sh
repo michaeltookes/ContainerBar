@@ -20,6 +20,48 @@ INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
+stop_existing_hunt_app() {
+    local pids=()
+    local pid
+    local command
+
+    while IFS= read -r pid; do
+        [ -z "$pid" ] && continue
+        command=$(ps -p "$pid" -o command= 2>/dev/null || true)
+        case "$command" in
+            *"/.prowl/DerivedData/"*"/Contents/MacOS/$APP_NAME"*)
+                pids+=("$pid")
+                ;;
+        esac
+    done < <(pgrep -x "$APP_NAME" || true)
+
+    if [ "${#pids[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    echo "==> Stopping existing hunt app process(es): ${pids[*]}"
+    for pid in "${pids[@]}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+
+    for _ in {1..20}; do
+        local all_stopped=1
+        for pid in "${pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                all_stopped=0
+                break
+            fi
+        done
+        [ "$all_stopped" -eq 1 ] && return 0
+        sleep 0.25
+    done
+
+    echo "Error: existing hunt app did not exit after SIGTERM: ${pids[*]}" >&2
+    exit 1
+}
+
+stop_existing_hunt_app
+
 echo "==> Building $APP_NAME (Debug) into $DERIVED_DATA"
 cd "$PROJECT_ROOT"
 set +e
