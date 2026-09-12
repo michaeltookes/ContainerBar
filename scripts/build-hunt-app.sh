@@ -18,6 +18,7 @@ BUILD_DIR="$DERIVED_DATA/Build/Products/Debug"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 DIST_DIR="$PROJECT_ROOT/Distribution"
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 echo "==> Building $APP_NAME (Debug) into $DERIVED_DATA"
 cd "$PROJECT_ROOT"
@@ -50,6 +51,11 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUN
 cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
 cp "$DIST_DIR/Info.plist" "$INFO_PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $HUNT_BUNDLE_ID" "$INFO_PLIST"
+actual_bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST")
+if [ "$actual_bundle_id" != "$HUNT_BUNDLE_ID" ]; then
+    echo "Error: hunt bundle id is $actual_bundle_id, expected $HUNT_BUNDLE_ID" >&2
+    exit 1
+fi
 [ -f "$DIST_DIR/AppIcon.icns" ] && cp "$DIST_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
 
 for bundle in "$BUILD_DIR"/*.bundle; do
@@ -72,5 +78,6 @@ fi
 
 # Ad-hoc signature so the bundle launches locally and on the runner.
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1
+"$LSREGISTER" -f "$APP_BUNDLE"
 
 echo "==> Ready: $APP_BUNDLE"
