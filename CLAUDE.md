@@ -70,18 +70,18 @@ Referenced by the `/release-prep` skill:
 
 ## Backlog Management
 
-Set `BACKLOG_ROOT` to your local backlog workspace before using these instructions, for example `export BACKLOG_ROOT="$HOME/Desktop/Backlogs"`.
+The authoritative backlog remains outside the repository per `AGENTS.md`:
 
-This project's backlog is tracked at: `${BACKLOG_ROOT}/projects/containerbar-backlog.md`
+- `~/Desktop/Backlogs/projects/containerbar-backlog.md`
 
-When you complete work that corresponds to a backlog item:
-- Read the backlog file and find the matching item
-- Move it to the `## Completed` section with the date: `(completed: YYYY-MM-DD)`
-- Re-number remaining items if needed
+Update that backlog before and after every feature or bug fix. Add missing work items, findings, risks, unknowns, and recommended next actions before editing code. Move completed items into its `## Completed` section with `(completed: YYYY-MM-DD)`.
 
-When you discover new bugs, tech debt, or feature opportunities:
-- Read the backlog file
-- Add the item to the appropriate priority tier (High / Medium / Low)
-- Use the existing format: numbered, bold title, indented description
+Committed planning files such as `docs/backlog.md` and `docs/resolved.md`, when present, are public, non-sensitive project mirrors only. Do not put secrets, private endpoints, key material, or credential values in them.
 
-If the backlog file doesn't exist yet, create it in the `projects/` folder using the template at `${BACKLOG_ROOT}/backlog-template.md`.
+Items use stable `CB-NNN` ids that are never reused or renumbered. Format:
+
+```
+### CB-NNN: Title
+**Priority**: High | Medium | Low
+**Description**: what, why, and enough detail for any agent to pick it up
+```

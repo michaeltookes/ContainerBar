@@ -18,11 +18,21 @@ TEAM_ID="${TEAM_ID:-6739LM5834}"
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-ARCH="$(uname -m)"
-BUILD_DIR="${BUILD_DIR:-$PROJECT_ROOT/.build/${ARCH}-apple-macosx/release}"
+# Release builds go through xcodebuild rather than `swift build`. SwiftPM's own
+# resource-bundle accessor hardcodes the absolute .build/<arch>-apple-macosx/release
+# path of the machine that produced the binary and fatalErrors when it is
+# missing, which crashed Settings on every Mac except the dev machine (CB-041).
+# Xcode's accessor looks in Contents/Resources first, so the bundles copied
+# below are found.
+DERIVED_DATA="${DERIVED_DATA:-$PROJECT_ROOT/.build/xcode-release}"
+BUILD_DIR="${BUILD_DIR:-$DERIVED_DATA/Build/Products/Release}"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
+REQUIRED_RESOURCE_BUNDLES=(
+    "ContainerBar_ContainerBar.bundle"
+    "KeyboardShortcuts_KeyboardShortcuts.bundle"
+)
 
 # Read version from Info.plist (single source of truth)
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$DIST_DIR/Info.plist")
@@ -61,6 +71,11 @@ check_requirements() {
 
     if ! command -v swift &> /dev/null; then
         echo_error "Swift is not installed"
+        exit 1
+    fi
+
+    if ! command -v xcodebuild &> /dev/null; then
+        echo_error "xcodebuild is not available; install Xcode"
         exit 1
     fi
 
@@ -104,7 +119,28 @@ clean() {
 build() {
     echo_step "Building $APP_NAME in release mode..."
     cd "$PROJECT_ROOT"
-    swift build -c release
+    set +e
+    xcodebuild \
+        -scheme "$APP_NAME" \
+        -configuration Release \
+        -destination "platform=macOS,arch=$(uname -m)" \
+        -derivedDataPath "${DERIVED_DATA}" \
+        CODE_SIGNING_ALLOWED=NO \
+        CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
+        build 2>&1 | grep -E "error:|warning: .*ContainerBar|BUILD (SUCCEEDED|FAILED)"
+    local build_statuses=("${PIPESTATUS[@]}")
+    set -e
+
+    local xcodebuild_status="${build_statuses[0]}"
+    if [ "$xcodebuild_status" -ne 0 ]; then
+        echo_error "xcodebuild failed with exit code $xcodebuild_status"
+        exit "$xcodebuild_status"
+    fi
+
+    if [ ! -x "$BUILD_DIR/$APP_NAME" ]; then
+        echo_error "xcodebuild did not produce $BUILD_DIR/$APP_NAME"
+        exit 1
+    fi
     echo "  ✓ Build complete"
 }
 
@@ -131,6 +167,13 @@ create_bundle() {
     fi
 
     # Copy SPM resource bundles (e.g., app resources + KeyboardShortcuts localization)
+    for name in "${REQUIRED_RESOURCE_BUNDLES[@]}"; do
+        if [ ! -d "$BUILD_DIR/$name" ]; then
+            echo_error "Required resource bundle $name missing from $BUILD_DIR"
+            exit 1
+        fi
+    done
+
     for bundle in "$BUILD_DIR"/*.bundle; do
         if [ -d "$bundle" ]; then
             cp -R "$bundle" "$APP_BUNDLE/Contents/Resources/"
@@ -242,6 +285,24 @@ verify() {
         fi
         echo "  ✓ Framework rpath verified"
     fi
+
+    # Resource bundles must be inside the sealed bundle, and the binary must not
+    # carry the SwiftPM release build path that caused CB-041. Xcode's generated
+    # accessor may still embed its DerivedData fallback, but it checks
+    # Bundle.main.resourceURL first.
+    local binary="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+    local swiftpm_release_path="$PROJECT_ROOT/.build/$(uname -m)-apple-macosx/release"
+    for name in "${REQUIRED_RESOURCE_BUNDLES[@]}"; do
+        if [ ! -d "$APP_BUNDLE/Contents/Resources/$name" ]; then
+            echo_error "Resource bundle $name missing from Contents/Resources"
+            exit 1
+        fi
+    done
+    if strings "$binary" | grep -Fq "$swiftpm_release_path"; then
+        echo_error "Binary embeds the SwiftPM release resource path $swiftpm_release_path; resource lookup would crash on other Macs"
+        exit 1
+    fi
+    echo "  ✓ Resource bundles sealed, no SwiftPM release resource paths embedded"
 
     echo "  ✓ Signature verified"
 }

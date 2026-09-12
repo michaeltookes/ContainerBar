@@ -24,6 +24,15 @@ APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", "ContainerBar.app")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
+REQUIRED_RESOURCE_BUNDLES = (
+    "ContainerBar_ContainerBar.bundle",
+    "KeyboardShortcuts_KeyboardShortcuts.bundle",
+)
+BROKEN_SWIFTPM_RELEASE_PATHS = (
+    b".build/arm64-apple-macosx/release",
+    b".build/arm64e-apple-macosx/release",
+    b".build/x86_64-apple-macosx/release",
+)
 # ───────────────────────────────────────────────────────────────────────────────
 
 passed = 0
@@ -185,7 +194,7 @@ def check_codesign():
 
 def check_framework_rpath():
     """Verify the app binary can resolve embedded frameworks from Contents/Frameworks."""
-    binary = os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    binary = app_executable_path()
     sparkle_framework = os.path.join(APP_BUNDLE, "Contents", "Frameworks", "Sparkle.framework")
 
     if not os.path.isfile(binary):
@@ -235,6 +244,49 @@ def check_framework_rpath():
     )
 
 
+def app_executable_path():
+    """Return the packaged app executable path."""
+    return os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+
+
+def check_no_swiftpm_release_resource_path():
+    """Verify the binary does not embed SwiftPM release resource fallback paths."""
+    binary = app_executable_path()
+    if not os.path.isfile(binary):
+        check("No SwiftPM release resource path embedded", False, f"binary not found: {binary}")
+        return
+    with open(binary, "rb") as f:
+        binary_contents = f.read()
+    embedded_path = next(
+        (path for path in BROKEN_SWIFTPM_RELEASE_PATHS if path in binary_contents),
+        None,
+    )
+    check(
+        "No SwiftPM release resource path embedded",
+        embedded_path is None,
+        (
+            f"binary references {embedded_path.decode()}; SwiftPM resource accessor would crash on other Macs"
+            if embedded_path
+            else ""
+        ),
+    )
+
+
+def check_required_resource_bundles():
+    """Verify release-critical resource bundles are packaged inside the app."""
+    resources_dir = os.path.join(APP_BUNDLE, "Contents", "Resources")
+    missing = [
+        name
+        for name in REQUIRED_RESOURCE_BUNDLES
+        if not os.path.isdir(os.path.join(resources_dir, name))
+    ]
+    check(
+        "Required resource bundles packaged",
+        not missing,
+        ", ".join(missing) if missing else ", ".join(REQUIRED_RESOURCE_BUNDLES),
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <VERSION>")
@@ -254,6 +306,8 @@ def main():
     check_appcast(version)
     check_codesign()
     check_framework_rpath()
+    check_required_resource_bundles()
+    check_no_swiftpm_release_resource_path()
     check_notarization()
 
     total = passed + failed

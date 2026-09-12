@@ -54,6 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         logger.info("ContainerBar ready")
+
+        // Headless verification and QA hook: open Settings immediately so a
+        // launch from a terminal or a QA runner exercises the settings panes
+        // without a click on the status item (see CB-041, CB-042).
+        if ProcessInfo.processInfo.environment["CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH"] == "1" {
+            logger.info("CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH set, opening settings")
+            statusItemController?.openSettings()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

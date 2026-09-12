@@ -1,5 +1,9 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-041: Release build crashes on Settings open on every Mac except the build machine~~
+**Resolved**: 2026-09-11
+Release builds now use xcodebuild so SwiftPM resource accessors prefer `Contents/Resources` over the build machine's SwiftPM release path. `build-release.sh` and `validate-release.py` now require `ContainerBar_ContainerBar.bundle` and `KeyboardShortcuts_KeyboardShortcuts.bundle` by name, preserve xcodebuild failures before packaging, honor `BUILD_DIR`, and reject binaries that embed the broken SwiftPM release resource path while allowing Xcode's fallback path.
+
 ## ~~CB-031: Make `StatusItemController` instantiable in tests for routing coverage~~
 **Resolved**: 2026-05-03
 Extracted the routing switch into `ContainerActionRouter` (`@MainActor`, headless-instantiable) with closure callbacks for AppKit-touching side effects. Eight tests in `ContainerActionRouterTests` now cover every `ContainerAction` case, callback wiring, and isolation. The `@objc` per-action selectors that CB-031 wanted to be covered were dead code from the legacy NSMenu builder and were deleted in the same change.
