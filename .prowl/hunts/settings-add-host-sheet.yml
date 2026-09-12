@@ -1,0 +1,49 @@
+# Non-mutating host-management smoke: the Connections pane opens the add-host
+# sheet, and Cancel returns to Settings without saving.
+#
+# Run it:  prowl run settings-add-host-sheet
+
+name: settings-add-host-sheet
+description: Connections opens, cancels, and reopens the Add Host sheet
+
+steps:
+  - click:
+      selector: statusItem
+
+  - click:
+      selector: id=openSettings
+
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+
+  - click:
+      selector: label="Connections"
+
+  - waitForSelector:
+      selector: id=hostRow-fixture-docker
+      timeout: 10000
+
+  - click:
+      selector: id=openAddHostSheet
+
+  - waitForSelector:
+      selector: id=addHostSheet
+      timeout: 10000
+
+  - click:
+      selector: label="Cancel"
+
+  - click:
+      selector: id=openAddHostSheet
+
+  - waitForSelector:
+      selector: id=addHostSheet
+      timeout: 10000
+
+  - click:
+      selector: label="Cancel"
+
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000

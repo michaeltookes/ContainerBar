@@ -12,6 +12,7 @@ struct SectionsSettingsPane: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             Text("Organize containers into custom sections based on matching rules.")
+                .accessibilityIdentifier("sectionsIntro")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 

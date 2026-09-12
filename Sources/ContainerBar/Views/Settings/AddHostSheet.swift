@@ -69,6 +69,7 @@ struct AddHostSheet: View {
                         dismiss()
                     }
                     .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("cancelAddHost")
 
                     Spacer()
 
@@ -77,6 +78,7 @@ struct AddHostSheet: View {
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!isValid)
+                    .accessibilityIdentifier("confirmAddHost")
                 }
 
                 if let validationError {
@@ -89,6 +91,7 @@ struct AddHostSheet: View {
             .padding()
         }
         .frame(width: 380)
+        .accessibilityIdentifier("addHostSheet")
     }
 
     private var isValid: Bool {

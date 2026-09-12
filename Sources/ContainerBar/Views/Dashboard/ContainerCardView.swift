@@ -117,6 +117,14 @@ struct ContainerCardView: View {
         .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
             ContainerDetailPopover(container: container, stats: stats)
         }
+        .accessibilityIdentifier(cardAccessibilityIdentifier)
+    }
+
+    private var cardAccessibilityIdentifier: String {
+        "containerCard-" + container.displayName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
     }
 
     // MARK: - Ports Label

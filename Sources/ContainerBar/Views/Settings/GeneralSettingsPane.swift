@@ -8,7 +8,8 @@ struct GeneralSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
 
     private var launchAtLoginRequiresApproval: Bool {
-        SMAppService.mainApp.status == .requiresApproval
+        guard !HuntMode.isActive else { return false }
+        return SMAppService.mainApp.status == .requiresApproval
     }
 
     private func openLoginItemsSettings() {
@@ -28,6 +29,7 @@ struct GeneralSettingsPane: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("refreshIntervalPicker")
 
                 Toggle("Show Stopped Containers", isOn: $settings.showStoppedContainers)
             } header: {

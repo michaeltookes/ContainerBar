@@ -6,14 +6,6 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## High Priority
 
-### CB-042: Prowl QA pull-request gate on the Lucius Mac mini
-**Priority**: High
-**Description**: Mirror sentwise's `.github/workflows/prowl-qa.yml`: a `pull_request` gate on a self-hosted `[self-hosted, macOS]` runner registered for this repo on the private Mac runner endpoint (`<SELF_HOSTED_MAC_RUNNER_ENDPOINT>`, kept in local-only private context), fork PRs excluded. Pin the Prowl version, build the app into `.prowl/DerivedData` via xcodebuild, run `prowl ci --junit`, upload `.prowl/runs/` as an artifact. Requires CB-043 so hunts never touch a real Docker host. First hunts: menu smoke (open menu, dashboard renders), settings window (open Settings, every tab renders without the app exiting), add-host sheet opens and cancels. Add `.prowl/config.yml` with `allowedApps` limited to the built app and `forbiddenSelectors` for anything that mutates containers.
-
-### CB-043: Offline hunt mode with a fixture Docker client for QA
-**Priority**: High
-**Description**: Prowl hunts must not hit the Beelink SSH host or a real Unix socket. Add a hunt-mode runtime, activated only when the app runs from the `.prowl/DerivedData` build path or a `CONTAINERBAR_HUNT_MODE=1` environment variable, that injects a fixture `DockerAPIClient` implementation returning a fixed set of containers, stats, and system info, backed by an isolated `UserDefaults` suite so real settings and keychain entries are untouched. Container actions in hunt mode mutate only the in-memory fixture. This is the ContainerBar equivalent of sentwise's `ProwlHuntRuntime.swift`.
-
 ### CB-044: Swift 6.2 / macOS 26 compatibility audit
 **Priority**: High
 **Description**: The project was written against Swift 6.0 and macOS 14 SDK with Opus 4.5 in early 2026; the toolchain is now Xcode 26.2 / Swift 6.2.3 on macOS 26.5. Build with `-warnings-as-errors` once to surface deprecations, review every `@unchecked Sendable`, `nonisolated(unsafe)`, and `MainActor.assumeIsolated` for correctness under Swift 6.2's stricter inference, check the SwiftUI-in-NSMenu hosting path and `NSHostingController` sizing against macOS 26's Liquid Glass menu changes, and verify `SMAppService`, `KeyboardShortcuts`, and Sparkle behave on macOS 26. Fix or file follow-up items for anything found.

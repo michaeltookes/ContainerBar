@@ -1,0 +1,31 @@
+# Smoke test: the status item exists, its menu opens, and the header controls
+# render. Read-only; the hunt never activates Settings or Quit here.
+#
+# Run it:  prowl run menu-smoke
+
+name: menu-smoke
+description: Open the status-item menu and verify the dashboard header renders
+
+steps:
+  # `statusItem` is the macOS target's magic selector: find the app's menu bar
+  # extra and press it, leaving the menu open for the assertions below.
+  - click:
+      selector: statusItem
+
+  - waitForSelector:
+      selector: id=openSettings
+      timeout: 10000
+
+  # Fixture data must flow through HuntMode.makeFetcher into the dashboard.
+  - waitForSelector:
+      selector: id=containerCard-web
+      timeout: 10000
+
+  - assert:
+      visible: id=refreshContainers
+
+  - assert:
+      visible: id=toggleSearch
+
+  # quitApp is deliberately not asserted: "quitApp" is a forbidden selector in
+  # config.yml and the guardrail applies to assertions as well as clicks.

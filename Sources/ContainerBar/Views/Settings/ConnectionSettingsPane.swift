@@ -6,10 +6,16 @@ struct ConnectionSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(ContainerStore.self) private var containerStore
 
+    private let fetcherFactory: ContainerStore.FetcherFactory
+
     @State private var selectedHostId: UUID?
     @State private var isAddingHost = false
     @State private var isTestingConnection = false
     @State private var testResult: ConnectionTestResult?
+
+    init(fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory) {
+        self.fetcherFactory = fetcherFactory
+    }
 
     var body: some View {
         HSplitView {
@@ -46,6 +52,8 @@ struct ConnectionSettingsPane: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel("Add Host")
+                .accessibilityIdentifier("openAddHostSheet")
 
                 Button(action: removeSelectedHost) {
                     Image(systemName: "minus")
@@ -110,19 +118,15 @@ struct ConnectionSettingsPane: View {
         isTestingConnection = true
         testResult = nil
 
-        Task {
+        Task { @MainActor in
             do {
-                let fetcher = try ContainerFetcher.forHost(host)
+                let fetcher = try fetcherFactory(host)
                 try await fetcher.testConnection()
-                await MainActor.run {
-                    testResult = .success
-                    isTestingConnection = false
-                }
+                testResult = .success
+                isTestingConnection = false
             } catch {
-                await MainActor.run {
-                    testResult = .failure(error.localizedDescription)
-                    isTestingConnection = false
-                }
+                testResult = .failure(error.localizedDescription)
+                isTestingConnection = false
             }
         }
     }
@@ -148,6 +152,7 @@ struct HostDetailsView: View {
             Section {
                 LabeledContent("Name") {
                     Text(host.name)
+                        .accessibilityIdentifier("host-" + host.name.lowercased().replacingOccurrences(of: " ", with: "-"))
                 }
 
                 LabeledContent("Runtime") {

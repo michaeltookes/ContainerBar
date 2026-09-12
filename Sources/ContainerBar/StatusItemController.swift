@@ -30,13 +30,21 @@ final class StatusItemController: NSObject {
     /// plus closure callbacks for AppKit-touching side effects.
     let router: ContainerActionRouter
 
+    /// Builds fetchers for secondary surfaces such as the log viewer.
+    let fetcherFactory: ContainerStore.FetcherFactory
+
     /// Task for observing store changes
     private var observationTask: Task<Void, Never>?
 
-    init(containerStore: ContainerStore, settingsStore: SettingsStore) {
+    init(
+        containerStore: ContainerStore,
+        settingsStore: SettingsStore,
+        fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
+    ) {
         self.containerStore = containerStore
         self.settingsStore = settingsStore
         self.router = ContainerActionRouter(containerStore: containerStore)
+        self.fetcherFactory = fetcherFactory
 
         // Create status item with variable width
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -130,6 +138,11 @@ final class StatusItemController: NSObject {
     // MARK: - Global Hotkey
 
     private func setupGlobalHotkey() {
+        guard !HuntMode.isActive else {
+            logger.info("Hunt mode active; skipping global hotkey registration")
+            return
+        }
+
         KeyboardShortcuts.onKeyUp(for: .toggleMenu) { [weak self] in
             Task { @MainActor in
                 self?.toggleMenu()

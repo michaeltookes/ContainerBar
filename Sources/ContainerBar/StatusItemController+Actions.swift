@@ -15,7 +15,9 @@ extension StatusItemController {
         alert.messageText = "Remove Container?"
 
         if isRunning {
-            alert.informativeText = "'\(container.displayName)' is currently running. It will be force-stopped and removed. This action cannot be undone."
+            let message = "'\(container.displayName)' is currently running. "
+                + "It will be force-stopped and removed. This action cannot be undone."
+            alert.informativeText = message
         } else {
             alert.informativeText = "Are you sure you want to remove '\(container.displayName)'? This action cannot be undone."
         }
@@ -48,12 +50,7 @@ extension StatusItemController {
         }
 
         do {
-            let fetcher: ContainerFetcher
-            if let host = settingsStore.selectedHost {
-                fetcher = try ContainerFetcher.forHost(host)
-            } else {
-                fetcher = try ContainerFetcher.local()
-            }
+            let fetcher = try fetcherFactory(settingsStore.selectedHost)
 
             LogViewerWindowController.shared.showLogs(
                 containerId: containerId,
@@ -76,7 +73,8 @@ extension StatusItemController {
         logger.info("Opening settings")
         SettingsWindowController.shared.showSettings(
             settings: settingsStore,
-            containerStore: containerStore
+            containerStore: containerStore,
+            fetcherFactory: fetcherFactory
         )
     }
 }

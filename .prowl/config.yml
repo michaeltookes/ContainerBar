@@ -1,0 +1,61 @@
+# Prowl configuration — ContainerBar menu bar app (Prowl macOS target).
+#
+# Hunts run against the hunt-mode build produced by scripts/build-hunt-app.sh.
+# That bundle path switches the app to FixtureDockerAPIClient (six fixed
+# containers, in-memory only) and a throwaway preferences suite, so no hunt can
+# reach a real Docker daemon, SSH host, or the user's saved hosts.
+
+target:
+  type: macos
+  app: .prowl/DerivedData/Build/Products/Debug/ContainerBar.app
+
+browser:
+  timeout: 30000        # also bounds app-launch wait for the macOS target
+
+artifacts:
+  # Prowl only offers "on-failure" or "all". Failure screenshots stay local to
+  # the runner for debugging; the workflow deletes every screenshots/ folder
+  # before uploading .prowl/runs. This repo is public and run artifacts are
+  # downloadable by any logged-in GitHub user, and the macOS target falls back
+  # to a FULL-SCREEN capture whenever the app has no capturable window, which
+  # exposes whatever else is on the runner's display.
+  screenshots: "on-failure"
+
+# Safety guardrails. forbiddenSelectors is substring-matched against every
+# selector. Even though hunt mode cannot touch real containers, hunts stay
+# open-and-assert: anything that would mutate hosts, sections, login items,
+# updates, or shortcuts is forbidden so a misconfigured build can do no harm.
+guardrails:
+  maxSteps: 25
+  allowedApps:
+    - .prowl/DerivedData/Build/Products/Debug/ContainerBar.app
+    - com.tookes.ContainerBar.hunt
+  forbiddenSelectors:
+    # Substring selector families — too easy to hit an unsafe element.
+    - "menu="
+    - "text="
+    # Container lifecycle (fixture-only in hunt mode, still open-and-assert).
+    - "Stop container"
+    - "Start container"
+    - "Restart"
+    - "restart"
+    - "Remove"
+    - "remove"
+    - "Delete"
+    - "delete"
+    # Host management mutations and credentials.
+    - "Save"
+    - "save"
+    - "Test Connection"
+    - "confirmAddHost"
+    - 'label="Add"'
+    - "Remove Host"
+    - "Set as Default"
+    # System-level toggles and app lifecycle.
+    - "Launch at Login"
+    - "Check for Updates"
+    - "Automatically Check"
+    - "quitApp"
+    - "Quit"
+    - "Record Shortcut"
+    - "Toggle Menu"

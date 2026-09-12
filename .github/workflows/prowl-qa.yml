@@ -1,0 +1,95 @@
+# Prowl QA — end-to-end acceptance hunts against the real ContainerBar app.
+#
+# Drives the hunt-mode build (fixture Docker client, throwaway preferences —
+# see .prowl/README.md) through Prowl's macOS target on a SELF-HOSTED macOS
+# runner. GitHub-hosted macOS runners cannot run this: the runner's host
+# process needs pre-granted Accessibility permission (and Screen Recording for
+# failure screenshots), which only a machine you control can provide.
+#
+# Runs as a PR gate for same-repository PR heads and stays manually
+# triggerable via workflow_dispatch.
+
+name: Prowl QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+env:
+  PROWL_VERSION: 0.1.8
+
+jobs:
+  prowl-qa:
+    # Fork PR code is untrusted input for a persistent self-hosted GUI runner.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    # The hunts drive a real GUI session; the single self-hosted macOS runner
+    # serializes runs through its native queue.
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout ContainerBar
+        uses: actions/checkout@v4
+
+      - name: Checkout Prowl (CLI/helper source tag)
+        uses: actions/checkout@v4
+        with:
+          repository: prowl-tools/prowl
+          ref: v${{ env.PROWL_VERSION }}
+          path: prowl-src
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build and link Prowl CLI
+        working-directory: prowl-src
+        run: |
+          npm install
+          npm run build
+          npm link
+
+      - name: Build prowl-macdriver helper
+        working-directory: prowl-src/macdriver
+        run: |
+          swift build -c release
+          echo "PROWL_MACDRIVER_BIN=${GITHUB_WORKSPACE}/prowl-src/macdriver/.build/release/prowl-macdriver" >> "$GITHUB_ENV"
+
+      - name: Preflight Accessibility permission
+        run: |
+          if ! "$PROWL_MACDRIVER_BIN" check; then
+            echo "::error::Runner host is not trusted for Accessibility." \
+              "Grant it in System Settings → Privacy & Security → Accessibility" \
+              "on the runner machine (see .prowl/README.md), then re-run."
+            exit 1
+          fi
+
+      - name: Build ContainerBar (hunt mode)
+        # The .prowl/DerivedData bundle path is what activates hunt mode
+        # (HuntMode.swift) — do not relocate it.
+        run: ./scripts/build-hunt-app.sh
+
+      - name: Run hunts
+        run: prowl ci --junit
+
+      - name: Strip screenshots before upload
+        # The macOS target falls back to a full-screen capture when the app has
+        # no capturable window, and this public repo's artifacts are readable by
+        # any logged-in user. Screenshots stay on the runner only.
+        if: always()
+        run: find .prowl/runs -type d -name screenshots -prune -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prowl-runs
+          path: |
+            .prowl/runs/
+            !.prowl/runs/**/screenshots/**
+          if-no-files-found: ignore
+          retention-days: 14

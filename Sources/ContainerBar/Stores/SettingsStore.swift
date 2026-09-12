@@ -94,8 +94,9 @@ public final class SettingsStore {
 
         self.showStoppedContainers = userDefaults.object(forKey: Keys.showStoppedContainers) as? Bool ?? true
 
-        // Sync launch at login from actual system state (may have been changed in System Settings)
-        self.launchAtLogin = LaunchAtLoginManager.shared.isEnabled
+        // Hunt mode runs from an ad-hoc CI bundle and must not touch system
+        // login-item state before the status item is available.
+        self.launchAtLogin = HuntMode.isActive ? false : LaunchAtLoginManager.shared.isEnabled
 
         self.iconStyle = IconStyle(
             rawValue: userDefaults.string(forKey: Keys.iconStyle) ?? ""
