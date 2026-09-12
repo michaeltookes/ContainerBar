@@ -1,0 +1,74 @@
+# Prowl hunts for ContainerBar (macOS target)
+
+End-to-end QA hunts that drive the real ContainerBar menu bar app through macOS
+Accessibility using Prowl's `macos` target. They run as a pull-request gate on
+the self-hosted Mac mini runner (`.github/workflows/prowl-qa.yml`) and can be
+run locally.
+
+## Hunt mode
+
+`scripts/build-hunt-app.sh` builds a Debug bundle at
+`.prowl/DerivedData/Build/Products/Debug/ContainerBar.app`. That path switches
+the app into hunt mode (`Sources/ContainerBar/Services/HuntMode.swift`):
+
+- `FixtureDockerAPIClient` serves six fixed containers from memory. No socket,
+  SSH tunnel, or TLS connection is ever opened.
+- Preferences live in the `com.tookes.ContainerBar.hunt` defaults suite, wiped
+  on every launch. The user's real hosts, sections, and keychain items are
+  never read or written.
+- The only host is "Fixture Docker". Sparkle does not start in Debug builds.
+
+Hunt mode can also be forced with `CONTAINERBAR_HUNT_MODE=1`, and
+`CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1` opens Settings immediately for
+headless checks.
+
+## One-time local setup
+
+1. **CLI**: clone `prowl-tools/prowl` at the tag pinned in the workflow, then
+   `npm install && npm run build && npm link`.
+2. **Helper**: in that clone, `cd macdriver && swift build -c release`. Set
+   `PROWL_MACDRIVER_BIN` if the CLI cannot find it.
+3. **Permissions** (System Settings → Privacy & Security), granted to the
+   terminal you run `prowl` from: **Accessibility** (required) and **Screen
+   Recording** (failure screenshots only).
+4. **Build the app under test**: `./scripts/build-hunt-app.sh`.
+
+## Running
+
+```bash
+prowl list
+prowl run menu-smoke            # status-item menu opens; header controls render
+prowl run settings-window       # CB-041 guard: Settings opens, General pane renders
+prowl run settings-window-tabs  # every Settings tab renders; fixture host listed
+prowl ci --junit                # full suite, as CI runs it
+```
+
+Artifacts land in `.prowl/runs/` (gitignored).
+
+## Selector dialect
+
+- `statusItem` — press the app's menu bar status item (leaves the menu open)
+- `id=<axIdentifier>` — accessibility identifier; the header buttons expose
+  `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`, and the
+  settings window exposes `settingsWindow`
+- `label="…"` — exact accessibility label; Settings toolbar tabs are native
+  `NSToolbarItem`s so they are clicked by label (`General`, `Sections`,
+  `Connections`, `About`)
+- `menu=` and `text=` are forbidden by `config.yml`
+
+Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,
+`timeout`), `fill`, `scrollTo`.
+
+## Writing hunts
+
+Hunts are open-and-assert. `config.yml` forbids selectors that would start,
+stop, restart, or remove containers, add or remove hosts, toggle login items or
+update checks, record shortcuts, or quit the app. Add a new identifier to the
+view rather than matching on visible text.
+
+## Runner requirements (Mac mini)
+
+- macOS with Xcode; a logged-in GUI session
+- **Accessibility** granted to the process hosting the runner agent, plus
+  **Screen Recording** for failure screenshots
+- Registered with labels `self-hosted, macOS`; one runner directory per repo

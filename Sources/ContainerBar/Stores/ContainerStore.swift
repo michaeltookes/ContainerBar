@@ -76,8 +76,23 @@ public final class ContainerStore {
 
     // MARK: - Initialization
 
-    public init(settings: SettingsStore) {
+    /// Builds a fetcher for the selected host (`nil` means local Docker).
+    public typealias FetcherFactory = @MainActor (DockerHost?) throws -> ContainerFetcher
+
+    @ObservationIgnored
+    private let fetcherFactory: FetcherFactory
+
+    /// Production factory: real Unix socket, SSH, or TLS client per host.
+    public static let defaultFetcherFactory: FetcherFactory = { host in
+        if let host {
+            return try ContainerFetcher.forHost(host)
+        }
+        return try ContainerFetcher.local()
+    }
+
+    public init(settings: SettingsStore, fetcherFactory: @escaping FetcherFactory = ContainerStore.defaultFetcherFactory) {
         self.settings = settings
+        self.fetcherFactory = fetcherFactory
         initializeFetcher()
         startTimer()
         startSettingsObservation()
@@ -87,6 +102,7 @@ public final class ContainerStore {
     /// Test-only initializer that accepts a pre-built fetcher and skips auto-refresh
     public init(settings: SettingsStore, fetcher: ContainerFetcher, startRefreshLoop: Bool = false) {
         self.settings = settings
+        self.fetcherFactory = ContainerStore.defaultFetcherFactory
         self.fetcher = fetcher
         if startRefreshLoop {
             startTimer()
@@ -103,13 +119,9 @@ public final class ContainerStore {
 
     private func initializeFetcher() {
         do {
-            if let host = settings.selectedHost {
-                fetcher = try ContainerFetcher.forHost(host)
-                logger.info("Fetcher initialized for host: \(host.name)")
-            } else {
-                fetcher = try ContainerFetcher.local()
-                logger.info("Fetcher initialized for local Docker")
-            }
+            let host = settings.selectedHost
+            fetcher = try fetcherFactory(host)
+            logger.info("Fetcher initialized for host: \(host?.name ?? "Local Docker")")
         } catch {
             logger.error("Failed to initialize fetcher: \(error.localizedDescription)")
             connectionError = error.localizedDescription

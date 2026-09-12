@@ -1,0 +1,46 @@
+# Every Settings tab renders without the window disappearing. Toolbar tabs are
+# native NSToolbarItems with no AX identifier, so they are clicked by their
+# visible label. Switching tabs mutates no state.
+#
+# Run it:  prowl run settings-window-tabs
+
+name: settings-window-tabs
+description: Switching Settings toolbar tabs keeps the window present
+
+steps:
+  - click:
+      selector: statusItem
+
+  - click:
+      selector: id=openSettings
+
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+
+  - click:
+      selector: label="Sections"
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+
+  - click:
+      selector: label="Connections"
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+  # Hunt mode seeds exactly one host, named "Fixture Docker".
+  - assert:
+      visible: label="Fixture Docker"
+
+  - click:
+      selector: label="About"
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+
+  - click:
+      selector: label="General"
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000

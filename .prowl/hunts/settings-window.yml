@@ -1,0 +1,24 @@
+# Regression guard for CB-041: opening Settings must not quit the app. v2.0.3
+# died on every Mac except the build machine the moment the General pane
+# rendered the keyboard shortcut recorder. Opens Settings from the menu and
+# waits for the window handle; if the process exits, the wait fails.
+#
+# Run it:  prowl run settings-window
+
+name: settings-window
+description: Settings opens from the menu and the General pane renders
+
+steps:
+  - click:
+      selector: statusItem
+
+  - click:
+      selector: id=openSettings
+
+  - waitForSelector:
+      selector: id=settingsWindow
+      timeout: 10000
+
+  # General pane content proves the pane rendered past the shortcut recorder.
+  - assert:
+      visible: label="Refresh Interval"

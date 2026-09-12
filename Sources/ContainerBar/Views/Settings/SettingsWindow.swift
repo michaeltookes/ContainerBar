@@ -85,6 +85,8 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
         )
         window.title = "General"
         window.delegate = self
+        // Stable handle for UI automation; the title changes per tab.
+        window.setAccessibilityIdentifier("settingsWindow")
 
         // Create and configure the toolbar
         let toolbar = NSToolbar(identifier: "SettingsToolbar")

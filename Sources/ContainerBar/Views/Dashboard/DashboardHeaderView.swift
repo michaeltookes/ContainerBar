@@ -30,6 +30,7 @@ struct DashboardHeaderView: View {
                     icon: "arrow.clockwise",
                     isSpinning: isRefreshing,
                     accessibilityLabel: "Refresh containers",
+                    accessibilityIdentifier: "refreshContainers",
                     action: onRefresh
                 )
                 .disabled(isRefreshing)
@@ -39,6 +40,7 @@ struct DashboardHeaderView: View {
                     icon: "magnifyingglass",
                     isActive: isSearching,
                     accessibilityLabel: isSearching ? "Close search" : "Search containers",
+                    accessibilityIdentifier: "toggleSearch",
                     action: onSearch
                 )
                 .help(isSearching ? "Close search" : "Search containers")
@@ -46,6 +48,7 @@ struct DashboardHeaderView: View {
                 HeaderButton(
                     icon: "power",
                     accessibilityLabel: "Quit ContainerBar",
+                    accessibilityIdentifier: "quitApp",
                     action: onQuit
                 )
                 .help("Quit ContainerBar")
@@ -53,6 +56,7 @@ struct DashboardHeaderView: View {
                 HeaderButton(
                     icon: "gear",
                     accessibilityLabel: "Settings",
+                    accessibilityIdentifier: "openSettings",
                     action: onSettings
                 )
                 .help("Settings")
@@ -82,6 +86,8 @@ struct HeaderButton: View {
     var isSpinning: Bool = false
     var isActive: Bool = false
     var accessibilityLabel: String = ""
+    /// Stable identifier for UI automation (Prowl hunts); independent of the label.
+    var accessibilityIdentifier: String = ""
     let action: () -> Void
 
     @State private var isHovered = false
@@ -104,6 +110,7 @@ struct HeaderButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
                 isHovered = hovering

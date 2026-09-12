@@ -24,8 +24,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(label: "com.containerbar.app")
 
     override init() {
-        self.settingsStore = SettingsStore()
-        self.containerStore = ContainerStore(settings: settingsStore)
+        if HuntMode.isActive {
+            let settings = SettingsStore(userDefaults: HuntMode.makeUserDefaults())
+            HuntMode.seed(settings)
+            self.settingsStore = settings
+            self.containerStore = ContainerStore(settings: settings, fetcherFactory: HuntMode.makeFetcher)
+        } else {
+            self.settingsStore = SettingsStore()
+            self.containerStore = ContainerStore(settings: settingsStore)
+        }
         super.init()
     }
 
