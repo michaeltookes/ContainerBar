@@ -31,6 +31,15 @@ struct SettingsContentView: View {
     @Environment(ContainerStore.self) private var containerStore
 
     let selectedTab: SettingsTab
+    private let fetcherFactory: ContainerStore.FetcherFactory
+
+    init(
+        selectedTab: SettingsTab,
+        fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
+    ) {
+        self.selectedTab = selectedTab
+        self.fetcherFactory = fetcherFactory
+    }
 
     var body: some View {
         Group {
@@ -40,7 +49,7 @@ struct SettingsContentView: View {
             case .sections:
                 SectionsSettingsPane()
             case .connections:
-                ConnectionSettingsPane()
+                ConnectionSettingsPane(fetcherFactory: fetcherFactory)
             case .about:
                 AboutPane()
             }
@@ -61,14 +70,20 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
     private var selectedTab: SettingsTab = .general
     private var settingsStore: SettingsStore?
     private var containerStore: ContainerStore?
+    private var fetcherFactory: ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
 
     private override init() {
         super.init()
     }
 
-    func showSettings(settings: SettingsStore, containerStore: ContainerStore) {
+    func showSettings(
+        settings: SettingsStore,
+        containerStore: ContainerStore,
+        fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
+    ) {
         self.settingsStore = settings
         self.containerStore = containerStore
+        self.fetcherFactory = fetcherFactory
 
         if let existingWindow = window {
             existingWindow.makeKeyAndOrderFront(nil)
@@ -117,7 +132,10 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
     private func updateContent(for tab: SettingsTab) {
         guard let settings = settingsStore, let containerStore = containerStore else { return }
 
-        let contentView = SettingsContentView(selectedTab: tab)
+        let contentView = SettingsContentView(
+            selectedTab: tab,
+            fetcherFactory: fetcherFactory
+        )
             .environment(settings)
             .environment(containerStore)
 

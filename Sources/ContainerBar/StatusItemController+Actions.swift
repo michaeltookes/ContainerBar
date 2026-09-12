@@ -73,7 +73,8 @@ extension StatusItemController {
         logger.info("Opening settings")
         SettingsWindowController.shared.showSettings(
             settings: settingsStore,
-            containerStore: containerStore
+            containerStore: containerStore,
+            fetcherFactory: fetcherFactory
         )
     }
 }
