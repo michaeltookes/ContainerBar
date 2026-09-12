@@ -79,5 +79,6 @@ fi
 # Ad-hoc signature so the bundle launches locally and on the runner.
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1
 "$LSREGISTER" -f "$APP_BUNDLE"
+echo "==> Registered $HUNT_BUNDLE_ID with Launch Services"
 
 echo "==> Ready: $APP_BUNDLE"

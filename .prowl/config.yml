@@ -7,7 +7,7 @@
 
 target:
   type: macos
-  app: .prowl/DerivedData/Build/Products/Debug/ContainerBar.app
+  app: com.tookes.ContainerBar.hunt
 
 browser:
   timeout: 30000        # also bounds app-launch wait for the macOS target

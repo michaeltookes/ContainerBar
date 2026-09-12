@@ -8,8 +8,9 @@ run locally.
 ## Hunt mode
 
 `scripts/build-hunt-app.sh` builds a Debug bundle at
-`.prowl/DerivedData/Build/Products/Debug/ContainerBar.app`. That path switches
-the app into hunt mode (`Sources/ContainerBar/Services/HuntMode.swift`):
+`.prowl/DerivedData/Build/Products/Debug/ContainerBar.app`, then registers its
+`com.tookes.ContainerBar.hunt` bundle identifier. That path switches the app
+into hunt mode (`Sources/ContainerBar/Services/HuntMode.swift`):
 
 - `FixtureDockerAPIClient` serves six fixed containers from memory. No socket,
   SSH tunnel, or TLS connection is ever opened.
