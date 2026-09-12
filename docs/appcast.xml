@@ -7,6 +7,14 @@
         <language>en</language>
         <!-- Release entries will be added here by generate-appcast.sh -->
         <item>
+            <title>2.0.4</title>
+            <pubDate>Sat, 12 Sep 2026 02:52:28 -0500</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>2.0.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.4/ContainerBar.zip" length="7319687" type="application/octet-stream" sparkle:edSignature="gft0Ejy7FN+QDWzFJMskC1fM6SNiu2/Fd1XFXbbiyMG45Iye9plZGykibXa/b7FGPr8xcXUKg/xAxemEMtCFAw=="/>
+        </item>
+        <item>
             <title>2.0.3</title>
             <pubDate>Sun, 03 May 2026 19:08:10 -0500</pubDate>
             <sparkle:version>6</sparkle:version>
@@ -21,14 +29,6 @@
             <sparkle:shortVersionString>2.0.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.2/ContainerBar.zip" length="7319624" type="application/octet-stream" sparkle:edSignature="9c2S9MCzdUywWyroEVsrEtGIPHbuynGQbl8cwctia4eObURMBgyho0rTLBroiQ4twOP021r2KxEMcTQcxYmpBQ=="/>
-        </item>
-        <item>
-            <title>2.0.1</title>
-            <pubDate>Sun, 15 Mar 2026 17:39:36 -0500</pubDate>
-            <sparkle:version>4</sparkle:version>
-            <sparkle:shortVersionString>2.0.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.1/ContainerBar.zip" length="7314558" type="application/octet-stream" sparkle:edSignature="q340mbZtZSqu3xNpiTEFjoX/y3GBYXKG2eEjMHpjwsfj64qp/hDFNSCnAhTmFxpB6UetvJadiv4LBvOJ2KQpAQ=="/>
         </item>
     </channel>
 </rss>
