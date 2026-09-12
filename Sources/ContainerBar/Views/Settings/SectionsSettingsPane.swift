@@ -12,6 +12,7 @@ struct SectionsSettingsPane: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             Text("Organize containers into custom sections based on matching rules.")
+                .accessibilityIdentifier("sectionsIntro")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -36,7 +37,6 @@ struct SectionsSettingsPane: View {
 
                 if !settings.sections.isEmpty {
                     Text("\(settings.sections.count) section(s)")
-                        .accessibilityIdentifier("sectionsCount")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

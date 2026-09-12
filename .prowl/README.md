@@ -51,7 +51,7 @@ Artifacts land in `.prowl/runs/` (gitignored).
 - `id=<axIdentifier>` — accessibility identifier; the header buttons expose
   `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`; the settings
   window exposes `settingsWindow`; pane contents expose
-  `refreshIntervalPicker`, `sectionsCount`, `host-<name-slug>` (for example
+  `refreshIntervalPicker`, `sectionsIntro`, `host-<name-slug>` (for example
   `host-fixture-docker`), and `aboutVersion`
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every

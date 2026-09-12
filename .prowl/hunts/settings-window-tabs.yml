@@ -23,8 +23,9 @@ steps:
   - waitForSelector:
       selector: id=settingsWindow
       timeout: 10000
+  # The intro text is present with or without sections; the count label is not.
   - assert:
-      visible: id=sectionsCount
+      visible: id=sectionsIntro
 
   - click:
       selector: label="Connections"
