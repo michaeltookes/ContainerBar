@@ -1,5 +1,13 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-042: Prowl QA pull-request gate on the Lucius Mac mini~~
+**Resolved**: 2026-09-12 (PR #40)
+**Description**: `.github/workflows/prowl-qa.yml` runs `prowl ci --junit` on the self-hosted `lucius-mac-mini-containerbar` runner (labels `self-hosted, macOS`, one runner directory per repo, launchd service) for same-repo PRs and manual dispatch, pinned to Prowl 0.1.8. `.prowl/config.yml` limits `allowedApps` to the hunt build and forbids every selector that would mutate containers, hosts, login items, updates, shortcuts, or quit. Three hunts pass: `menu-smoke`, `settings-window` (the CB-041 regression guard), and `settings-window-tabs`. Lessons baked into `.prowl/README.md`: `label=` works only on click steps because assertions are rewritten to the forbidden `text=`; `forbiddenSelectors` applies to assertions too; Prowl's macOS target falls back to a full-screen capture, so the workflow strips `screenshots/` before uploading artifacts from this public repo. The runner's `externals/node20/bin/node` needs a one-time Accessibility grant on the mini.
+
+## ~~CB-043: Offline hunt mode with a fixture Docker client for QA~~
+**Resolved**: 2026-09-12 (PR #40)
+**Description**: `HuntMode.swift` activates when the bundle path contains `.prowl/DerivedData` or `CONTAINERBAR_HUNT_MODE=1`, builds `SettingsStore` on a throwaway `com.tookes.ContainerBar.hunt` defaults suite wiped each launch, seeds the single "Fixture Docker" host, and injects `FixtureDockerAPIClient` through the new `ContainerStore.FetcherFactory`. The fixture actor serves six deterministic containers from memory and mutates only that state on start/stop/restart/remove. `scripts/build-hunt-app.sh` assembles the Debug bundle at the hunt path. Header buttons, the settings window, and pane contents expose stable accessibility identifiers. Covered by `FixtureDockerAPIClientTests` and `HuntModeTests`.
+
 ## ~~CB-041: Release build crashes on Settings open on every Mac except the build machine~~
 **Resolved**: 2026-09-11
 Release builds now use xcodebuild so SwiftPM resource accessors prefer `Contents/Resources` over the build machine's SwiftPM release path. `build-release.sh` and `validate-release.py` now require `ContainerBar_ContainerBar.bundle` and `KeyboardShortcuts_KeyboardShortcuts.bundle` by name, preserve xcodebuild failures before packaging, honor `BUILD_DIR`, and reject binaries that embed the broken SwiftPM release resource path while allowing Xcode's fallback path.
