@@ -4,7 +4,7 @@
 # Run it:  prowl run settings-add-host-sheet
 
 name: settings-add-host-sheet
-description: Connections opens and cancels the Add Host sheet
+description: Connections opens, cancels, and reopens the Add Host sheet
 
 steps:
   - click:
@@ -23,6 +23,16 @@ steps:
   - waitForSelector:
       selector: id=hostRow-fixture-docker
       timeout: 10000
+
+  - click:
+      selector: id=openAddHostSheet
+
+  - waitForSelector:
+      selector: id=addHostSheet
+      timeout: 10000
+
+  - click:
+      selector: label="Cancel"
 
   - click:
       selector: id=openAddHostSheet

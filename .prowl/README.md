@@ -47,7 +47,7 @@ prowl list
 prowl run menu-smoke            # status-item menu opens; header controls render
 prowl run settings-window       # CB-041 guard: Settings opens, General pane renders
 prowl run settings-window-tabs  # every Settings tab renders; fixture host listed
-prowl run settings-add-host-sheet # Add Host sheet opens and cancels
+prowl run settings-add-host-sheet # Add Host sheet opens, cancels, and reopens
 prowl ci --junit                # full suite, as CI runs it
 ```
 
@@ -83,7 +83,8 @@ Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,
 Hunts are open-and-assert. `config.yml` forbids selectors that would start,
 stop, restart, or remove containers, save or remove hosts, toggle login items
 or update checks, record shortcuts, or quit the app. Opening and canceling the
-Add Host sheet is allowed. Add a new identifier to the view for assertions
+Add Host sheet is allowed; the sheet hunt reopens it after canceling to prove
+the first sheet dismissed. Add a new identifier to the view for assertions
 rather than matching on visible text.
 
 ## Runner requirements (Mac mini)
