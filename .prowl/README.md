@@ -43,7 +43,11 @@ prowl run settings-window-tabs  # every Settings tab renders; fixture host liste
 prowl ci --junit                # full suite, as CI runs it
 ```
 
-Artifacts land in `.prowl/runs/` (gitignored).
+Artifacts land in `.prowl/runs/` (gitignored). Screenshots are disabled in
+`config.yml` on purpose: this repo is public, run artifacts are downloadable by
+any logged-in GitHub user, and the macOS target captures the runner's whole
+screen whenever the app has no frontmost window. Do not re-enable them without
+a dedicated QA login on the runner.
 
 ## Selector dialect
 
@@ -51,8 +55,9 @@ Artifacts land in `.prowl/runs/` (gitignored).
 - `id=<axIdentifier>` — accessibility identifier; the header buttons expose
   `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`; the settings
   window exposes `settingsWindow`; pane contents expose
-  `refreshIntervalPicker`, `sectionsIntro`, `host-<name-slug>` (for example
-  `host-fixture-docker`), and `aboutVersion`
+  `refreshIntervalPicker`, `sectionsIntro`, `hostRow-<name-slug>` in the host
+  list (for example `hostRow-fixture-docker`), `host-<name-slug>` in the host
+  detail form, and `aboutVersion`
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every
   `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s

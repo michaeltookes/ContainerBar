@@ -13,7 +13,12 @@ browser:
   timeout: 30000        # also bounds app-launch wait for the macOS target
 
 artifacts:
-  screenshots: "on-failure"   # screenshots need Screen Recording permission
+  # Keep screenshots OFF. This repo is public and run artifacts are downloadable
+  # by any logged-in GitHub user; the macOS target falls back to a FULL-SCREEN
+  # capture whenever the app has no capturable window (menu open, or the
+  # settings window not frontmost), which exposes whatever else is on the
+  # runner's display. Turn on only for a private repo or a dedicated QA login.
+  screenshots: "off"
 
 # Safety guardrails. forbiddenSelectors is substring-matched against every
 # selector. Even though hunt mode cannot touch real containers, hunts stay
