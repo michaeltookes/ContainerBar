@@ -43,11 +43,11 @@ prowl run settings-window-tabs  # every Settings tab renders; fixture host liste
 prowl ci --junit                # full suite, as CI runs it
 ```
 
-Artifacts land in `.prowl/runs/` (gitignored). Screenshots are disabled in
-`config.yml` on purpose: this repo is public, run artifacts are downloadable by
-any logged-in GitHub user, and the macOS target captures the runner's whole
-screen whenever the app has no frontmost window. Do not re-enable them without
-a dedicated QA login on the runner.
+Artifacts land in `.prowl/runs/` (gitignored). In CI the workflow deletes
+every `screenshots/` folder before uploading, on purpose: this repo is public,
+run artifacts are downloadable by any logged-in GitHub user, and the macOS
+target captures the runner's whole screen whenever the app has no frontmost
+window. Do not upload screenshots without a dedicated QA login on the runner.
 
 ## Selector dialect
 
