@@ -49,11 +49,14 @@ Artifacts land in `.prowl/runs/` (gitignored).
 
 - `statusItem` — press the app's menu bar status item (leaves the menu open)
 - `id=<axIdentifier>` — accessibility identifier; the header buttons expose
-  `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`, and the
-  settings window exposes `settingsWindow`
-- `label="…"` — exact accessibility label; Settings toolbar tabs are native
-  `NSToolbarItem`s so they are clicked by label (`General`, `Sections`,
-  `Connections`, `About`)
+  `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`; the settings
+  window exposes `settingsWindow`; pane contents expose
+  `refreshIntervalPicker`, `sectionsCount`, `host-<name-slug>` (for example
+  `host-fixture-docker`), and `aboutVersion`
+- `label="…"` — exact accessibility label, **click steps only**. Assertions
+  are rewritten to `text=` internally, which `config.yml` forbids, so every
+  `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s
+  so they are clicked by label (`General`, `Sections`, `Connections`, `About`)
 - `menu=` and `text=` are forbidden by `config.yml`
 
 Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,

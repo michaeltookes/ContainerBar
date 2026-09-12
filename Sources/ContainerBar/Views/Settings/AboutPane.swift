@@ -38,6 +38,7 @@ struct AboutPane: View {
                     .clipShape(Capsule())
 
                 Text("Version \(appVersion) (\(buildNumber))")
+                    .accessibilityIdentifier("aboutVersion")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

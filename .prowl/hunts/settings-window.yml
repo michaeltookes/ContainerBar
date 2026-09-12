@@ -20,5 +20,6 @@ steps:
       timeout: 10000
 
   # General pane content proves the pane rendered past the shortcut recorder.
+  # Assertions must use id= selectors; label= is only accepted on click steps.
   - assert:
-      visible: label="Refresh Interval"
+      visible: id=refreshIntervalPicker

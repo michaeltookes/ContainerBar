@@ -148,6 +148,7 @@ struct HostDetailsView: View {
             Section {
                 LabeledContent("Name") {
                     Text(host.name)
+                        .accessibilityIdentifier("host-" + host.name.lowercased().replacingOccurrences(of: " ", with: "-"))
                 }
 
                 LabeledContent("Runtime") {

@@ -36,6 +36,7 @@ struct SectionsSettingsPane: View {
 
                 if !settings.sections.isEmpty {
                     Text("\(settings.sections.count) section(s)")
+                        .accessibilityIdentifier("sectionsCount")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

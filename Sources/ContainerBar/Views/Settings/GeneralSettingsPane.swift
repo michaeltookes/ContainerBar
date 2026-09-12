@@ -28,6 +28,7 @@ struct GeneralSettingsPane: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .accessibilityIdentifier("refreshIntervalPicker")
 
                 Toggle("Show Stopped Containers", isOn: $settings.showStoppedContainers)
             } header: {

@@ -23,24 +23,31 @@ steps:
   - waitForSelector:
       selector: id=settingsWindow
       timeout: 10000
+  - assert:
+      visible: id=sectionsCount
 
   - click:
       selector: label="Connections"
   - waitForSelector:
       selector: id=settingsWindow
       timeout: 10000
-  # Hunt mode seeds exactly one host, named "Fixture Docker".
+  # Hunt mode seeds exactly one host, named "Fixture Docker". Assertions must
+  # use id= selectors; label= is only accepted on click steps.
   - assert:
-      visible: label="Fixture Docker"
+      visible: id=host-fixture-docker
 
   - click:
       selector: label="About"
   - waitForSelector:
       selector: id=settingsWindow
       timeout: 10000
+  - assert:
+      visible: id=aboutVersion
 
   - click:
       selector: label="General"
   - waitForSelector:
       selector: id=settingsWindow
       timeout: 10000
+  - assert:
+      visible: id=refreshIntervalPicker

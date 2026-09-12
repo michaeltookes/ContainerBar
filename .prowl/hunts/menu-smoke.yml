@@ -22,5 +22,5 @@ steps:
   - assert:
       visible: id=toggleSearch
 
-  - assert:
-      visible: id=quitApp
+  # quitApp is deliberately not asserted: "quitApp" is a forbidden selector in
+  # config.yml and the guardrail applies to assertions as well as clicks.
