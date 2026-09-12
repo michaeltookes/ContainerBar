@@ -31,11 +31,8 @@ steps:
       selector: id=addHostSheet
       timeout: 10000
 
-  - assert:
-      visible: id=cancelAddHost
-
   - click:
-      selector: id=cancelAddHost
+      selector: label="Cancel"
 
   - waitForSelector:
       selector: id=settingsWindow

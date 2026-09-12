@@ -69,8 +69,10 @@ window. Do not upload screenshots without a dedicated QA login on the runner.
   `containerCard-<name-slug>` in the dashboard, and `aboutVersion`
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every
-  `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s
-  so they are clicked by label (`General`, `Sections`, `Connections`, `About`)
+  `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s,
+  and sheet action buttons may expose labels more reliably than identifiers, so
+  they are clicked by label (`General`, `Sections`, `Connections`, `About`,
+  `Cancel`)
 - `menu=` and `text=` are forbidden by `config.yml`
 
 Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,
@@ -81,8 +83,8 @@ Step kinds: `click`, `assert` (`visible:`), `waitForSelector` (`selector`,
 Hunts are open-and-assert. `config.yml` forbids selectors that would start,
 stop, restart, or remove containers, save or remove hosts, toggle login items
 or update checks, record shortcuts, or quit the app. Opening and canceling the
-Add Host sheet is allowed. Add a new identifier to the view rather than
-matching on visible text.
+Add Host sheet is allowed. Add a new identifier to the view for assertions
+rather than matching on visible text.
 
 ## Runner requirements (Mac mini)
 
