@@ -138,6 +138,11 @@ final class StatusItemController: NSObject {
     // MARK: - Global Hotkey
 
     private func setupGlobalHotkey() {
+        guard !HuntMode.isActive else {
+            logger.info("Hunt mode active; skipping global hotkey registration")
+            return
+        }
+
         KeyboardShortcuts.onKeyUp(for: .toggleMenu) { [weak self] in
             Task { @MainActor in
                 self?.toggleMenu()

@@ -65,8 +65,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fetcherFactory: fetcherFactory
         )
 
-        // Initialize Sparkle auto-updater
-        updaterController = UpdaterController.shared
+        // Prowl hunt launches only exercise local fixture UI; keep optional
+        // app services out of that path so the status item is available
+        // immediately on the self-hosted runner.
+        if HuntMode.isActive {
+            logger.info("Hunt mode active; skipping Sparkle updater initialization")
+        } else {
+            updaterController = UpdaterController.shared
+        }
 
         // Start initial container fetch
         Task {

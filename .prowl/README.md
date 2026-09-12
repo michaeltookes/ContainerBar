@@ -8,16 +8,19 @@ run locally.
 ## Hunt mode
 
 `scripts/build-hunt-app.sh` builds a Debug bundle at
-`.prowl/DerivedData/Build/Products/Debug/ContainerBar.app`, then registers its
-`com.tookes.ContainerBar.hunt` bundle identifier. That path switches the app
-into hunt mode (`Sources/ContainerBar/Services/HuntMode.swift`):
+`.prowl/DerivedData/Build/Products/Debug/ContainerBar.app`. Prowl launches that
+fresh bundle path directly while the bundle is also registered as
+`com.tookes.ContainerBar.hunt`. The path switches the app into hunt mode
+(`Sources/ContainerBar/Services/HuntMode.swift`):
 
 - `FixtureDockerAPIClient` serves six fixed containers from memory. No socket,
   SSH tunnel, or TLS connection is ever opened.
 - Preferences live in the `com.tookes.ContainerBar.hunt` defaults suite, wiped
   on every launch. The user's real hosts, sections, and keychain items are
   never read or written.
-- The only host is "Fixture Docker". Sparkle does not start in Debug builds.
+- The only host is "Fixture Docker". Sparkle, login-item status reads, and
+  global hotkey registration are skipped so Prowl can attach to a quiet
+  menu-bar process.
 - The bundle identifier is rewritten to `com.tookes.ContainerBar.hunt` during
   assembly and re-registered with Launch Services so Prowl cannot activate an
   installed production app.
