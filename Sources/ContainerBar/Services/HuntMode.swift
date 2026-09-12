@@ -12,7 +12,7 @@ import Logging
 enum HuntMode {
     static let environmentKey = "CONTAINERBAR_HUNT_MODE"
     static let derivedDataMarker = "/.prowl/DerivedData/"
-    static let defaultsSuite = "com.tookes.ContainerBar.hunt"
+    static let defaultsSuite = "com.tookes.ContainerBar.hunt.defaults"
 
     private static let logger = Logger(label: "com.containerbar.huntmode")
 

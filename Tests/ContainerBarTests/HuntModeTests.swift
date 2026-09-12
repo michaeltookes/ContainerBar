@@ -4,6 +4,11 @@ import Testing
 
 @Suite("HuntMode Tests")
 struct HuntModeTests {
+    @Test("Default hunt defaults suite does not reuse the hunt bundle identifier")
+    func defaultSuiteDoesNotReuseBundleIdentifier() {
+        #expect(HuntMode.defaultsSuite != "com.tookes.ContainerBar.hunt")
+    }
+
     @Test("Defaults creation fails closed when the hunt suite is unavailable")
     func defaultsCreationFailsClosed() {
         #expect(throws: HuntMode.Failure.defaultsSuiteUnavailable("unavailable")) {

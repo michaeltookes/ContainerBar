@@ -15,9 +15,9 @@ fresh bundle path directly while the bundle is also registered as
 
 - `FixtureDockerAPIClient` serves six fixed containers from memory. No socket,
   SSH tunnel, or TLS connection is ever opened.
-- Preferences live in the `com.tookes.ContainerBar.hunt` defaults suite, wiped
-  on every launch. The user's real hosts, sections, and keychain items are
-  never read or written.
+- Preferences live in the `com.tookes.ContainerBar.hunt.defaults` defaults
+  suite, wiped on every launch. The user's real hosts, sections, and keychain
+  items are never read or written.
 - The only host is "Fixture Docker". Sparkle, login-item status reads, and
   global hotkey registration are skipped so Prowl can attach to a quiet
   menu-bar process.
