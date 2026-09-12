@@ -19,6 +19,7 @@ DIST_DIR="$PROJECT_ROOT/Distribution"
 
 echo "==> Building $APP_NAME (Debug) into $DERIVED_DATA"
 cd "$PROJECT_ROOT"
+set +e
 xcodebuild \
     -scheme "$APP_NAME" \
     -configuration Debug \
@@ -26,7 +27,15 @@ xcodebuild \
     -derivedDataPath "$DERIVED_DATA" \
     CODE_SIGNING_ALLOWED=NO \
     CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
-    build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+    build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+build_statuses=("${PIPESTATUS[@]}")
+set -e
+
+xcodebuild_status="${build_statuses[0]}"
+if [ "$xcodebuild_status" -ne 0 ]; then
+    echo "Error: xcodebuild failed with exit code $xcodebuild_status" >&2
+    exit "$xcodebuild_status"
+fi
 
 if [ ! -x "$BUILD_DIR/$APP_NAME" ]; then
     echo "Error: xcodebuild did not produce $BUILD_DIR/$APP_NAME" >&2
