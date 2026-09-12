@@ -29,7 +29,7 @@ guardrails:
   maxSteps: 25
   allowedApps:
     - .prowl/DerivedData/Build/Products/Debug/ContainerBar.app
-    - com.tookes.ContainerBar
+    - com.tookes.ContainerBar.hunt
   forbiddenSelectors:
     # Substring selector families — too easy to hit an unsafe element.
     - "menu="

@@ -17,6 +17,8 @@ the app into hunt mode (`Sources/ContainerBar/Services/HuntMode.swift`):
   on every launch. The user's real hosts, sections, and keychain items are
   never read or written.
 - The only host is "Fixture Docker". Sparkle does not start in Debug builds.
+- The bundle identifier is rewritten to `com.tookes.ContainerBar.hunt` during
+  assembly so Launch Services cannot activate an installed production app.
 
 Hunt mode can also be forced with `CONTAINERBAR_HUNT_MODE=1`, and
 `CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1` opens Settings immediately for

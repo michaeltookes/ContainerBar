@@ -10,11 +10,13 @@
 set -euo pipefail
 
 APP_NAME="ContainerBar"
+HUNT_BUNDLE_ID="com.tookes.ContainerBar.hunt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DERIVED_DATA="$PROJECT_ROOT/.prowl/DerivedData"
 BUILD_DIR="$DERIVED_DATA/Build/Products/Debug"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 DIST_DIR="$PROJECT_ROOT/Distribution"
 
 echo "==> Building $APP_NAME (Debug) into $DERIVED_DATA"
@@ -46,7 +48,8 @@ echo "==> Assembling $APP_BUNDLE"
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources" "$APP_BUNDLE/Contents/Frameworks"
 cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
-cp "$DIST_DIR/Info.plist" "$APP_BUNDLE/Contents/"
+cp "$DIST_DIR/Info.plist" "$INFO_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $HUNT_BUNDLE_ID" "$INFO_PLIST"
 [ -f "$DIST_DIR/AppIcon.icns" ] && cp "$DIST_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
 
 for bundle in "$BUILD_DIR"/*.bundle; do
