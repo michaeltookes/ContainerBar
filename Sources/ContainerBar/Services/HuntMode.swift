@@ -16,6 +16,17 @@ enum HuntMode {
 
     private static let logger = Logger(label: "com.containerbar.huntmode")
 
+    enum Failure: LocalizedError, Equatable {
+        case defaultsSuiteUnavailable(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .defaultsSuiteUnavailable(let suiteName):
+                "Could not create isolated hunt defaults suite '\(suiteName)'"
+            }
+        }
+    }
+
     static let isActive: Bool = {
         let env = ProcessInfo.processInfo.environment[environmentKey] == "1"
         let path = Bundle.main.bundlePath.contains(derivedDataMarker)
@@ -26,12 +37,15 @@ enum HuntMode {
     }()
 
     /// Fresh, isolated defaults for this launch.
-    static func makeUserDefaults() -> UserDefaults {
-        guard let defaults = UserDefaults(suiteName: defaultsSuite) else {
-            logger.error("Could not create hunt defaults suite; falling back to standard")
-            return .standard
+    static func makeUserDefaults(
+        suiteName: String = defaultsSuite,
+        makeSuite: (String) -> UserDefaults? = { UserDefaults(suiteName: $0) }
+    ) throws -> UserDefaults {
+        guard let defaults = makeSuite(suiteName) else {
+            logger.critical("Could not create hunt defaults suite; refusing to use standard defaults")
+            throw Failure.defaultsSuiteUnavailable(suiteName)
         }
-        defaults.removePersistentDomain(forName: defaultsSuite)
+        defaults.removePersistentDomain(forName: suiteName)
         return defaults
     }
 

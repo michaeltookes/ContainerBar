@@ -20,18 +20,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Settings/preferences management
     let settingsStore: SettingsStore
 
+    /// Builds the fetcher used by app surfaces that create their own fetcher.
+    private let fetcherFactory: ContainerStore.FetcherFactory
+
     /// Application logger
     private let logger = Logger(label: "com.containerbar.app")
 
     override init() {
         if HuntMode.isActive {
-            let settings = SettingsStore(userDefaults: HuntMode.makeUserDefaults())
-            HuntMode.seed(settings)
-            self.settingsStore = settings
-            self.containerStore = ContainerStore(settings: settings, fetcherFactory: HuntMode.makeFetcher)
+            do {
+                let settings = SettingsStore(userDefaults: try HuntMode.makeUserDefaults())
+                let fetcherFactory: ContainerStore.FetcherFactory = HuntMode.makeFetcher
+                HuntMode.seed(settings)
+                self.settingsStore = settings
+                self.fetcherFactory = fetcherFactory
+                self.containerStore = ContainerStore(settings: settings, fetcherFactory: fetcherFactory)
+            } catch {
+                fatalError("Hunt mode could not create isolated settings storage: \(error.localizedDescription)")
+            }
         } else {
-            self.settingsStore = SettingsStore()
-            self.containerStore = ContainerStore(settings: settingsStore)
+            let settings = SettingsStore()
+            let fetcherFactory = ContainerStore.defaultFetcherFactory
+            self.settingsStore = settings
+            self.fetcherFactory = fetcherFactory
+            self.containerStore = ContainerStore(settings: settings, fetcherFactory: fetcherFactory)
         }
         super.init()
     }
@@ -49,7 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Create the status bar item
         statusItemController = StatusItemController(
             containerStore: containerStore,
-            settingsStore: settingsStore
+            settingsStore: settingsStore,
+            fetcherFactory: fetcherFactory
         )
 
         // Initialize Sparkle auto-updater
