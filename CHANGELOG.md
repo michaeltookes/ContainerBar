@@ -5,7 +5,7 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.4] - 2026-09-12
 
 ### Fixed
 - Opening Settings no longer quits the app on Macs other than the build machine. Release builds now go through xcodebuild so the KeyboardShortcuts resource bundle is resolved from the app's Resources folder instead of a hardcoded build-machine path
@@ -131,6 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
+[2.0.4]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.0...v2.0.1
