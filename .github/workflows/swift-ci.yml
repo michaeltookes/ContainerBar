@@ -13,17 +13,37 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Pin the toolchain line to match the release build (Xcode 26.x / Swift 6.2).
+  # The runner carries several Xcode 26 point releases; prefer this exact one
+  # and fall back to the newest 26.x present so a patch bump on the image does
+  # not break CI, while anything older than 26 fails loudly.
+  XCODE_PREFERRED: "26.2"
+
 jobs:
   build-test:
     name: Build & Test
-    runs-on: macos-latest
+    runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show toolchain
+      - name: Select Xcode
         run: |
+          set -euo pipefail
+          if [[ -d "/Applications/Xcode_${XCODE_PREFERRED}.app" ]]; then
+            selected="/Applications/Xcode_${XCODE_PREFERRED}.app"
+          else
+            selected="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)"
+          fi
+          if [[ -z "${selected:-}" ]]; then
+            echo "::error::No Xcode 26.x found on the runner. Installed:"
+            ls -d /Applications/Xcode_*.app || true
+            exit 1
+          fi
+          sudo xcode-select -s "$selected/Contents/Developer"
+          xcodebuild -version
           swift --version
-          xcode-select -p
 
       - name: Cache SPM build
         uses: actions/cache@v4
@@ -41,14 +61,16 @@ jobs:
 
   lint:
     name: SwiftLint
-    runs-on: macos-latest
+    runs-on: macos-15
+    timeout-minutes: 10
+    env:
+      SWIFTLINT_VERSION: "0.65.1"
     steps:
       - uses: actions/checkout@v4
 
       - name: Install pinned SwiftLint
         run: |
-          VERSION="0.62.0"
-          INSTALL_DIR="$RUNNER_TEMP/swiftlint-$VERSION"
+          INSTALL_DIR="$RUNNER_TEMP/swiftlint-$SWIFTLINT_VERSION"
           ARCHIVE="$RUNNER_TEMP/swiftlint.zip"
 
           curl -fsSL \
@@ -57,7 +79,7 @@ jobs:
             --retry 3 \
             --retry-delay 5 \
             -o "$ARCHIVE" \
-            "https://github.com/realm/SwiftLint/releases/download/$VERSION/portable_swiftlint.zip"
+            "https://github.com/realm/SwiftLint/releases/download/$SWIFTLINT_VERSION/portable_swiftlint.zip"
 
           mkdir -p "$INSTALL_DIR"
           unzip -q "$ARCHIVE" -d "$INSTALL_DIR"
