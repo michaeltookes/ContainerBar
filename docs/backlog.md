@@ -4,12 +4,6 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 Item ids are stable `CB-NNN` numbers and are never reused. Completed items move to [`docs/resolved.md`](resolved.md).
 
-## High Priority
-
-### CB-044: Swift 6.2 / macOS 26 compatibility audit
-**Priority**: High
-**Description**: The project was written against Swift 6.0 and macOS 14 SDK with Opus 4.5 in early 2026; the toolchain is now Xcode 26.2 / Swift 6.2.3 on macOS 26.5. Build with `-warnings-as-errors` once to surface deprecations, review every `@unchecked Sendable`, `nonisolated(unsafe)`, and `MainActor.assumeIsolated` for correctness under Swift 6.2's stricter inference, check the SwiftUI-in-NSMenu hosting path and `NSHostingController` sizing against macOS 26's Liquid Glass menu changes, and verify `SMAppService`, `KeyboardShortcuts`, and Sparkle behave on macOS 26. Fix or file follow-up items for anything found.
-
 ## Medium Priority
 
 ### CB-046: Full code-quality pass across both targets
