@@ -24,7 +24,8 @@ DerivedData/
 # Swift Package Manager
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 .swiftpm/xcode/xcuserdata/
-Package.resolved
+# Package.resolved is tracked on purpose so CI, the QA runner, and local builds
+# resolve identical dependency versions (CB-045).
 
 # macOS
 .DS_Store
