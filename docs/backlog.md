@@ -10,10 +10,6 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 **Priority**: High
 **Description**: The project was written against Swift 6.0 and macOS 14 SDK with Opus 4.5 in early 2026; the toolchain is now Xcode 26.2 / Swift 6.2.3 on macOS 26.5. Build with `-warnings-as-errors` once to surface deprecations, review every `@unchecked Sendable`, `nonisolated(unsafe)`, and `MainActor.assumeIsolated` for correctness under Swift 6.2's stricter inference, check the SwiftUI-in-NSMenu hosting path and `NSHostingController` sizing against macOS 26's Liquid Glass menu changes, and verify `SMAppService`, `KeyboardShortcuts`, and Sparkle behave on macOS 26. Fix or file follow-up items for anything found.
 
-### CB-045: Dependency and toolchain refresh
-**Priority**: High
-**Description**: Bump `swift-tools-version` and `platforms` if a raise is justified, review `Package.swift` version floors (swift-log 1.5 → resolved 1.9, KeyboardShortcuts 2.0 → 2.4, Sparkle 2.6 → 2.8.1) and raise floors to the tested versions, commit `Package.resolved` (currently gitignored, so CI and local builds can drift), pin SwiftLint in CI to the current release, and update `ci.yml` to `macos-15` or later with Xcode selection pinned so the CI toolchain matches the release toolchain.
-
 ## Medium Priority
 
 ### CB-046: Full code-quality pass across both targets

@@ -9,9 +9,9 @@ let package = Package(
         .library(name: "ContainerBarCore", targets: ["ContainerBarCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "2.0.0"),
-        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "3.1.0"),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.10.0"),
     ],
     targets: [
         .executableTarget(
