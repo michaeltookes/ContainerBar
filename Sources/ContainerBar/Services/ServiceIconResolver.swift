@@ -135,7 +135,7 @@ struct ServiceIconResolver {
         "traefik": "traefik",
         "pihole": "pihole",
         "homeassistant": "homeassistant",
-        "nextcloud": "nextcloud",
+        "nextcloud": "nextcloud"
     ]
 
     private static let defaultPrefixMappings: [String: String] = [
@@ -143,7 +143,7 @@ struct ServiceIconResolver {
         "lscr.io/linuxserver/": "",
         "ghcr.io/": "",
         "docker.io/": "",
-        "library/": "",
+        "library/": ""
     ]
 }
 

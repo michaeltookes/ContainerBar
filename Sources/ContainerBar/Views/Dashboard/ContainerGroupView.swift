@@ -202,7 +202,7 @@ struct ContainerListSection: View {
         .mock(name: "api-worker", image: "myapp/worker:latest", state: .running),
         .mock(name: "postgres", image: "postgres:15", state: .running),
         .mock(name: "redis", image: "redis:7", state: .running),
-        .mock(name: "backup", image: "backup-tool:latest", state: .exited, status: "Exited (0) 2h ago"),
+        .mock(name: "backup", image: "backup-tool:latest", state: .exited, status: "Exited (0) 2h ago")
     ]
 
     return ContainerListSection(
