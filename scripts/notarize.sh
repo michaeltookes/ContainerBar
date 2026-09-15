@@ -2,12 +2,43 @@
 
 # ContainerBar Notarization Script
 # This script notarizes the app with Apple and staples the ticket
+#
+# Usage: ./scripts/notarize.sh [--dmg | --no-dmg]
+#
+#   --dmg      Always build, sign, notarize and staple the DMG (no prompt).
+#   --no-dmg   Never build the DMG.
+#   (default)  Interactive TTY -> prompt (legacy behavior). Non-interactive
+#              (e.g. /release-prep, CI) -> build the DMG automatically, so a
+#              non-interactive run never ships an un-notarized DMG.
+#
+# NOTE: `gh` release uploads for this repo must run as the `michaeltookes`
+# account; the `prowltools` login cannot write releases here. Export the token
+# before any `gh release` step: export GH_TOKEN="$(gh auth token -u michaeltookes)"
 
-set -e
+set -euo pipefail
+
+# DMG creation mode: auto (decide by TTY), always (--dmg), never (--no-dmg).
+DMG_MODE="auto"
+for arg in "$@"; do
+    case "$arg" in
+        --dmg) DMG_MODE="always" ;;
+        --no-dmg) DMG_MODE="never" ;;
+        -h|--help)
+            sed -n '2,15p' "${BASH_SOURCE[0]}"
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $arg" >&2
+            echo "Usage: $0 [--dmg | --no-dmg]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 # Configuration. Apple ID and team ID can be overridden via env vars for
 # CI / contributors notarizing under a different Apple Developer account.
 APP_NAME="ContainerBar"
+# shellcheck disable=SC2034  # documented config constant kept for reference
 BUNDLE_ID="com.tookes.ContainerBar"
 DEFAULT_APPLE_ID="tookes92@att.net"
 DEFAULT_TEAM_ID="6739LM5834"
@@ -231,15 +262,40 @@ main() {
     verify
     create_final_zip
 
-    # Ask about DMG creation
-    echo ""
-    read -p "Would you like to create a DMG file as well? (y/n) " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if should_create_dmg; then
         create_dmg
+    else
+        echo_info "Skipping DMG creation."
     fi
 
     summary
+}
+
+# Decide whether to build+notarize the DMG based on the mode and interactivity.
+should_create_dmg() {
+    case "$DMG_MODE" in
+        always)
+            return 0
+            ;;
+        never)
+            return 1
+            ;;
+        auto)
+            if [ -t 0 ]; then
+                # Interactive human runner: preserve the legacy y/n prompt.
+                local reply
+                echo ""
+                read -p "Would you like to create a DMG file as well? (y/n) " -n 1 -r reply
+                echo ""
+                [[ $reply =~ ^[Yy]$ ]]
+                return
+            fi
+            # Non-interactive (CI, /release-prep): default to building the DMG
+            # so a headless run never ships an un-notarized DMG.
+            echo_info "Non-interactive run: building and notarizing the DMG by default (use --no-dmg to skip)."
+            return 0
+            ;;
+    esac
 }
 
 main "$@"

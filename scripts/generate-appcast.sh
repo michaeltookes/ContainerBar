@@ -54,22 +54,39 @@ fi
 # Create docs directory if needed
 mkdir -p "$APPCAST_DIR"
 
+# Sparkle's generate_appcast fails with a duplicate-update error when it finds
+# two archives for the same version in one directory (e.g. both
+# ContainerBar.zip and ContainerBar.dmg, as the 2.0.4 release had). Stage ONLY
+# the zip(s) in a temp dir and generate from there, so the signed DMG can still
+# live in dist/ for the GitHub release without breaking appcast generation.
+# The existing appcast is copied into the stage first so generate_appcast
+# preserves prior version entries (merged back into docs/appcast.xml) instead
+# of dropping them.
+STAGE_DIR="$(mktemp -d)"
+cleanup() { rm -rf "$STAGE_DIR"; }
+trap cleanup EXIT
+
+cp "$DIST_DIR"/*.zip "$STAGE_DIR"/
+if [ -f "$APPCAST_DIR/appcast.xml" ]; then
+    cp "$APPCAST_DIR/appcast.xml" "$STAGE_DIR/appcast.xml"
+fi
+
 echo "Generating appcast..."
 echo "  Tool: $GENERATE_APPCAST"
-echo "  Source: $DIST_DIR"
+echo "  Source: $STAGE_DIR (zip only; DMG excluded to avoid duplicate-update error)"
 echo "  Output: $APPCAST_DIR/appcast.xml"
 
 # Build download URL prefix
 if [ -n "$VERSION" ]; then
     DOWNLOAD_PREFIX="https://github.com/michaeltookes/ContainerBar/releases/download/v${VERSION}/"
     echo "  Download prefix: $DOWNLOAD_PREFIX"
-    "$GENERATE_APPCAST" "$DIST_DIR" \
+    "$GENERATE_APPCAST" "$STAGE_DIR" \
         --download-url-prefix "$DOWNLOAD_PREFIX" \
         -o "$APPCAST_DIR/appcast.xml"
 else
     echo "  Note: No version specified. Download URLs will use filenames only."
     echo "  Usage: ./scripts/generate-appcast.sh 1.2.0"
-    "$GENERATE_APPCAST" "$DIST_DIR" \
+    "$GENERATE_APPCAST" "$STAGE_DIR" \
         -o "$APPCAST_DIR/appcast.xml"
 fi
 
