@@ -10,17 +10,23 @@ Example: python3 scripts/validate-release.py 1.2.0
 import subprocess
 import sys
 import os
+import hashlib
 import plistlib
 import re
 import shutil
+import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP_NAME = "ContainerBar"
 INFO_PLIST = os.path.join(PROJECT_ROOT, "Distribution", "Info.plist")
 CHANGELOG = os.path.join(PROJECT_ROOT, "CHANGELOG.md")
-APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", "ContainerBar.app")
+APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.app")
+RELEASE_ZIP = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.zip")
+RELEASE_DMG = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.dmg")
+APPCAST_FILE = os.path.join(PROJECT_ROOT, "docs", "appcast.xml")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
@@ -37,6 +43,7 @@ BROKEN_SWIFTPM_RELEASE_PATHS = (
 
 passed = 0
 failed = 0
+skipped = 0
 
 
 def check(label, condition, detail=""):
@@ -47,6 +54,26 @@ def check(label, condition, detail=""):
     else:
         failed += 1
         print(f"  [FAIL] {label}{': ' + detail if detail else ''}")
+
+
+def skip(label, detail=""):
+    """Record a check that could not run because a release artifact is absent.
+
+    A skip is neither a pass nor a fail: the suite stays runnable (and green)
+    with no dist/ present, so these checks only exercise a real release build.
+    """
+    global skipped
+    skipped += 1
+    print(f"  [SKIP] {label}{': ' + detail if detail else ''}")
+
+
+def sha256_of_file(path):
+    """Return the hex SHA-256 digest of a file, streamed in chunks."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run(cmd):
@@ -287,6 +314,185 @@ def check_required_resource_bundles():
     )
 
 
+def _extract_zip(zip_path, dest):
+    """Extract a distributable zip into dest. Returns True on success."""
+    rc, _ = run(["ditto", "-x", "-k", zip_path, dest])
+    return rc == 0
+
+
+def _attach_dmg(dmg_path, mountpoint):
+    """Attach a DMG read-only at mountpoint without opening a Finder window."""
+    rc, _ = run(
+        ["hdiutil", "attach", dmg_path, "-nobrowse", "-readonly", "-mountpoint", mountpoint]
+    )
+    return rc == 0
+
+
+def _detach_dmg(mountpoint):
+    """Detach a mounted DMG; force so a lingering handle does not block us."""
+    run(["hdiutil", "detach", mountpoint, "-force"])
+
+
+def check_gatekeeper_zip():
+    """Verify the app extracted from the distributable zip passes Gatekeeper.
+
+    This is the artifact users actually download, so assess it as an execute
+    target rather than trusting the loose dist/ bundle.
+    """
+    label = "Gatekeeper accepts zipped app"
+    if not os.path.isfile(RELEASE_ZIP):
+        skip(label, f"artifact absent: {RELEASE_ZIP}")
+        return
+
+    workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-")
+    try:
+        if not _extract_zip(RELEASE_ZIP, workdir):
+            check(label, False, f"could not extract {RELEASE_ZIP}")
+            return
+        app = os.path.join(workdir, f"{APP_NAME}.app")
+        if not os.path.isdir(app):
+            check(label, False, f"{APP_NAME}.app not found inside zip")
+            return
+        result = subprocess.run(
+            ["spctl", "--assess", "--type", "execute", "--verbose=2", app],
+            capture_output=True,
+            text=True,
+        )
+        combined = (result.stdout + result.stderr).strip()
+        accepted = "accepted" in combined.lower()
+        check(label, accepted, "accepted" if accepted else combined)
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_dmg_contents():
+    """Verify dist/ContainerBar.dmg mounts and contains ContainerBar.app."""
+    label = "DMG mounts and contains app"
+    if not os.path.isfile(RELEASE_DMG):
+        skip(label, f"artifact absent: {RELEASE_DMG}")
+        return
+
+    mountpoint = tempfile.mkdtemp(prefix="cb-dmg-")
+    attached = False
+    try:
+        if not _attach_dmg(RELEASE_DMG, mountpoint):
+            check(label, False, f"could not attach {RELEASE_DMG}")
+            return
+        attached = True
+        app = os.path.join(mountpoint, f"{APP_NAME}.app")
+        present = os.path.isdir(app)
+        check(label, present, f"{APP_NAME}.app" if present else f"{APP_NAME}.app missing in DMG")
+    finally:
+        if attached:
+            _detach_dmg(mountpoint)
+        shutil.rmtree(mountpoint, ignore_errors=True)
+
+
+def check_cask_sha256():
+    """Verify the Homebrew cask sha256 matches the uploaded zip's sha256."""
+    label = "Homebrew cask sha256 matches zip"
+    if not os.path.isfile(RELEASE_ZIP):
+        skip(label, f"artifact absent: {RELEASE_ZIP}")
+        return
+    if not os.path.isfile(HOMEBREW_CASK):
+        skip(label, f"cask absent: {HOMEBREW_CASK}")
+        return
+
+    try:
+        with open(HOMEBREW_CASK, "r") as f:
+            content = f.read()
+    except OSError as exc:
+        check(label, False, f"could not read cask: {exc}")
+        return
+
+    match = re.search(r'sha256\s+"([0-9a-fA-F]{64})"', content)
+    cask_sha = match.group(1).lower() if match else ""
+    actual_sha = sha256_of_file(RELEASE_ZIP)
+    matches = cask_sha == actual_sha
+    check(
+        label,
+        matches,
+        "matches" if matches else f"cask {cask_sha or '(none)'} != zip {actual_sha}",
+    )
+
+
+def check_cask_arm64():
+    """Verify the Homebrew cask enforces Apple Silicon via depends_on arch: :arm64."""
+    label = "Homebrew cask enforces arm64"
+    if not os.path.isfile(HOMEBREW_CASK):
+        skip(label, f"cask absent: {HOMEBREW_CASK}")
+        return
+
+    try:
+        with open(HOMEBREW_CASK, "r") as f:
+            content = f.read()
+    except OSError as exc:
+        check(label, False, f"could not read cask: {exc}")
+        return
+
+    found = re.search(r"depends_on\s+arch:\s*:arm64", content) is not None
+    check(label, found, "depends_on arch: :arm64" if found else "missing depends_on arch: :arm64")
+
+
+def _appcast_enclosure_for_version(root, version):
+    """Return the <enclosure> element whose item matches version, or None."""
+    sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+    for item in root.findall(".//item"):
+        svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
+        item_matches = svs_elem is not None and svs_elem.text == version
+        for enclosure in item.findall("enclosure"):
+            if item_matches or enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
+                return enclosure
+    return None
+
+
+def check_appcast_signature(version):
+    """Verify the appcast entry has an edSignature and a length matching the zip.
+
+    Reads the generated docs/appcast.xml against the local dist zip so the
+    byte size is checked before the appcast is deployed.
+    """
+    sig_label = "Appcast edSignature present"
+    len_label = "Appcast length matches zip size"
+    if not os.path.isfile(RELEASE_ZIP):
+        skip(sig_label, f"artifact absent: {RELEASE_ZIP}")
+        skip(len_label, f"artifact absent: {RELEASE_ZIP}")
+        return
+    if not os.path.isfile(APPCAST_FILE):
+        skip(sig_label, f"appcast absent: {APPCAST_FILE}")
+        skip(len_label, f"appcast absent: {APPCAST_FILE}")
+        return
+
+    sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+    try:
+        root = ET.parse(APPCAST_FILE).getroot()
+    except ET.ParseError as exc:
+        check(sig_label, False, f"appcast parse error: {exc}")
+        check(len_label, False, "appcast parse error")
+        return
+
+    enclosure = _appcast_enclosure_for_version(root, version)
+    if enclosure is None:
+        check(sig_label, False, f"no appcast item for v{version}")
+        check(len_label, False, f"no appcast item for v{version}")
+        return
+
+    ed_signature = enclosure.get(f"{{{sparkle_ns}}}edSignature")
+    check(sig_label, bool(ed_signature), "present" if ed_signature else "missing edSignature")
+
+    zip_size = os.path.getsize(RELEASE_ZIP)
+    length_attr = enclosure.get("length")
+    try:
+        length_matches = length_attr is not None and int(length_attr) == zip_size
+    except ValueError:
+        length_matches = False
+    check(
+        len_label,
+        length_matches,
+        f"{zip_size} bytes" if length_matches else f"appcast length {length_attr} != zip {zip_size}",
+    )
+
+
 def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <VERSION>")
@@ -309,9 +515,16 @@ def main():
     check_required_resource_bundles()
     check_no_swiftpm_release_resource_path()
     check_notarization()
+    check_gatekeeper_zip()
+    check_dmg_contents()
+    check_cask_sha256()
+    check_cask_arm64()
+    check_appcast_signature(version)
 
     total = passed + failed
     print(f"\n  {passed}/{total} checks passed.", end="")
+    if skipped:
+        print(f" {skipped} skipped (artifact absent).", end="")
     if failed == 0:
         print(" Release is complete.\n")
     else:
