@@ -1219,6 +1219,30 @@ def test_appcast_hardware_requirement_missing_fails():
     assert mod.failed == 1 and mod.passed == 4
 
 
+def test_appcast_hardware_requirement_mixed_architectures_fail():
+    mod = load_module()
+    payload = b"x" * 100
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure(
+            "2.0.5",
+            ed_signature="sig==",
+            length=len(payload),
+            hardware="x86_64,arm64",
+        ),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")), \
+             expected_info_build(mod, "7"):
+            mod.check_appcast_signature("2.0.5")
+
+    assert mod.failed == 1 and mod.passed == 4
+
+
 def test_appcast_no_item_for_version_fails_both():
     mod = load_module()
     appcast = _appcast_root(

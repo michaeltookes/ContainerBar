@@ -80,7 +80,7 @@ artifacts:
 - The deployed appcast entry for the release has the canonical GitHub release
   zip enclosure URL, a `sparkle:edSignature` that verifies against the archive
   fetched from that URL, a `length` attribute matching that archive's byte size,
-  and `sparkle:hardwareRequirements` declaring `arm64`.
+  and `sparkle:hardwareRequirements` declaring only `arm64`.
 
 Missing or unreadable uploaded release assets, published cask content, deployed
 appcast metadata, or appcast enclosure archives fail because those are the

@@ -1153,13 +1153,14 @@ def check_appcast_signature(version):
     )
 
     hardware_requirements = _appcast_hardware_requirements(item)
-    hardware_matches = REQUIRED_APPCAST_HARDWARE_REQUIREMENT in hardware_requirements
+    expected_hardware_requirements = [REQUIRED_APPCAST_HARDWARE_REQUIREMENT]
+    hardware_matches = hardware_requirements == expected_hardware_requirements
     check(
         hardware_label,
         hardware_matches,
-        ", ".join(hardware_requirements)
+        REQUIRED_APPCAST_HARDWARE_REQUIREMENT
         if hardware_matches
-        else f"missing sparkle:hardwareRequirements {REQUIRED_APPCAST_HARDWARE_REQUIREMENT}",
+        else f"sparkle:hardwareRequirements {', '.join(hardware_requirements) or '(none)'} != {REQUIRED_APPCAST_HARDWARE_REQUIREMENT}",
     )
 
     enclosure_url = enclosure.get("url", "")

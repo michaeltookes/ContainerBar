@@ -110,14 +110,7 @@ root = tree.getroot()
 for item in root.findall(".//item"):
     hardware = item.find(HARDWARE_TAG)
     if hardware is not None:
-        requirements = [
-            requirement.strip()
-            for requirement in (hardware.text or "").split(",")
-            if requirement.strip()
-        ]
-        if "arm64" not in requirements:
-            requirements.append("arm64")
-        hardware.text = ",".join(requirements)
+        hardware.text = "arm64"
         continue
 
     hardware = ET.Element(HARDWARE_TAG)
