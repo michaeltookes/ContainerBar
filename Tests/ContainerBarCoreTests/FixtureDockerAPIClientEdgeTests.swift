@@ -39,7 +39,7 @@ struct FixtureDockerAPIClientEdgeTests {
         // By short prefix, mutation throws notFound even though reads accept it.
         // (Documented asymmetry: transition()/removeContainer() match only
         // exact id or name, while find() also matches a prefix.)
-        await #expect(throws: DockerAPIError.self) {
+        await expectNotFound("stop by short id prefix") {
             try await client.stopContainer(id: "a1f0", timeout: nil)
         }
         #expect(try await client.getContainer(id: "web").state == .running)
@@ -50,13 +50,17 @@ struct FixtureDockerAPIClientEdgeTests {
     @Test("Every operation throws notFound for an unknown id")
     func unknownIdThrows() async throws {
         let client = FixtureDockerAPIClient()
-        await #expect(throws: DockerAPIError.self) { try await client.getContainer(id: "nope") }
-        await #expect(throws: DockerAPIError.self) { _ = try await client.getContainerStats(id: "nope") }
-        await #expect(throws: DockerAPIError.self) { _ = try await client.getContainerLogs(id: "nope", tail: 1, timestamps: false) }
-        await #expect(throws: DockerAPIError.self) { try await client.startContainer(id: "nope") }
-        await #expect(throws: DockerAPIError.self) { try await client.stopContainer(id: "nope", timeout: nil) }
-        await #expect(throws: DockerAPIError.self) { try await client.restartContainer(id: "nope", timeout: nil) }
-        await #expect(throws: DockerAPIError.self) { try await client.removeContainer(id: "nope", force: true, volumes: false) }
+        await expectNotFound("getContainer") { _ = try await client.getContainer(id: "nope") }
+        await expectNotFound("getContainerStats") { _ = try await client.getContainerStats(id: "nope") }
+        await expectNotFound("getContainerLogs") {
+            _ = try await client.getContainerLogs(id: "nope", tail: 1, timestamps: false)
+        }
+        await expectNotFound("startContainer") { try await client.startContainer(id: "nope") }
+        await expectNotFound("stopContainer") { try await client.stopContainer(id: "nope", timeout: nil) }
+        await expectNotFound("restartContainer") { try await client.restartContainer(id: "nope", timeout: nil) }
+        await expectNotFound("removeContainer") {
+            try await client.removeContainer(id: "nope", force: true, volumes: false)
+        }
     }
 
     // MARK: - Transition idempotency & counts
@@ -154,5 +158,22 @@ struct FixtureDockerAPIClientEdgeTests {
         let info = try await client.getSystemInfo()
         #expect(info.containers == 1)
         #expect(info.containersRunning == 1)
+    }
+
+    private func expectNotFound(
+        _ operationName: String,
+        performing operation: () async throws -> Void
+    ) async {
+        do {
+            try await operation()
+            Issue.record("Expected \(operationName) to throw DockerAPIError.notFound")
+        } catch let error as DockerAPIError {
+            guard case .notFound = error else {
+                Issue.record("Expected \(operationName) to throw DockerAPIError.notFound, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected \(operationName) to throw DockerAPIError.notFound, got \(error)")
+        }
     }
 }

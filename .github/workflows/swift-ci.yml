@@ -59,6 +59,9 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Release Validator Tests
+        run: python3 scripts/tests/test_validate_release.py
+
   lint:
     name: SwiftLint
     runs-on: macos-15

@@ -212,21 +212,21 @@ struct SettingsStoreHostSectionTests {
     func hostsPersist() {
         let fx = freshStore(); let store = fx.store; let defaults = fx.defaults; let name = fx.suiteName
         store.addHost(DockerHost(
-            name: "Beelink",
+            name: "Example SSH",
             connectionType: .ssh,
             isDefault: true,
-            host: "192.168.86.28",
-            sshUser: "luciusfox"
+            host: "192.0.2.1",
+            sshUser: "testuser"
         ))
 
         let reloaded = SettingsStore(userDefaults: defaults)
-        let beelink = reloaded.hosts.first { $0.name == "Beelink" }
+        let exampleHost = reloaded.hosts.first { $0.name == "Example SSH" }
 
         #expect(reloaded.hosts.count == 2)
-        #expect(beelink?.connectionType == .ssh)
-        #expect(beelink?.host == "192.168.86.28")
-        #expect(beelink?.sshUser == "luciusfox")
-        #expect(beelink?.isDefault == true)
+        #expect(exampleHost?.connectionType == .ssh)
+        #expect(exampleHost?.host == "192.0.2.1")
+        #expect(exampleHost?.sshUser == "testuser")
+        #expect(exampleHost?.isDefault == true)
         defaults.removePersistentDomain(forName: name)
     }
 
