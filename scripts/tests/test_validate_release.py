@@ -11,9 +11,10 @@ attribute shapes).
 Runs two ways:
   * under pytest, if available:   pytest scripts/tests/test_validate_release.py
   * as a plain script (no deps):  python3 scripts/tests/test_validate_release.py
+  * in CI as a standalone step:   python3 scripts/tests/test_validate_release.py
 
 The mini has no pytest, so the __main__ runner below is the primary path.
-NOTE: not wired into `swift test` — this exercises Python, not Swift.
+NOTE: intentionally separate from `swift test` — this exercises Python, not Swift.
 """
 
 import importlib.util
