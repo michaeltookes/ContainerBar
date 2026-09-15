@@ -64,6 +64,8 @@ REQUIRED_RESOURCE_BUNDLES = (
     "KeyboardShortcuts_KeyboardShortcuts.bundle",
 )
 REQUIRED_EXECUTABLE_ARCH = "arm64"
+PRODUCTION_TEAM_ID = "6739LM5834"
+PRODUCTION_SIGNING_AUTHORITY = "Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
 BROKEN_SWIFTPM_RELEASE_PATHS = (
     b".build/arm64-apple-macosx/release",
     b".build/arm64e-apple-macosx/release",
@@ -421,6 +423,59 @@ def _codesign_valid_container(path):
     return _codesign_verify(path)
 
 
+def _codesign_metadata(path):
+    """Return codesign display metadata for a signed artifact."""
+    codesign_bin = shutil.which("codesign")
+    if not codesign_bin:
+        return None, "codesign not found"
+
+    try:
+        result = subprocess.run(
+            [codesign_bin, "-dv", "--verbose=4", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return None, f"codesign execution failed: {exc}"
+
+    combined = (result.stdout + result.stderr).strip()
+    if result.returncode != 0:
+        return None, combined if combined else "codesign display failed"
+
+    metadata = {}
+    authorities = []
+    for raw_line in combined.splitlines():
+        line = raw_line.strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key == "Authority":
+            authorities.append(value)
+        else:
+            metadata[key] = value
+    metadata["Authority"] = authorities
+    return metadata, combined
+
+
+def _production_signing_identity_valid(app_path):
+    """Return whether an app is signed by the production Developer ID team."""
+    metadata, detail = _codesign_metadata(app_path)
+    if metadata is None:
+        return False, detail
+
+    team_id = metadata.get("TeamIdentifier", "")
+    if team_id != PRODUCTION_TEAM_ID:
+        return False, f"TeamIdentifier {team_id or '(none)'} != {PRODUCTION_TEAM_ID}"
+
+    authorities = metadata.get("Authority", [])
+    if PRODUCTION_SIGNING_AUTHORITY not in authorities:
+        authority_detail = ", ".join(authorities) if authorities else "(none)"
+        return False, f"Authority {authority_detail} missing {PRODUCTION_SIGNING_AUTHORITY}"
+
+    return True, f"{PRODUCTION_SIGNING_AUTHORITY}; TeamIdentifier={team_id}"
+
+
 def _stapler_valid(path):
     """Return whether a release artifact has a valid stapled notarization ticket."""
     xcrun_bin = shutil.which("xcrun")
@@ -711,7 +766,7 @@ def _check_required_resource_bundles(app_path, label):
 
 
 def _check_executable_architecture(app_path, label):
-    """Verify an app executable contains the required release architecture."""
+    """Verify an app executable is exactly the required release architecture."""
     binary = app_executable_path(app_path)
     if not os.path.isfile(binary):
         check(label, False, f"binary not found: {binary}")
@@ -741,7 +796,7 @@ def _check_executable_architecture(app_path, label):
     archs = result.stdout.split()
     check(
         label,
-        REQUIRED_EXECUTABLE_ARCH in archs,
+        archs == [REQUIRED_EXECUTABLE_ARCH],
         " ".join(archs) if archs else "no architectures reported",
     )
 
@@ -776,12 +831,14 @@ def check_gatekeeper_zip(version):
     build_label = "Uploaded ZIP app build matches Info.plist"
     gatekeeper_label = "Gatekeeper accepts uploaded zip"
     staple_label = "Uploaded ZIP app stapled ticket valid"
+    signing_label = "Uploaded ZIP app production signing identity"
     rpath_label = "Uploaded ZIP app framework rpath valid"
     resources_label = "Uploaded ZIP required resource bundles packaged"
     swiftpm_path_label = "Uploaded ZIP has no SwiftPM release resource path embedded"
-    arch_label = f"Uploaded ZIP executable contains {REQUIRED_EXECUTABLE_ARCH}"
+    arch_label = f"Uploaded ZIP executable is {REQUIRED_EXECUTABLE_ARCH}-only"
     bundle_labels = (version_label, build_label)
     notarization_labels = (gatekeeper_label, staple_label)
+    signing_labels = (signing_label,)
     packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     tag = f"v{version}"
     workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
@@ -791,6 +848,8 @@ def check_gatekeeper_zip(version):
             for label in bundle_labels:
                 check(label, False, detail)
             for label in notarization_labels:
+                check(label, False, detail)
+            for label in signing_labels:
                 check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
@@ -804,6 +863,8 @@ def check_gatekeeper_zip(version):
                 check(label, False, detail)
             for label in notarization_labels:
                 check(label, False, detail)
+            for label in signing_labels:
+                check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
             return
@@ -814,6 +875,8 @@ def check_gatekeeper_zip(version):
             for label in bundle_labels:
                 check(label, False, detail)
             for label in notarization_labels:
+                check(label, False, detail)
+            for label in signing_labels:
                 check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
@@ -826,6 +889,9 @@ def check_gatekeeper_zip(version):
 
         staple_ok, staple_detail = _stapler_valid(app)
         check(staple_label, staple_ok, staple_detail)
+
+        signing_ok, signing_detail = _production_signing_identity_valid(app)
+        check(signing_label, signing_ok, signing_detail)
 
         _check_framework_rpath(app, rpath_label)
         _check_required_resource_bundles(app, resources_label)
@@ -841,14 +907,22 @@ def check_dmg_contents(version):
     version_label = "Uploaded DMG app version matches release"
     build_label = "Uploaded DMG app build matches Info.plist"
     codesign_label = "Uploaded DMG app codesign valid"
+    signing_label = "Uploaded DMG app production signing identity"
     gatekeeper_label = "Uploaded DMG app Gatekeeper accepted"
     rpath_label = "Uploaded DMG app framework rpath valid"
     resources_label = "Uploaded DMG required resource bundles packaged"
     swiftpm_path_label = "Uploaded DMG has no SwiftPM release resource path embedded"
-    arch_label = f"Uploaded DMG executable contains {REQUIRED_EXECUTABLE_ARCH}"
+    arch_label = f"Uploaded DMG executable is {REQUIRED_EXECUTABLE_ARCH}-only"
     dmg_codesign_label = "Uploaded DMG container codesign valid"
     dmg_staple_label = "Uploaded DMG container stapled ticket valid"
-    app_labels = (contains_label, version_label, build_label, codesign_label, gatekeeper_label)
+    app_labels = (
+        contains_label,
+        version_label,
+        build_label,
+        codesign_label,
+        signing_label,
+        gatekeeper_label,
+    )
     packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     container_labels = (dmg_codesign_label, dmg_staple_label)
     workdir = tempfile.mkdtemp(prefix="cb-dmg-asset-")
@@ -883,6 +957,7 @@ def check_dmg_contents(version):
                 version_label,
                 build_label,
                 codesign_label,
+                signing_label,
                 gatekeeper_label,
                 *packaging_labels,
             ):
@@ -893,6 +968,9 @@ def check_dmg_contents(version):
 
         codesign_ok, codesign_detail = _codesign_valid(app)
         check(codesign_label, codesign_ok, codesign_detail)
+
+        signing_ok, signing_detail = _production_signing_identity_valid(app)
+        check(signing_label, signing_ok, signing_detail)
 
         gatekeeper_ok, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, gatekeeper_ok, gatekeeper_detail)

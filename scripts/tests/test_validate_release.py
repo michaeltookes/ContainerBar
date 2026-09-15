@@ -128,6 +128,14 @@ def uploaded_zip_staple_passes(mod):
 
 
 @contextmanager
+def uploaded_app_signing_passes(mod):
+    """Patch production signing identity checks for focused artifact tests."""
+    with mock.patch.object(mod, "_production_signing_identity_valid",
+                           return_value=(True, "production identity")) as signing:
+        yield signing
+
+
+@contextmanager
 def uploaded_dmg_container_passes(mod):
     """Patch uploaded-DMG container notarization checks for focused tests."""
     with mock.patch.object(mod, "_codesign_valid_container",
@@ -154,6 +162,57 @@ def test_run_executes_argv():
     rc, out = mod.run(["echo", "hello"])
     assert rc == 0
     assert out == "hello"
+
+
+# ── codesign metadata ────────────────────────────────────────────────────────
+
+def _codesign_detail(mod, team=None, authority=None):
+    team = mod.PRODUCTION_TEAM_ID if team is None else team
+    authority = mod.PRODUCTION_SIGNING_AUTHORITY if authority is None else authority
+    return "\n".join([
+        "Executable=/tmp/ContainerBar.app/Contents/MacOS/ContainerBar",
+        f"Authority={authority}",
+        "Authority=Developer ID Certification Authority",
+        f"TeamIdentifier={team}",
+    ])
+
+
+def test_production_signing_identity_accepts_release_team_and_authority():
+    mod = load_module()
+    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
+         mock.patch.object(mod.subprocess, "run",
+                           return_value=fake_completed(stderr=_codesign_detail(mod))):
+        ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
+
+    assert ok
+    assert mod.PRODUCTION_TEAM_ID in detail
+
+
+def test_production_signing_identity_rejects_wrong_team():
+    mod = load_module()
+    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
+         mock.patch.object(mod.subprocess, "run",
+                           return_value=fake_completed(stderr=_codesign_detail(mod, team="ABCDE12345"))):
+        ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
+
+    assert not ok
+    assert "ABCDE12345" in detail
+
+
+def test_production_signing_identity_rejects_wrong_authority():
+    mod = load_module()
+    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
+         mock.patch.object(mod.subprocess, "run",
+                           return_value=fake_completed(
+                               stderr=_codesign_detail(
+                                   mod,
+                                   authority="Developer ID Application: Someone Else (ABCDE12345)",
+                               )
+                           )):
+        ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
+
+    assert not ok
+    assert "Someone Else" in detail
 
 
 # ── GitHub release asset digests ────────────────────────────────────────────
@@ -441,7 +500,7 @@ def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
     assert not extract.called
-    assert mod.failed == 8 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 9 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_accepted():
@@ -454,6 +513,7 @@ def test_gatekeeper_uploaded_zip_accepted():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
              uploaded_zip_staple_passes(mod) as stapler, \
+             uploaded_app_signing_passes(mod) as signing, \
              uploaded_zip_packaging_passes(mod) as packaging_checks, \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
@@ -462,7 +522,11 @@ def test_gatekeeper_uploaded_zip_accepted():
     assert extract.called
     assert gatekeeper.called
     assert stapler.called
+    assert signing.called
     assert stapler.call_args[0][0].endswith(
+        os.path.join("extracted", f"{mod.APP_NAME}.app")
+    )
+    assert signing.call_args[0][0].endswith(
         os.path.join("extracted", f"{mod.APP_NAME}.app")
     )
     for packaging_check in packaging_checks:
@@ -470,7 +534,7 @@ def test_gatekeeper_uploaded_zip_accepted():
         checked_app = packaging_check.call_args[0][0]
         assert checked_app.endswith(os.path.join("extracted", f"{mod.APP_NAME}.app"))
         assert checked_app != mod.APP_BUNDLE
-    assert mod.passed == 8 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 9 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_version_fails():
@@ -483,12 +547,13 @@ def test_gatekeeper_uploaded_zip_stale_app_version_fails():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
              uploaded_zip_staple_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
     assert gatekeeper.called
-    assert mod.passed == 7 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 8 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_build_fails():
@@ -501,11 +566,12 @@ def test_gatekeeper_uploaded_zip_stale_app_build_fails():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")), \
              uploaded_zip_staple_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
-    assert mod.passed == 7 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 8 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_rejected():
@@ -518,10 +584,11 @@ def test_gatekeeper_uploaded_zip_rejected():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(False, "rejected")), \
              uploaded_zip_staple_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1 and mod.passed == 7
+    assert mod.failed == 1 and mod.passed == 8
 
 
 def test_gatekeeper_uploaded_zip_unstapled_app_fails():
@@ -534,12 +601,33 @@ def test_gatekeeper_uploaded_zip_unstapled_app_fails():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")), \
              mock.patch.object(mod, "_stapler_valid", return_value=(False, "not stapled")) as stapler, \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
     assert stapler.called
-    assert mod.failed == 1 and mod.passed == 7
+    assert mod.failed == 1 and mod.passed == 8
+
+
+def test_gatekeeper_uploaded_zip_wrong_signing_identity_fails():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")), \
+             uploaded_zip_staple_passes(mod), \
+             mock.patch.object(mod, "_production_signing_identity_valid",
+                               return_value=(False, "wrong team")) as signing, \
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
+            mod.check_gatekeeper_zip("2.0.4")
+
+    assert signing.called
+    assert mod.failed == 1 and mod.passed == 8
 
 
 def test_gatekeeper_uploaded_zip_extract_failure_fails():
@@ -549,7 +637,7 @@ def test_gatekeeper_uploaded_zip_extract_failure_fails():
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip", return_value=False):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 8
+    assert mod.failed == 9
 
 
 def test_executable_architecture_passes_for_arm64():
@@ -565,7 +653,7 @@ def test_executable_architecture_passes_for_arm64():
         with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/lipo"), \
              mock.patch.object(mod.subprocess, "run",
                                return_value=fake_completed(stdout="arm64\n")) as run:
-            mod._check_executable_architecture(app, "Uploaded ZIP executable contains arm64")
+            mod._check_executable_architecture(app, "Uploaded ZIP executable is arm64-only")
 
     run.assert_called_once()
     assert run.call_args[0][0] == ["/usr/bin/lipo", "-archs", binary]
@@ -584,7 +672,24 @@ def test_executable_architecture_fails_for_x86_only():
         with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/lipo"), \
              mock.patch.object(mod.subprocess, "run",
                                return_value=fake_completed(stdout="x86_64\n")):
-            mod._check_executable_architecture(app, "Uploaded ZIP executable contains arm64")
+            mod._check_executable_architecture(app, "Uploaded ZIP executable is arm64-only")
+
+    assert mod.failed == 1 and mod.passed == 0
+
+
+def test_executable_architecture_fails_for_universal_binary():
+    mod = load_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        app = os.path.join(tmp, f"{mod.APP_NAME}.app")
+        macos_dir = os.path.join(app, "Contents", "MacOS")
+        os.makedirs(macos_dir)
+        with open(os.path.join(macos_dir, mod.APP_NAME), "wb") as handle:
+            handle.write(b"mach-o")
+
+        with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/lipo"), \
+             mock.patch.object(mod.subprocess, "run",
+                               return_value=fake_completed(stdout="arm64 x86_64\n")):
+            mod._check_executable_architecture(app, "Uploaded ZIP executable is arm64-only")
 
     assert mod.failed == 1 and mod.passed == 0
 
@@ -601,7 +706,7 @@ def test_dmg_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_DMG_ASSET)
     assert not attach.called
-    assert mod.failed == 11 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 12 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_dmg_contains_valid_current_version_app():
@@ -616,6 +721,7 @@ def test_dmg_contains_valid_current_version_app():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
              uploaded_dmg_container_passes(mod) as container_checks, \
+             uploaded_app_signing_passes(mod) as signing, \
              uploaded_zip_packaging_passes(mod) as packaging_checks, \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
@@ -623,6 +729,7 @@ def test_dmg_contains_valid_current_version_app():
             assert attach.call_args[0][0] == dmg_path
             assert detach.called, "a mounted DMG must always be detached"
             assert codesign.called
+            assert signing.called
             assert gatekeeper.called
             for container_check in container_checks:
                 assert container_check.called
@@ -632,7 +739,7 @@ def test_dmg_contains_valid_current_version_app():
                 checked_app = packaging_check.call_args[0][0]
                 assert checked_app.endswith(f"{mod.APP_NAME}.app")
                 assert checked_app != mod.APP_BUNDLE
-    assert mod.passed == 11 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 12 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_dmg_stale_app_version_fails():
@@ -646,11 +753,12 @@ def test_dmg_stale_app_version_fails():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
 
 
 def test_dmg_stale_app_build_fails():
@@ -664,11 +772,12 @@ def test_dmg_stale_app_build_fails():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
 
 
 def test_dmg_missing_app_fails():
@@ -682,7 +791,7 @@ def test_dmg_missing_app_fails():
              uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert detach.called
-    assert mod.passed == 2 and mod.failed == 9
+    assert mod.passed == 2 and mod.failed == 10
 
 
 def test_dmg_attach_failure_does_not_detach():
@@ -695,7 +804,7 @@ def test_dmg_attach_failure_does_not_detach():
              uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert not detach.called, "no attach means nothing to detach"
-    assert mod.passed == 2 and mod.failed == 9
+    assert mod.passed == 2 and mod.failed == 10
 
 
 def test_dmg_codesign_failure_fails_bundle_validation():
@@ -709,11 +818,12 @@ def test_dmg_codesign_failure_fails_bundle_validation():
              mock.patch.object(mod, "_codesign_valid", return_value=(False, "bad signature")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
 
 
 def test_dmg_gatekeeper_failure_fails_bundle_validation():
@@ -727,11 +837,33 @@ def test_dmg_gatekeeper_failure_fails_bundle_validation():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(False, "rejected")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_app_signing_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
+
+
+def test_dmg_wrong_signing_identity_fails_bundle_validation():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_production_signing_identity_valid",
+                               return_value=(False, "wrong team")) as signing, \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_dmg_container_passes(mod), \
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
+            mod.check_dmg_contents("2.0.4")
+
+    assert signing.called
+    assert mod.passed == 11 and mod.failed == 1
 
 
 def test_dmg_container_codesign_failure_fails_validation():
@@ -746,12 +878,13 @@ def test_dmg_container_codesign_failure_fails_validation():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             uploaded_app_signing_passes(mod), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
 
 
 def test_dmg_container_stapler_failure_fails_validation():
@@ -765,12 +898,13 @@ def test_dmg_container_stapler_failure_fails_validation():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             uploaded_app_signing_passes(mod), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 10 and mod.failed == 1
+    assert mod.passed == 11 and mod.failed == 1
 
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Release validation now fails for missing or stale uploaded artifacts,
   mismatched bundle build numbers, invalid appcast signature/length metadata,
+  non-production signing identities, universal or non-arm64 executables,
   unstapled ZIP apps, un-notarized DMG containers, and packaging issues in the
   uploaded DMG app
 - Clean-machine smoke launch now preserves the remote distributed artifact and
