@@ -66,19 +66,21 @@ artifacts:
 - The app extracted from the uploaded GitHub release `ContainerBar.zip` has the
   release version, contains the required resource bundles, has the framework
   rpath, does not embed SwiftPM release build paths, is signed by the production
-  Developer ID team, contains only an arm64 executable, has a stapled ticket, and
-  passes Gatekeeper (`spctl --assess --type execute`).
+  Developer ID team with the production bundle identifier, contains only an
+  arm64 executable, has a stapled ticket, and passes Gatekeeper
+  (`spctl --assess --type execute`).
 - The uploaded GitHub release `ContainerBar.dmg` mounts and contains
   `ContainerBar.app`, and that mounted bundle has the release version, is signed
-  by the production Developer ID team, contains only an arm64 executable, passes
-  strict codesign verification, and passes Gatekeeper.
+  by the production Developer ID team with the production bundle identifier,
+  contains only an arm64 executable, passes strict codesign verification, and
+  passes Gatekeeper.
 - The published Homebrew cask version, canonical download URL, and `sha256`
   match the GitHub release.
 - The published Homebrew cask declares `depends_on arch: :arm64`.
 - The deployed appcast entry for the release has the canonical GitHub release
   zip enclosure URL, a `sparkle:edSignature` that verifies against the archive
-  fetched from that URL, and a `length` attribute matching that archive's byte
-  size.
+  fetched from that URL, a `length` attribute matching that archive's byte size,
+  and `sparkle:hardwareRequirements` declaring `arm64`.
 
 Missing or unreadable uploaded release assets, published cask content, deployed
 appcast metadata, or appcast enclosure archives fail because those are the

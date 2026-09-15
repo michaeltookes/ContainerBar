@@ -90,6 +90,50 @@ else
         -o "$APPCAST_DIR/appcast.xml"
 fi
 
+echo "Adding arm64 hardware requirement to appcast entries..."
+python3 - "$APPCAST_DIR/appcast.xml" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+DC_NS = "http://purl.org/dc/elements/1.1/"
+HARDWARE_TAG = f"{{{SPARKLE_NS}}}hardwareRequirements"
+MINIMUM_SYSTEM_TAG = f"{{{SPARKLE_NS}}}minimumSystemVersion"
+
+ET.register_namespace("sparkle", SPARKLE_NS)
+ET.register_namespace("dc", DC_NS)
+
+path = sys.argv[1]
+tree = ET.parse(path)
+root = tree.getroot()
+
+for item in root.findall(".//item"):
+    hardware = item.find(HARDWARE_TAG)
+    if hardware is not None:
+        requirements = [
+            requirement.strip()
+            for requirement in (hardware.text or "").split(",")
+            if requirement.strip()
+        ]
+        if "arm64" not in requirements:
+            requirements.append("arm64")
+        hardware.text = ",".join(requirements)
+        continue
+
+    hardware = ET.Element(HARDWARE_TAG)
+    hardware.text = "arm64"
+    insert_at = len(item)
+    for index, child in enumerate(list(item)):
+        if child.tag == MINIMUM_SYSTEM_TAG:
+            insert_at = index
+            break
+    item.insert(insert_at, hardware)
+
+if hasattr(ET, "indent"):
+    ET.indent(tree, space="    ")
+tree.write(path, encoding="utf-8", xml_declaration=True)
+PY
+
 echo ""
 echo "Appcast generated successfully at: $APPCAST_DIR/appcast.xml"
 echo ""

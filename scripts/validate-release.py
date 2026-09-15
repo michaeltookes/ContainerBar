@@ -64,6 +64,7 @@ REQUIRED_RESOURCE_BUNDLES = (
     "KeyboardShortcuts_KeyboardShortcuts.bundle",
 )
 REQUIRED_EXECUTABLE_ARCH = "arm64"
+REQUIRED_APPCAST_HARDWARE_REQUIREMENT = "arm64"
 PRODUCTION_TEAM_ID = "6739LM5834"
 PRODUCTION_SIGNING_AUTHORITY = "Developer ID Application: MICHAEL ARRINGTON TOOKES (6739LM5834)"
 BROKEN_SWIFTPM_RELEASE_PATHS = (
@@ -347,6 +348,19 @@ def _read_bundle_version_fields(plist_path):
     return short_version, build_number, version_detail, build_detail
 
 
+def _read_bundle_identifier(plist_path):
+    """Return CFBundleIdentifier and detail from a bundle Info.plist."""
+    try:
+        with open(plist_path, "rb") as handle:
+            plist = plistlib.load(handle)
+    except Exception as exc:
+        detail = f"could not read {plist_path}: {exc}"
+        return "", detail
+
+    bundle_id = _plist_string(plist, "CFBundleIdentifier")
+    return bundle_id, "" if bundle_id else "CFBundleIdentifier missing"
+
+
 def _info_plist_versions():
     """Return expected version fields from the distribution Info.plist."""
     return _read_bundle_version_fields(INFO_PLIST)
@@ -358,10 +372,21 @@ def expected_info_plist_build_number():
     return build_number, build_detail
 
 
+def expected_bundle_identifier():
+    """Return the expected CFBundleIdentifier from Distribution/Info.plist."""
+    return _read_bundle_identifier(INFO_PLIST)
+
+
 def _app_bundle_versions(app_path):
     """Return CFBundleShortVersionString and CFBundleVersion from an app bundle."""
     plist_path = os.path.join(app_path, "Contents", "Info.plist")
     return _read_bundle_version_fields(plist_path)
+
+
+def _app_bundle_identifier(app_path):
+    """Return CFBundleIdentifier from an app bundle."""
+    plist_path = os.path.join(app_path, "Contents", "Info.plist")
+    return _read_bundle_identifier(plist_path)
 
 
 def _app_bundle_short_version(app_path):
@@ -458,8 +483,39 @@ def _codesign_metadata(path):
     return metadata, combined
 
 
+def _codesign_designated_requirement(path):
+    """Return the app's designated code signing requirement text."""
+    codesign_bin = shutil.which("codesign")
+    if not codesign_bin:
+        return "", "codesign not found"
+
+    try:
+        result = subprocess.run(
+            [codesign_bin, "-d", "-r-", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return "", f"codesign execution failed: {exc}"
+
+    combined = (result.stdout + result.stderr).strip()
+    if result.returncode != 0:
+        return "", combined if combined else "codesign requirement display failed"
+
+    return combined, combined
+
+
 def _production_signing_identity_valid(app_path):
-    """Return whether an app is signed by the production Developer ID team."""
+    """Return whether an app is signed as the production app bundle."""
+    expected_id, expected_detail = expected_bundle_identifier()
+    if not expected_id:
+        return False, expected_detail
+
+    bundle_id, bundle_detail = _app_bundle_identifier(app_path)
+    if bundle_id != expected_id:
+        return False, bundle_detail or f"CFBundleIdentifier {bundle_id or '(none)'} != {expected_id}"
+
     metadata, detail = _codesign_metadata(app_path)
     if metadata is None:
         return False, detail
@@ -473,7 +529,12 @@ def _production_signing_identity_valid(app_path):
         authority_detail = ", ".join(authorities) if authorities else "(none)"
         return False, f"Authority {authority_detail} missing {PRODUCTION_SIGNING_AUTHORITY}"
 
-    return True, f"{PRODUCTION_SIGNING_AUTHORITY}; TeamIdentifier={team_id}"
+    requirement, requirement_detail = _codesign_designated_requirement(app_path)
+    expected_identifier_requirement = f'identifier "{expected_id}"'
+    if expected_identifier_requirement not in requirement:
+        return False, f"designated requirement missing {expected_identifier_requirement}: {requirement_detail}"
+
+    return True, f"{PRODUCTION_SIGNING_AUTHORITY}; TeamIdentifier={team_id}; {expected_identifier_requirement}"
 
 
 def _stapler_valid(path):
@@ -1047,13 +1108,27 @@ def _appcast_sparkle_version(item, enclosure):
     return version_elem.text.strip() if version_elem is not None and version_elem.text else ""
 
 
+def _appcast_hardware_requirements(item):
+    """Return the comma-delimited Sparkle hardware requirements for an item."""
+    requirements_elem = item.find(f"{{{SPARKLE_NS}}}hardwareRequirements") if item is not None else None
+    if requirements_elem is None or not requirements_elem.text:
+        return []
+
+    return [
+        requirement.strip()
+        for requirement in requirements_elem.text.split(",")
+        if requirement.strip()
+    ]
+
+
 def check_appcast_signature(version):
     """Verify the deployed appcast entry matches its enclosure archive."""
     url_label = "Appcast enclosure URL is canonical"
     build_label = "Appcast sparkle:version matches Info.plist build"
+    hardware_label = "Appcast requires arm64 hardware"
     sig_label = "Appcast edSignature verifies enclosure archive"
     len_label = "Appcast length matches enclosure archive size"
-    appcast_labels = (url_label, build_label, sig_label, len_label)
+    appcast_labels = (url_label, build_label, hardware_label, sig_label, len_label)
 
     root, detail = fetch_appcast_root()
     if root is None:
@@ -1075,6 +1150,16 @@ def check_appcast_signature(version):
         build_label,
         build_matches,
         appcast_build if build_matches else expected_detail or f"appcast {appcast_build or '(none)'} != Info.plist {expected_build}",
+    )
+
+    hardware_requirements = _appcast_hardware_requirements(item)
+    hardware_matches = REQUIRED_APPCAST_HARDWARE_REQUIREMENT in hardware_requirements
+    check(
+        hardware_label,
+        hardware_matches,
+        ", ".join(hardware_requirements)
+        if hardware_matches
+        else f"missing sparkle:hardwareRequirements {REQUIRED_APPCAST_HARDWARE_REQUIREMENT}",
     )
 
     enclosure_url = enclosure.get("url", "")

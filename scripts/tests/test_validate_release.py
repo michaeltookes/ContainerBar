@@ -166,33 +166,70 @@ def test_run_executes_argv():
 
 # ── codesign metadata ────────────────────────────────────────────────────────
 
-def _codesign_detail(mod, team=None, authority=None):
+@contextmanager
+def production_signing_inputs(
+    mod,
+    expected_bundle_id="com.tookes.ContainerBar",
+    app_bundle_id="com.tookes.ContainerBar",
+    requirement_bundle_id="com.tookes.ContainerBar",
+    team=None,
+    authority=None,
+):
+    """Patch production signing inputs while preserving the validation logic."""
     team = mod.PRODUCTION_TEAM_ID if team is None else team
     authority = mod.PRODUCTION_SIGNING_AUTHORITY if authority is None else authority
-    return "\n".join([
-        "Executable=/tmp/ContainerBar.app/Contents/MacOS/ContainerBar",
-        f"Authority={authority}",
-        "Authority=Developer ID Certification Authority",
-        f"TeamIdentifier={team}",
-    ])
+    metadata = {
+        "TeamIdentifier": team,
+        "Authority": [
+            authority,
+            "Developer ID Certification Authority",
+        ],
+    }
+    requirement = 'designated => anchor apple generic and identifier "{}"'.format(
+        requirement_bundle_id
+    )
+    with mock.patch.object(mod, "expected_bundle_identifier",
+                           return_value=(expected_bundle_id, "")), \
+         mock.patch.object(mod, "_app_bundle_identifier",
+                           return_value=(app_bundle_id, "")), \
+         mock.patch.object(mod, "_codesign_metadata",
+                           return_value=(metadata, "")), \
+         mock.patch.object(mod, "_codesign_designated_requirement",
+                           return_value=(requirement, requirement)):
+        yield
 
 
 def test_production_signing_identity_accepts_release_team_and_authority():
     mod = load_module()
-    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
-         mock.patch.object(mod.subprocess, "run",
-                           return_value=fake_completed(stderr=_codesign_detail(mod))):
+    with production_signing_inputs(mod):
         ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
 
     assert ok
     assert mod.PRODUCTION_TEAM_ID in detail
+    assert 'identifier "com.tookes.ContainerBar"' in detail
+
+
+def test_production_signing_identity_rejects_wrong_bundle_identifier():
+    mod = load_module()
+    with production_signing_inputs(mod, app_bundle_id="com.example.OtherApp"):
+        ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
+
+    assert not ok
+    assert "com.example.OtherApp" in detail
+
+
+def test_production_signing_identity_rejects_wrong_designated_requirement():
+    mod = load_module()
+    with production_signing_inputs(mod, requirement_bundle_id="com.example.OtherApp"):
+        ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
+
+    assert not ok
+    assert 'identifier "com.tookes.ContainerBar"' in detail
 
 
 def test_production_signing_identity_rejects_wrong_team():
     mod = load_module()
-    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
-         mock.patch.object(mod.subprocess, "run",
-                           return_value=fake_completed(stderr=_codesign_detail(mod, team="ABCDE12345"))):
+    with production_signing_inputs(mod, team="ABCDE12345"):
         ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
 
     assert not ok
@@ -201,14 +238,10 @@ def test_production_signing_identity_rejects_wrong_team():
 
 def test_production_signing_identity_rejects_wrong_authority():
     mod = load_module()
-    with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/codesign"), \
-         mock.patch.object(mod.subprocess, "run",
-                           return_value=fake_completed(
-                               stderr=_codesign_detail(
-                                   mod,
-                                   authority="Developer ID Application: Someone Else (ABCDE12345)",
-                               )
-                           )):
+    with production_signing_inputs(
+        mod,
+        authority="Developer ID Application: Someone Else (ABCDE12345)",
+    ):
         ok, detail = mod._production_signing_identity_valid("/tmp/ContainerBar.app")
 
     assert not ok
@@ -998,11 +1031,22 @@ def test_cask_arm64_fails_when_published_cask_unavailable():
 
 # ── check_appcast_signature ─────────────────────────────────────────────────
 
-def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None, build="7", build_attr=False):
+def _appcast_with_enclosure(
+    version,
+    ed_signature=None,
+    length=None,
+    url=None,
+    build="7",
+    build_attr=False,
+    hardware="arm64",
+):
     sig_attr = ' sparkle:edSignature="{}"'.format(ed_signature) if ed_signature is not None else ""
     len_attr = ' length="{}"'.format(length) if length is not None else ""
     build_element = "" if build is None or build_attr else "<sparkle:version>{}</sparkle:version>".format(build)
     build_attr_value = ' sparkle:version="{}"'.format(build) if build is not None and build_attr else ""
+    hardware_element = (
+        "" if hardware is None else "<sparkle:hardwareRequirements>{}</sparkle:hardwareRequirements>".format(hardware)
+    )
     enclosure_url = url or (
         "https://github.com/michaeltookes/ContainerBar/releases/download/"
         "v{}/ContainerBar.zip".format(version)
@@ -1012,6 +1056,7 @@ def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None, b
         '<rss xmlns:sparkle="{ns}"><channel><item>'
         "{build_element}"
         "<sparkle:shortVersionString>{v}</sparkle:shortVersionString>"
+        "{hardware_element}"
         '<enclosure url="{url}"{sig}{ln}{build_attr}/>'
         "</item></channel></rss>"
     ).format(
@@ -1022,6 +1067,7 @@ def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None, b
         ln=len_attr,
         build_element=build_element,
         build_attr=build_attr_value,
+        hardware_element=hardware_element,
     )
 
 
@@ -1049,7 +1095,7 @@ def test_appcast_signature_and_length_ok():
     download.assert_called_once()
     assert download.call_args[0][0] == expected_url
     verify.assert_called_once_with(zip_path, "AbC123==")
-    assert mod.passed == 4 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 5 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_missing_fails():
@@ -1068,7 +1114,7 @@ def test_appcast_signature_missing_fails():
             mod.check_appcast_signature("2.0.5")
 
     assert not verify.called
-    assert mod.failed == 1 and mod.passed == 3  # URL + build + length ok, signature missing
+    assert mod.failed == 1 and mod.passed == 4  # URL + build + hardware + length ok
 
 
 def test_appcast_length_mismatch_fails():
@@ -1086,7 +1132,7 @@ def test_appcast_length_mismatch_fails():
                                return_value=(True, "verified")), \
              expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 3  # URL + build + signature ok, length wrong
+    assert mod.failed == 1 and mod.passed == 4  # URL + build + hardware + signature ok
 
 
 def test_appcast_signature_verification_failure():
@@ -1104,7 +1150,7 @@ def test_appcast_signature_verification_failure():
                                return_value=(False, "bad signature")), \
              expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 3  # URL + build + length ok, signature fails
+    assert mod.failed == 1 and mod.passed == 4  # URL + build + hardware + length ok
 
 
 def test_appcast_build_mismatch_fails():
@@ -1122,7 +1168,7 @@ def test_appcast_build_mismatch_fails():
                                return_value=(True, "verified")), \
              expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 3
+    assert mod.failed == 1 and mod.passed == 4
 
 
 def test_appcast_build_matches_enclosure_attribute():
@@ -1146,7 +1192,31 @@ def test_appcast_build_matches_enclosure_attribute():
                                return_value=(True, "verified")), \
              expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 0 and mod.passed == 4
+    assert mod.failed == 0 and mod.passed == 5
+
+
+def test_appcast_hardware_requirement_missing_fails():
+    mod = load_module()
+    payload = b"x" * 100
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure(
+            "2.0.5",
+            ed_signature="sig==",
+            length=len(payload),
+            hardware=None,
+        ),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")), \
+             expected_info_build(mod, "7"):
+            mod.check_appcast_signature("2.0.5")
+
+    assert mod.failed == 1 and mod.passed == 4
 
 
 def test_appcast_no_item_for_version_fails_both():
@@ -1159,7 +1229,7 @@ def test_appcast_no_item_for_version_fails_both():
          mock.patch.object(mod, "_download_url_to_file") as download:
         mod.check_appcast_signature("2.0.5")
     assert not download.called
-    assert mod.failed == 4
+    assert mod.failed == 5
 
 
 def test_appcast_signature_fails_when_enclosure_archive_unavailable():
@@ -1173,7 +1243,7 @@ def test_appcast_signature_fails_when_enclosure_archive_unavailable():
                            return_value=("", "could not download")), \
          expected_info_build(mod, "7"):
         mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 2 and mod.passed == 2 and mod.skipped == 0
+    assert mod.failed == 2 and mod.passed == 3 and mod.skipped == 0
 
 
 def test_appcast_signature_fails_when_deployed_appcast_unavailable():
@@ -1183,7 +1253,7 @@ def test_appcast_signature_fails_when_deployed_appcast_unavailable():
         mod.check_appcast_signature("2.0.5")
 
     assert not download.called
-    assert mod.failed == 4 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 5 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_fails_when_enclosure_url_is_not_canonical():
@@ -1205,7 +1275,7 @@ def test_appcast_signature_fails_when_enclosure_url_is_not_canonical():
 
     assert not download.called
     assert not verify.called
-    assert mod.failed == 3 and mod.passed == 1 and mod.skipped == 0
+    assert mod.failed == 3 and mod.passed == 2 and mod.skipped == 0
 
 
 # ── standalone runner (no pytest on the mini) ───────────────────────────────
