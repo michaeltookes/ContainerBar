@@ -28,7 +28,9 @@ APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.app")
 RELEASE_ZIP_ASSET = f"{APP_NAME}.zip"
 RELEASE_DMG_ASSET = f"{APP_NAME}.dmg"
 RELEASE_ZIP = os.path.join(PROJECT_ROOT, "dist", RELEASE_ZIP_ASSET)
-HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
+HOMEBREW_TAP_REPO = "michaeltookes/homebrew-tap"
+HOMEBREW_CASK_PATH = "Casks/containerbar.rb"
+HOMEBREW_CASK_URL = f"https://raw.githubusercontent.com/{HOMEBREW_TAP_REPO}/main/{HOMEBREW_CASK_PATH}"
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
 SIGN_UPDATE_LOCATIONS = (
@@ -70,6 +72,7 @@ BROKEN_SWIFTPM_RELEASE_PATHS = (
 passed = 0
 failed = 0
 skipped = 0
+_published_cask_cache = None
 
 
 def check(label, condition, detail=""):
@@ -136,6 +139,20 @@ def fetch_appcast_root():
         return None, f"appcast parse error: {exc}"
     except Exception as exc:
         return None, str(exc)
+
+
+def published_homebrew_cask():
+    """Return the published Homebrew tap cask content, not a local checkout."""
+    global _published_cask_cache
+    if _published_cask_cache is not None:
+        return _published_cask_cache
+
+    try:
+        content = _fetch_url_bytes(HOMEBREW_CASK_URL, timeout=30).decode("utf-8")
+        _published_cask_cache = content, ""
+    except Exception as exc:
+        _published_cask_cache = "", f"could not fetch published cask {HOMEBREW_CASK_URL}: {exc}"
+    return _published_cask_cache
 
 
 def _normalize_sha256_digest(value):
@@ -270,6 +287,56 @@ def expected_appcast_enclosure_url(version):
     return f"https://github.com/{GITHUB_REPO}/releases/download/v{version}/{RELEASE_ZIP_ASSET}"
 
 
+def _app_bundle_short_version(app_path):
+    """Return CFBundleShortVersionString from an app bundle."""
+    plist_path = os.path.join(app_path, "Contents", "Info.plist")
+    try:
+        with open(plist_path, "rb") as handle:
+            plist = plistlib.load(handle)
+    except Exception as exc:
+        return "", f"could not read {plist_path}: {exc}"
+
+    version = plist.get("CFBundleShortVersionString", "")
+    return version, "" if version else "CFBundleShortVersionString missing"
+
+
+def _codesign_valid(app_path):
+    """Return whether an app bundle passes strict codesign verification."""
+    codesign_bin = shutil.which("codesign")
+    if not codesign_bin:
+        return False, "codesign not found"
+
+    try:
+        result = subprocess.run(
+            [codesign_bin, "--verify", "--deep", "--strict", "--verbose=2", app_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return False, f"codesign execution failed: {exc}"
+
+    combined = (result.stdout + result.stderr).strip()
+    return result.returncode == 0, combined if combined else "verified"
+
+
+def _gatekeeper_accepts_app(app_path):
+    """Return whether Gatekeeper accepts an app as an executable target."""
+    try:
+        result = subprocess.run(
+            ["spctl", "--assess", "--type", "execute", "--verbose=2", app_path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return False, f"spctl execution failed: {exc}"
+
+    combined = (result.stdout + result.stderr).strip()
+    accepted = result.returncode == 0 and "accepted" in combined.lower()
+    return accepted, "accepted" if accepted else combined or "spctl assessment failed"
+
+
 def check_info_plist(version):
     """Verify Info.plist version and build number."""
     try:
@@ -306,17 +373,15 @@ def check_git_tag(version):
 
 
 def check_homebrew_cask(version):
-    """Verify Homebrew cask has the correct version."""
-    try:
-        with open(HOMEBREW_CASK, "r") as f:
-            content = f.read()
-        match = re.search(r'version\s+"([^"]+)"', content)
-        cask_version = match.group(1) if match else ""
-        check("Homebrew cask version", cask_version == version, cask_version)
-    except FileNotFoundError:
-        check("Homebrew cask version", False, f"file not found: {HOMEBREW_CASK}")
-    except Exception as e:
-        check("Homebrew cask version", False, str(e))
+    """Verify the published Homebrew cask has the correct version."""
+    content, detail = published_homebrew_cask()
+    if not content:
+        check("Published Homebrew cask version", False, detail)
+        return
+
+    match = re.search(r'version\s+"([^"]+)"', content)
+    cask_version = match.group(1) if match else ""
+    check("Published Homebrew cask version", cask_version == version, cask_version)
 
 
 def check_github_release(version):
@@ -523,41 +588,44 @@ def _detach_dmg(mountpoint):
     run(["hdiutil", "detach", mountpoint, "-force"])
 
 
-def check_gatekeeper_zip():
-    """Verify the app extracted from the distributable zip passes Gatekeeper.
+def check_gatekeeper_zip(version):
+    """Verify the app extracted from the uploaded release zip passes Gatekeeper.
 
     This is the artifact users actually download, so assess it as an execute
-    target rather than trusting the loose dist/ bundle.
+    target rather than trusting the loose dist/ bundle or local zip.
     """
-    label = "Gatekeeper accepts zipped app"
-    if not os.path.isfile(RELEASE_ZIP):
-        skip(label, f"artifact absent: {RELEASE_ZIP}")
-        return
-
-    workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-")
+    label = "Gatekeeper accepts uploaded zip"
+    tag = f"v{version}"
+    workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
     try:
-        if not _extract_zip(RELEASE_ZIP, workdir):
-            check(label, False, f"could not extract {RELEASE_ZIP}")
+        uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
+        if not uploaded_zip:
+            check(label, False, detail)
             return
-        app = os.path.join(workdir, f"{APP_NAME}.app")
+
+        extract_dir = os.path.join(workdir, "extracted")
+        os.makedirs(extract_dir, exist_ok=True)
+        if not _extract_zip(uploaded_zip, extract_dir):
+            check(label, False, f"could not extract {RELEASE_ZIP_ASSET} from {tag}")
+            return
+
+        app = os.path.join(extract_dir, f"{APP_NAME}.app")
         if not os.path.isdir(app):
             check(label, False, f"{APP_NAME}.app not found inside zip")
             return
-        result = subprocess.run(
-            ["spctl", "--assess", "--type", "execute", "--verbose=2", app],
-            capture_output=True,
-            text=True,
-        )
-        combined = (result.stdout + result.stderr).strip()
-        accepted = "accepted" in combined.lower()
-        check(label, accepted, "accepted" if accepted else combined)
+
+        accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
+        check(label, accepted, gatekeeper_detail)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_dmg_contents(version):
-    """Verify the uploaded GitHub release DMG mounts and contains ContainerBar.app."""
-    label = "Uploaded DMG mounts and contains app"
+    """Verify the uploaded GitHub release DMG contains the intended valid app."""
+    contains_label = "Uploaded DMG mounts and contains app"
+    version_label = "Uploaded DMG app version matches release"
+    codesign_label = "Uploaded DMG app codesign valid"
+    gatekeeper_label = "Uploaded DMG app Gatekeeper accepted"
     workdir = tempfile.mkdtemp(prefix="cb-dmg-asset-")
     mountpoint = tempfile.mkdtemp(prefix="cb-dmg-")
     attached = False
@@ -565,16 +633,43 @@ def check_dmg_contents(version):
         tag = f"v{version}"
         uploaded_dmg, detail = _download_github_release_asset(tag, RELEASE_DMG_ASSET, workdir)
         if not uploaded_dmg:
-            check(label, False, detail)
+            check(contains_label, False, detail)
+            check(version_label, False, detail)
+            check(codesign_label, False, detail)
+            check(gatekeeper_label, False, detail)
             return
 
         if not _attach_dmg(uploaded_dmg, mountpoint):
-            check(label, False, f"could not attach {RELEASE_DMG_ASSET} from {tag}")
+            detail = f"could not attach {RELEASE_DMG_ASSET} from {tag}"
+            check(contains_label, False, detail)
+            check(version_label, False, detail)
+            check(codesign_label, False, detail)
+            check(gatekeeper_label, False, detail)
             return
         attached = True
         app = os.path.join(mountpoint, f"{APP_NAME}.app")
         present = os.path.isdir(app)
-        check(label, present, f"{APP_NAME}.app" if present else f"{APP_NAME}.app missing in DMG")
+        missing_detail = f"{APP_NAME}.app missing in DMG"
+        check(contains_label, present, f"{APP_NAME}.app" if present else missing_detail)
+        if not present:
+            check(version_label, False, missing_detail)
+            check(codesign_label, False, missing_detail)
+            check(gatekeeper_label, False, missing_detail)
+            return
+
+        bundle_version, version_detail = _app_bundle_short_version(app)
+        version_matches = bundle_version == version
+        check(
+            version_label,
+            version_matches,
+            bundle_version if version_matches else version_detail or f"{bundle_version or '(none)'} != {version}",
+        )
+
+        codesign_ok, codesign_detail = _codesign_valid(app)
+        check(codesign_label, codesign_ok, codesign_detail)
+
+        gatekeeper_ok, gatekeeper_detail = _gatekeeper_accepts_app(app)
+        check(gatekeeper_label, gatekeeper_ok, gatekeeper_detail)
     finally:
         if attached:
             _detach_dmg(mountpoint)
@@ -583,17 +678,11 @@ def check_dmg_contents(version):
 
 
 def check_cask_sha256(version):
-    """Verify the Homebrew cask sha256 matches the uploaded zip's sha256."""
-    label = "Homebrew cask sha256 matches uploaded zip"
-    if not os.path.isfile(HOMEBREW_CASK):
-        skip(label, f"cask absent: {HOMEBREW_CASK}")
-        return
-
-    try:
-        with open(HOMEBREW_CASK, "r") as f:
-            content = f.read()
-    except OSError as exc:
-        check(label, False, f"could not read cask: {exc}")
+    """Verify the published Homebrew cask sha256 matches the uploaded zip."""
+    label = "Published Homebrew cask sha256 matches uploaded zip"
+    content, detail = published_homebrew_cask()
+    if not content:
+        check(label, False, detail)
         return
 
     match = re.search(r'sha256\s+"([0-9a-fA-F]{64})"', content)
@@ -612,17 +701,11 @@ def check_cask_sha256(version):
 
 
 def check_cask_arm64():
-    """Verify the Homebrew cask enforces Apple Silicon via depends_on arch: :arm64."""
-    label = "Homebrew cask enforces arm64"
-    if not os.path.isfile(HOMEBREW_CASK):
-        skip(label, f"cask absent: {HOMEBREW_CASK}")
-        return
-
-    try:
-        with open(HOMEBREW_CASK, "r") as f:
-            content = f.read()
-    except OSError as exc:
-        check(label, False, f"could not read cask: {exc}")
+    """Verify the published cask enforces Apple Silicon via depends_on arch: :arm64."""
+    label = "Published Homebrew cask enforces arm64"
+    content, detail = published_homebrew_cask()
+    if not content:
+        check(label, False, detail)
         return
 
     found = re.search(r"depends_on\s+arch:\s*:arm64", content) is not None
@@ -731,7 +814,7 @@ def main():
     check_required_resource_bundles()
     check_no_swiftpm_release_resource_path()
     check_notarization()
-    check_gatekeeper_zip()
+    check_gatekeeper_zip(version)
     check_dmg_contents(version)
     check_cask_sha256(version)
     check_cask_arm64()

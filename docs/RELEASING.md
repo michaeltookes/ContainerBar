@@ -63,23 +63,21 @@ python3 scripts/validate-release.py X.Y.Z
 Alongside the version/tag/changelog checks it now verifies the distribution
 artifacts:
 
-- Gatekeeper accepts the app extracted from `dist/ContainerBar.zip`
-  (`spctl --assess --type execute`).
+- Gatekeeper accepts the app extracted from the uploaded GitHub release
+  `ContainerBar.zip` (`spctl --assess --type execute`).
 - The uploaded GitHub release `ContainerBar.dmg` mounts and contains
-  `ContainerBar.app`.
-- The Homebrew cask `sha256` matches the uploaded GitHub release zip's sha256.
-- The Homebrew cask declares `depends_on arch: :arm64`.
+  `ContainerBar.app`, and that mounted bundle has the release version, passes
+  strict codesign verification, and passes Gatekeeper.
+- The published Homebrew cask version and `sha256` match the GitHub release.
+- The published Homebrew cask declares `depends_on arch: :arm64`.
 - The deployed appcast entry for the release has the canonical GitHub release
   zip enclosure URL, a `sparkle:edSignature` that verifies against the archive
   fetched from that URL, and a `length` attribute matching that archive's byte
   size.
 
-The local Gatekeeper zip check **skips** (rather than fails) when
-`dist/ContainerBar.zip` is absent, so the validator stays runnable outside a
-real release. The Homebrew cask checksum check skips only when the local cask
-file is absent. Missing or unreadable uploaded release assets, deployed
+Missing or unreadable uploaded release assets, published cask content, deployed
 appcast metadata, or appcast enclosure archives fail because those are the
-bytes users and Sparkle consume.
+bytes users, Homebrew, and Sparkle consume.
 
 The appcast signature check uses Sparkle's `sign_update --verify`. Set
 `SPARKLE_SIGN_UPDATE` if the tool is installed somewhere other than the

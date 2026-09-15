@@ -80,10 +80,16 @@ def fake_completed(stdout="", stderr="", returncode=0):
     return types.SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
-def _make_app_side_effect(app_name):
+def _make_app_side_effect(app_name, version=None):
     """Return a side_effect that mimics extract/attach by creating <name>.app."""
     def _side_effect(_src, dest):
-        os.makedirs(os.path.join(dest, f"{app_name}.app"), exist_ok=True)
+        app = os.path.join(dest, f"{app_name}.app")
+        os.makedirs(app, exist_ok=True)
+        if version is not None:
+            contents_dir = os.path.join(app, "Contents")
+            os.makedirs(contents_dir, exist_ok=True)
+            with open(os.path.join(contents_dir, "Info.plist"), "wb") as handle:
+                plistlib.dump({"CFBundleShortVersionString": version}, handle)
         return True
     return _side_effect
 
@@ -275,24 +281,23 @@ def test_changelog_version_is_regex_escaped():
 
 def test_homebrew_cask_version_matches():
     mod = load_module()
-    with temp_file('cask "containerbar" do\n  version "1.2.0"\nend\n') as path:
-        mod.HOMEBREW_CASK = path
+    cask = 'cask "containerbar" do\n  version "1.2.0"\nend\n'
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
         mod.check_homebrew_cask("1.2.0")
     assert mod.passed == 1 and mod.failed == 0
 
 
 def test_homebrew_cask_version_mismatch():
     mod = load_module()
-    with temp_file('  version "0.9.0"\n') as path:
-        mod.HOMEBREW_CASK = path
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=('  version "0.9.0"\n', "")):
         mod.check_homebrew_cask("1.2.0")
     assert mod.failed == 1
 
 
-def test_homebrew_cask_missing_file():
+def test_homebrew_cask_fetch_failure():
     mod = load_module()
-    mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
-    mod.check_homebrew_cask("1.2.0")
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=("", "not found")):
+        mod.check_homebrew_cask("1.2.0")
     assert mod.failed == 1
 
 
@@ -350,42 +355,54 @@ def test_appcast_network_error_fails_gracefully():
 
 # ── check_gatekeeper_zip ────────────────────────────────────────────────────
 
-def test_gatekeeper_zip_skips_when_absent():
+def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     mod = load_module()
-    mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
-    mod.check_gatekeeper_zip()
-    assert mod.skipped == 1
-    assert mod.passed == 0 and mod.failed == 0
+    with mock.patch.object(mod, "_download_github_release_asset",
+                           return_value=("", "could not download")) as download, \
+         mock.patch.object(mod, "_extract_zip") as extract:
+        mod.check_gatekeeper_zip("2.0.4")
+
+    download.assert_called_once()
+    assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
+    assert not extract.called
+    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
-def test_gatekeeper_zip_accepted():
+def test_gatekeeper_uploaded_zip_accepted():
     mod = load_module()
     with temp_file(b"zip", binary=True) as zip_path:
-        mod.RELEASE_ZIP = zip_path
-        with mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
-             mock.patch.object(mod.subprocess, "run",
-                               return_value=fake_completed(stderr="source=Notarized Developer ID\naccepted\n")):
-            mod.check_gatekeeper_zip()
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")) as download, \
+             mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)) as extract, \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")) as gatekeeper:
+            mod.check_gatekeeper_zip("2.0.4")
+
+    download.assert_called_once()
+    assert extract.called
+    assert gatekeeper.called
     assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
 
 
-def test_gatekeeper_zip_rejected():
+def test_gatekeeper_uploaded_zip_rejected():
     mod = load_module()
     with temp_file(b"zip", binary=True) as zip_path:
-        mod.RELEASE_ZIP = zip_path
-        with mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
-             mock.patch.object(mod.subprocess, "run",
-                               return_value=fake_completed(stderr="rejected\n", returncode=3)):
-            mod.check_gatekeeper_zip()
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(False, "rejected")):
+            mod.check_gatekeeper_zip("2.0.4")
     assert mod.failed == 1 and mod.passed == 0
 
 
-def test_gatekeeper_zip_extract_failure_fails():
+def test_gatekeeper_uploaded_zip_extract_failure_fails():
     mod = load_module()
     with temp_file(b"zip", binary=True) as zip_path:
-        mod.RELEASE_ZIP = zip_path
-        with mock.patch.object(mod, "_extract_zip", return_value=False):
-            mod.check_gatekeeper_zip()
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip", return_value=False):
+            mod.check_gatekeeper_zip("2.0.4")
     assert mod.failed == 1
 
 
@@ -401,21 +418,42 @@ def test_dmg_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_DMG_ASSET)
     assert not attach.called
-    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 4 and mod.passed == 0 and mod.skipped == 0
 
 
-def test_dmg_contains_app():
+def test_dmg_contains_valid_current_version_app():
     mod = load_module()
     with temp_file(b"dmg", binary=True) as dmg_path:
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")) as download, \
-             mock.patch.object(mod, "_attach_dmg", side_effect=_make_app_side_effect(mod.APP_NAME)) as attach, \
-             mock.patch.object(mod, "_detach_dmg") as detach:
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")) as attach, \
+             mock.patch.object(mod, "_detach_dmg") as detach, \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")) as codesign, \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")) as gatekeeper:
             mod.check_dmg_contents("2.0.4")
             download.assert_called_once()
             assert attach.call_args[0][0] == dmg_path
             assert detach.called, "a mounted DMG must always be detached"
-    assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
+            assert codesign.called
+            assert gatekeeper.called
+    assert mod.passed == 4 and mod.failed == 0 and mod.skipped == 0
+
+
+def test_dmg_stale_app_version_fails():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 3 and mod.failed == 1
 
 
 def test_dmg_missing_app_fails():
@@ -428,7 +466,7 @@ def test_dmg_missing_app_fails():
              mock.patch.object(mod, "_detach_dmg") as detach:
             mod.check_dmg_contents("2.0.4")
             assert detach.called
-    assert mod.failed == 1
+    assert mod.failed == 4
 
 
 def test_dmg_attach_failure_does_not_detach():
@@ -440,7 +478,37 @@ def test_dmg_attach_failure_does_not_detach():
              mock.patch.object(mod, "_detach_dmg") as detach:
             mod.check_dmg_contents("2.0.4")
             assert not detach.called, "no attach means nothing to detach"
-    assert mod.failed == 1
+    assert mod.failed == 4
+
+
+def test_dmg_codesign_failure_fails_bundle_validation():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(False, "bad signature")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 3 and mod.failed == 1
+
+
+def test_dmg_gatekeeper_failure_fails_bundle_validation():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(False, "rejected")):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 3 and mod.failed == 1
 
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────
@@ -448,69 +516,69 @@ def test_dmg_attach_failure_does_not_detach():
 def test_cask_sha256_matches_uploaded_release_asset():
     mod = load_module()
     digest = "c" * 64
-    with temp_file(f'cask "containerbar" do\n  sha256 "{digest}"\nend\n') as cask_path:
-        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
-        mod.HOMEBREW_CASK = cask_path
-        with mock.patch.object(mod, "github_release_asset_sha256",
-                               return_value=(digest, "")) as asset_sha:
-            mod.check_cask_sha256("2.0.4")
+    cask = f'cask "containerbar" do\n  sha256 "{digest}"\nend\n'
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")) as published, \
+         mock.patch.object(mod, "github_release_asset_sha256",
+                           return_value=(digest, "")) as asset_sha:
+        mod.check_cask_sha256("2.0.4")
 
+    published.assert_called_once()
     asset_sha.assert_called_once_with("2.0.4")
     assert mod.passed == 1 and mod.failed == 0
 
 
 def test_cask_sha256_mismatch():
     mod = load_module()
-    with temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
-        mod.HOMEBREW_CASK = cask_path
-        with mock.patch.object(mod, "github_release_asset_sha256", return_value=("d" * 64, "")):
-            mod.check_cask_sha256("2.0.4")
+    cask = '  sha256 "{}"\n'.format("0" * 64)
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")), \
+         mock.patch.object(mod, "github_release_asset_sha256", return_value=("d" * 64, "")):
+        mod.check_cask_sha256("2.0.4")
     assert mod.failed == 1
 
 
 def test_cask_sha256_fails_when_release_asset_digest_unavailable():
     mod = load_module()
-    with temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
-        mod.HOMEBREW_CASK = cask_path
-        with mock.patch.object(mod, "github_release_asset_sha256",
-                               return_value=("", "asset digest unavailable")):
-            mod.check_cask_sha256("2.0.4")
+    cask = '  sha256 "{}"\n'.format("0" * 64)
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")), \
+         mock.patch.object(mod, "github_release_asset_sha256",
+                           return_value=("", "asset digest unavailable")):
+        mod.check_cask_sha256("2.0.4")
     assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
-def test_cask_sha256_skips_when_cask_absent():
+def test_cask_sha256_fails_when_published_cask_unavailable():
     mod = load_module()
-    mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
-    with mock.patch.object(mod, "github_release_asset_sha256") as asset_sha:
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=("", "not found")), \
+         mock.patch.object(mod, "github_release_asset_sha256") as asset_sha:
         mod.check_cask_sha256("2.0.4")
 
     assert not asset_sha.called
-    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
 # ── check_cask_arm64 ────────────────────────────────────────────────────────
 
 def test_cask_arm64_present():
     mod = load_module()
-    with temp_file('cask "containerbar" do\n  depends_on arch: :arm64\nend\n') as cask_path:
-        mod.HOMEBREW_CASK = cask_path
+    cask = 'cask "containerbar" do\n  depends_on arch: :arm64\nend\n'
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
         mod.check_cask_arm64()
     assert mod.passed == 1 and mod.failed == 0
 
 
 def test_cask_arm64_missing_fails():
     mod = load_module()
-    with temp_file('cask "containerbar" do\n  version "2.0.4"\nend\n') as cask_path:
-        mod.HOMEBREW_CASK = cask_path
+    cask = 'cask "containerbar" do\n  version "2.0.4"\nend\n'
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
         mod.check_cask_arm64()
     assert mod.failed == 1
 
 
-def test_cask_arm64_skips_when_absent():
+def test_cask_arm64_fails_when_published_cask_unavailable():
     mod = load_module()
-    mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
-    mod.check_cask_arm64()
-    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=("", "not found")):
+        mod.check_cask_arm64()
+    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
 # ── check_appcast_signature ─────────────────────────────────────────────────
