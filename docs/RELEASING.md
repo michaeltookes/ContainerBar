@@ -109,12 +109,14 @@ The helper copies the zip to a temp dir on the mini, extracts it, and verifies
 app needs a console GUI session — and GUI automation over SSH is not supported
 on the mini — the automated launch runs only when a GUI session is present. In
 that case the helper fails if `open` fails or if the app is not still running
-after launch, then quits it. Over plain SSH the helper prints the exact console
-command to run from the mini:
+after launch, then quits it. Over plain SSH the helper preserves the remote
+smoke directory, prints the exact console command to run from the mini, and exits
+nonzero until the manual launch is completed:
 
 ```
 open -a "<extracted>/ContainerBar.app"
 # confirm the menu-bar icon appears, open Settings, then quit.
+rm -rf "<remote smoke directory>"
 ```
 
 Do not skip the manual console launch: the signature/Gatekeeper/staple checks

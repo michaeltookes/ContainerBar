@@ -68,12 +68,27 @@ fi
 
 echo "==> Copying $ZIP_PATH to $MINI_HOST"
 REMOTE_TMP="$(ssh "$MINI_HOST" 'mktemp -d /tmp/containerbar-smoke.XXXXXX')"
-# shellcheck disable=SC2064  # expand host/tmp now so the trap cleans the right dir
-trap "ssh '$MINI_HOST' 'rm -rf \"$REMOTE_TMP\"'" EXIT
+PRESERVE_REMOTE_TMP=0
+
+cleanup_remote_tmp() {
+    if [ -z "${REMOTE_TMP:-}" ]; then
+        return
+    fi
+    if [ "$PRESERVE_REMOTE_TMP" -eq 1 ]; then
+        echo "==> Remote smoke artifact preserved at $MINI_HOST:$REMOTE_TMP"
+        echo "==> After manual verification, clean it up with:"
+        echo "    ssh \"$MINI_HOST\" 'rm -rf \"$REMOTE_TMP\"'"
+        return
+    fi
+    ssh "$MINI_HOST" "rm -rf \"$REMOTE_TMP\"" || true
+}
+
+trap cleanup_remote_tmp EXIT
 
 scp -q "$ZIP_PATH" "$MINI_HOST:$REMOTE_TMP/ContainerBar.zip"
 
 echo "==> Verifying the distributed build on $MINI_HOST"
+set +e
 ssh "$MINI_HOST" bash -s -- "$REMOTE_TMP" <<'REMOTE'
 set -euo pipefail
 export PATH="/opt/homebrew/bin:$PATH"
@@ -139,9 +154,25 @@ else
     echo "-- NO GUI session over SSH: run the launch from the mini's console:"
     echo "     open -a \"$APP\""
     echo "   Confirm the menu-bar icon appears, open Settings, then quit."
+    echo "   Then remove the preserved smoke directory:"
+    echo "     rm -rf \"$REMOTE_TMP\""
+    exit 90
 fi
 
 echo "SMOKE CHECKS OK"
 REMOTE
+REMOTE_STATUS=$?
+set -e
+
+if [ "$REMOTE_STATUS" -eq 90 ]; then
+    PRESERVE_REMOTE_TMP=1
+    echo "==> Signature, Gatekeeper, and stapler checks passed."
+    echo "==> Manual console launch is still required; see the command above."
+    exit 90
+fi
+
+if [ "$REMOTE_STATUS" -ne 0 ]; then
+    exit "$REMOTE_STATUS"
+fi
 
 echo "==> Smoke check complete."
