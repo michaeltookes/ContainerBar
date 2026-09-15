@@ -17,6 +17,7 @@ The mini has no pytest, so the __main__ runner below is the primary path.
 NOTE: intentionally separate from `swift test` — this exercises Python, not Swift.
 """
 
+import hashlib
 import importlib.util
 import os
 import plistlib
@@ -103,6 +104,60 @@ def test_run_executes_argv():
     rc, out = mod.run(["echo", "hello"])
     assert rc == 0
     assert out == "hello"
+
+
+# ── GitHub release asset digests ────────────────────────────────────────────
+
+def test_github_release_asset_sha256_uses_release_digest():
+    mod = load_module()
+    digest = "a" * 64
+    with mock.patch.object(mod, "run", return_value=(0, f"sha256:{digest}\n")), \
+         mock.patch.object(mod, "_download_github_release_asset_sha256") as download:
+        actual, detail = mod.github_release_asset_sha256("2.0.4")
+
+    assert actual == digest
+    assert detail == ""
+    assert not download.called
+
+
+def test_github_release_asset_sha256_downloads_when_digest_absent():
+    mod = load_module()
+    digest = "b" * 64
+    with mock.patch.object(mod, "run", return_value=(0, "")), \
+         mock.patch.object(mod, "_download_github_release_asset_sha256",
+                           return_value=(digest, "")) as download:
+        actual, detail = mod.github_release_asset_sha256("2.0.4")
+
+    assert actual == digest
+    assert detail == ""
+    download.assert_called_once_with("v2.0.4")
+
+
+def test_download_github_release_asset_sha256_hashes_uploaded_asset():
+    mod = load_module()
+    payload = b"uploaded-release-zip"
+    expected = hashlib.sha256(payload).hexdigest()
+
+    def fake_download(cmd):
+        workdir = cmd[cmd.index("--dir") + 1]
+        with open(os.path.join(workdir, mod.RELEASE_ZIP_ASSET), "wb") as handle:
+            handle.write(payload)
+        return 0, ""
+
+    with mock.patch.object(mod, "run", side_effect=fake_download):
+        actual, detail = mod._download_github_release_asset_sha256("v2.0.4")
+
+    assert actual == expected
+    assert detail == ""
+
+
+def test_download_github_release_asset_sha256_reports_download_failure():
+    mod = load_module()
+    with mock.patch.object(mod, "run", return_value=(1, "")):
+        actual, detail = mod._download_github_release_asset_sha256("v2.0.4")
+
+    assert actual == ""
+    assert "could not download" in detail
 
 
 # ── check(): pass/fail accounting ───────────────────────────────────────────
@@ -349,44 +404,46 @@ def test_dmg_attach_failure_does_not_detach():
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────
 
-def test_cask_sha256_matches():
+def test_cask_sha256_matches_uploaded_release_asset():
     mod = load_module()
-    payload = b"container-bar-zip-bytes"
-    import hashlib
-    digest = hashlib.sha256(payload).hexdigest()
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(f'cask "containerbar" do\n  sha256 "{digest}"\nend\n') as cask_path:
-        mod.RELEASE_ZIP = zip_path
+    digest = "c" * 64
+    with temp_file(f'cask "containerbar" do\n  sha256 "{digest}"\nend\n') as cask_path:
+        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
         mod.HOMEBREW_CASK = cask_path
-        mod.check_cask_sha256()
+        with mock.patch.object(mod, "github_release_asset_sha256",
+                               return_value=(digest, "")) as asset_sha:
+            mod.check_cask_sha256("2.0.4")
+
+    asset_sha.assert_called_once_with("2.0.4")
     assert mod.passed == 1 and mod.failed == 0
 
 
 def test_cask_sha256_mismatch():
     mod = load_module()
-    with temp_file(b"zip-bytes", binary=True) as zip_path, \
-         temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
-        mod.RELEASE_ZIP = zip_path
+    with temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
         mod.HOMEBREW_CASK = cask_path
-        mod.check_cask_sha256()
+        with mock.patch.object(mod, "github_release_asset_sha256", return_value=("d" * 64, "")):
+            mod.check_cask_sha256("2.0.4")
     assert mod.failed == 1
 
 
-def test_cask_sha256_skips_when_zip_absent():
+def test_cask_sha256_fails_when_release_asset_digest_unavailable():
     mod = load_module()
     with temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
-        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
         mod.HOMEBREW_CASK = cask_path
-        mod.check_cask_sha256()
-    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+        with mock.patch.object(mod, "github_release_asset_sha256",
+                               return_value=("", "asset digest unavailable")):
+            mod.check_cask_sha256("2.0.4")
+    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_cask_sha256_skips_when_cask_absent():
     mod = load_module()
-    with temp_file(b"zip-bytes", binary=True) as zip_path:
-        mod.RELEASE_ZIP = zip_path
-        mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
-        mod.check_cask_sha256()
+    mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
+    with mock.patch.object(mod, "github_release_asset_sha256") as asset_sha:
+        mod.check_cask_sha256("2.0.4")
+
+    assert not asset_sha.called
     assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
 
 

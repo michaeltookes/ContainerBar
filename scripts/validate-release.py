@@ -24,8 +24,10 @@ APP_NAME = "ContainerBar"
 INFO_PLIST = os.path.join(PROJECT_ROOT, "Distribution", "Info.plist")
 CHANGELOG = os.path.join(PROJECT_ROOT, "CHANGELOG.md")
 APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.app")
-RELEASE_ZIP = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.zip")
-RELEASE_DMG = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.dmg")
+RELEASE_ZIP_ASSET = f"{APP_NAME}.zip"
+RELEASE_DMG_ASSET = f"{APP_NAME}.dmg"
+RELEASE_ZIP = os.path.join(PROJECT_ROOT, "dist", RELEASE_ZIP_ASSET)
+RELEASE_DMG = os.path.join(PROJECT_ROOT, "dist", RELEASE_DMG_ASSET)
 APPCAST_FILE = os.path.join(PROJECT_ROOT, "docs", "appcast.xml")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
@@ -82,6 +84,82 @@ def run(cmd):
         raise TypeError("run() expects an argv sequence, not a shell command string")
     result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
     return result.returncode, result.stdout.strip()
+
+
+def _normalize_sha256_digest(value):
+    """Return a lowercase SHA-256 hex digest from GitHub's digest format."""
+    digest = value.strip()
+    if digest.startswith("sha256:"):
+        digest = digest[len("sha256:"):]
+    digest = digest.lower()
+    return digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
+
+
+def github_release_asset_sha256(version):
+    """Return the SHA-256 of the uploaded release zip asset.
+
+    Prefer GitHub's asset digest metadata, then fall back to downloading the
+    tagged asset. The local dist zip may be stale, so it is deliberately not
+    used for the Homebrew cask comparison.
+    """
+    tag = f"v{version}"
+    rc, digest_output = run(
+        [
+            "gh",
+            "release",
+            "view",
+            tag,
+            "--repo",
+            GITHUB_REPO,
+            "--json",
+            "assets",
+            "-q",
+            f'.assets[] | select(.name == "{RELEASE_ZIP_ASSET}") | .digest',
+        ]
+    )
+    if rc == 0:
+        digest = next(
+            (line.strip() for line in digest_output.splitlines() if line.strip() and line.strip() != "null"),
+            "",
+        )
+        if digest:
+            normalized = _normalize_sha256_digest(digest)
+            if normalized:
+                return normalized, ""
+            return "", f"invalid GitHub digest for {RELEASE_ZIP_ASSET}: {digest}"
+
+    return _download_github_release_asset_sha256(tag)
+
+
+def _download_github_release_asset_sha256(tag):
+    """Download the uploaded release zip and return its SHA-256 digest."""
+    workdir = tempfile.mkdtemp(prefix="cb-release-asset-")
+    try:
+        rc, _ = run(
+            [
+                "gh",
+                "release",
+                "download",
+                tag,
+                "--repo",
+                GITHUB_REPO,
+                "--pattern",
+                RELEASE_ZIP_ASSET,
+                "--dir",
+                workdir,
+                "--clobber",
+            ]
+        )
+        if rc != 0:
+            return "", f"could not download {RELEASE_ZIP_ASSET} from {tag}"
+
+        asset_path = os.path.join(workdir, RELEASE_ZIP_ASSET)
+        if not os.path.isfile(asset_path):
+            return "", f"{RELEASE_ZIP_ASSET} missing after download from {tag}"
+
+        return sha256_of_file(asset_path), ""
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_info_plist(version):
@@ -143,10 +221,10 @@ def check_github_release(version):
         _, assets = run(
             ["gh", "release", "view", tag, "--repo", GITHUB_REPO, "--json", "assets", "-q", ".assets[].name"]
         )
-        has_zip = "ContainerBar.zip" in assets
-        check("Release asset ContainerBar.zip uploaded", has_zip)
+        has_zip = RELEASE_ZIP_ASSET in assets.splitlines()
+        check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", has_zip)
     else:
-        check("Release asset ContainerBar.zip uploaded", False, "release not found")
+        check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", False, "release not found")
 
 
 def check_appcast(version):
@@ -388,12 +466,9 @@ def check_dmg_contents():
         shutil.rmtree(mountpoint, ignore_errors=True)
 
 
-def check_cask_sha256():
+def check_cask_sha256(version):
     """Verify the Homebrew cask sha256 matches the uploaded zip's sha256."""
-    label = "Homebrew cask sha256 matches zip"
-    if not os.path.isfile(RELEASE_ZIP):
-        skip(label, f"artifact absent: {RELEASE_ZIP}")
-        return
+    label = "Homebrew cask sha256 matches uploaded zip"
     if not os.path.isfile(HOMEBREW_CASK):
         skip(label, f"cask absent: {HOMEBREW_CASK}")
         return
@@ -407,12 +482,16 @@ def check_cask_sha256():
 
     match = re.search(r'sha256\s+"([0-9a-fA-F]{64})"', content)
     cask_sha = match.group(1).lower() if match else ""
-    actual_sha = sha256_of_file(RELEASE_ZIP)
+    actual_sha, digest_detail = github_release_asset_sha256(version)
+    if not actual_sha:
+        check(label, False, digest_detail)
+        return
+
     matches = cask_sha == actual_sha
     check(
         label,
         matches,
-        "matches" if matches else f"cask {cask_sha or '(none)'} != zip {actual_sha}",
+        "matches" if matches else f"cask {cask_sha or '(none)'} != uploaded zip {actual_sha}",
     )
 
 
@@ -517,7 +596,7 @@ def main():
     check_notarization()
     check_gatekeeper_zip()
     check_dmg_contents()
-    check_cask_sha256()
+    check_cask_sha256(version)
     check_cask_arm64()
     check_appcast_signature(version)
 

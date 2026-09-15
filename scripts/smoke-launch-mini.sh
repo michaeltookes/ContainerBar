@@ -86,6 +86,27 @@ if [ ! -d "$APP" ]; then
     echo "FAIL: ContainerBar.app not found inside zip"
     exit 1
 fi
+APP_EXEC="$APP/Contents/MacOS/ContainerBar"
+if [ ! -x "$APP_EXEC" ]; then
+    echo "FAIL: ContainerBar executable not found inside app bundle"
+    exit 1
+fi
+APP_EXEC_DIR="$(cd "$(dirname "$APP_EXEC")" && pwd -P)"
+REAL_APP_EXEC="$APP_EXEC_DIR/$(basename "$APP_EXEC")"
+
+is_containerbar_running() {
+    pgrep -f "$APP_EXEC" >/dev/null 2>&1 \
+        || pgrep -f "$REAL_APP_EXEC" >/dev/null 2>&1 \
+        || pgrep -x "ContainerBar" >/dev/null 2>&1
+}
+
+quit_containerbar() {
+    osascript -e 'tell application "ContainerBar" to quit' 2>/dev/null \
+        || pkill -f "$APP_EXEC" 2>/dev/null \
+        || pkill -f "$REAL_APP_EXEC" 2>/dev/null \
+        || pkill -x "ContainerBar" 2>/dev/null \
+        || true
+}
 
 echo "-- codesign --verify --deep --strict"
 codesign --verify --deep --strict --verbose=2 "$APP"
@@ -98,11 +119,21 @@ xcrun stapler validate "$APP"
 
 if launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
     echo "-- GUI session present: launching for smoke test"
-    CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1 open -a "$APP" || true
+    if is_containerbar_running; then
+        echo "FAIL: ContainerBar is already running; quit it before smoke testing this artifact"
+        exit 1
+    fi
+    if ! CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1 open -a "$APP"; then
+        echo "FAIL: open could not launch ContainerBar"
+        exit 1
+    fi
     sleep 5
-    osascript -e 'tell application "ContainerBar" to quit' 2>/dev/null \
-        || pkill -f "ContainerBar.app/Contents/MacOS/ContainerBar" 2>/dev/null \
-        || true
+    if ! is_containerbar_running; then
+        echo "FAIL: ContainerBar is not running after launch"
+        quit_containerbar
+        exit 1
+    fi
+    quit_containerbar
     echo "-- launched and quit"
 else
     echo "-- NO GUI session over SSH: run the launch from the mini's console:"

@@ -66,13 +66,16 @@ artifacts:
 - Gatekeeper accepts the app extracted from `dist/ContainerBar.zip`
   (`spctl --assess --type execute`).
 - `dist/ContainerBar.dmg` mounts and contains `ContainerBar.app`.
-- The Homebrew cask `sha256` matches the uploaded zip's sha256.
+- The Homebrew cask `sha256` matches the uploaded GitHub release zip's sha256.
 - The Homebrew cask declares `depends_on arch: :arm64`.
 - The appcast entry for the release has a `sparkle:edSignature` and a `length`
   attribute matching the zip's byte size.
 
-Each of these **skips** (rather than fails) when its artifact is absent, so the
-validator stays runnable outside a real release.
+Local artifact checks **skip** (rather than fail) when their `dist/` artifact is
+absent, so the validator stays runnable outside a real release. The Homebrew
+cask checksum check skips only when the local cask file is absent; a missing or
+unreadable GitHub release asset fails because Homebrew installs that uploaded
+zip.
 
 ## Clean-machine smoke launch (required release step)
 
@@ -95,9 +98,10 @@ The helper copies the zip to a temp dir on the mini, extracts it, and verifies
 `codesign --verify --deep --strict`, `spctl --assess --type execute`, and
 `xcrun stapler validate` against the distributed app. Because a menu-bar (Aqua)
 app needs a console GUI session — and GUI automation over SSH is not supported
-on the mini — the actual window/menu-bar launch is performed only when a GUI
-session is present; over plain SSH the helper prints the exact `open -a` command
-to run from the mini's console:
+on the mini — the automated launch runs only when a GUI session is present. In
+that case the helper fails if `open` fails or if the app is not still running
+after launch, then quits it. Over plain SSH the helper prints the exact console
+command to run from the mini:
 
 ```
 open -a "<extracted>/ContainerBar.app"
