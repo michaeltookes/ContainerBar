@@ -17,41 +17,83 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     private var _lastCalledMethod: String?
 
     public var mockContainers: [DockerContainer] {
-        get { stateLock.withLock { _mockContainers } }
-        set { stateLock.withLock { _mockContainers = newValue } }
+        stateLock.withLock { _mockContainers }
     }
 
     public var mockStats: [String: ContainerStats] {
-        get { stateLock.withLock { _mockStats } }
-        set { stateLock.withLock { _mockStats = newValue } }
+        stateLock.withLock { _mockStats }
     }
 
     public var mockSystemInfo: DockerSystemInfo? {
-        get { stateLock.withLock { _mockSystemInfo } }
-        set { stateLock.withLock { _mockSystemInfo = newValue } }
+        stateLock.withLock { _mockSystemInfo }
     }
 
     public var shouldFail: Bool {
-        get { stateLock.withLock { _shouldFail } }
-        set { stateLock.withLock { _shouldFail = newValue } }
+        stateLock.withLock { _shouldFail }
     }
 
     public var failureError: Error {
-        get { stateLock.withLock { _failureError } }
-        set { stateLock.withLock { _failureError = newValue } }
+        stateLock.withLock { _failureError }
     }
 
     public var callCount: Int {
-        get { stateLock.withLock { _callCount } }
-        set { stateLock.withLock { _callCount = newValue } }
+        stateLock.withLock { _callCount }
     }
 
     public var lastCalledMethod: String? {
-        get { stateLock.withLock { _lastCalledMethod } }
-        set { stateLock.withLock { _lastCalledMethod = newValue } }
+        stateLock.withLock { _lastCalledMethod }
     }
 
     public init() {}
+
+    public func setMockContainers(_ containers: [DockerContainer]) {
+        stateLock.withLock {
+            _mockContainers = containers
+        }
+    }
+
+    public func appendMockContainers(_ containers: [DockerContainer]) {
+        stateLock.withLock {
+            _mockContainers.append(contentsOf: containers)
+        }
+    }
+
+    public func updateMockContainers(_ update: (inout [DockerContainer]) -> Void) {
+        stateLock.withLock {
+            update(&_mockContainers)
+        }
+    }
+
+    public func setMockStats(_ stats: [String: ContainerStats]) {
+        stateLock.withLock {
+            _mockStats = stats
+        }
+    }
+
+    public func setMockStats(_ stats: ContainerStats, forContainerID id: String) {
+        stateLock.withLock {
+            _mockStats[id] = stats
+        }
+    }
+
+    public func updateMockStats(_ update: (inout [String: ContainerStats]) -> Void) {
+        stateLock.withLock {
+            update(&_mockStats)
+        }
+    }
+
+    public func setMockSystemInfo(_ systemInfo: DockerSystemInfo?) {
+        stateLock.withLock {
+            _mockSystemInfo = systemInfo
+        }
+    }
+
+    public func setFailure(_ shouldFail: Bool, error: Error = DockerAPIError.connectionFailed) {
+        stateLock.withLock {
+            _shouldFail = shouldFail
+            _failureError = error
+        }
+    }
 
     private func recordCall(_ method: String) {
         stateLock.withLock {

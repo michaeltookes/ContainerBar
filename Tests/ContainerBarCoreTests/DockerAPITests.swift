@@ -349,10 +349,10 @@ struct MockDockerAPIClientTests {
     @Test("Mock client returns configured containers")
     func mockReturnsContainers() async throws {
         let mock = MockDockerAPIClient()
-        mock.mockContainers = [
+        mock.setMockContainers([
             DockerContainer.mock(id: "test1", name: "container1"),
             DockerContainer.mock(id: "test2", name: "container2"),
-        ]
+        ])
 
         let containers = try await mock.listContainers(all: true)
 
@@ -364,8 +364,7 @@ struct MockDockerAPIClientTests {
     @Test("Mock client throws when configured to fail")
     func mockThrowsOnFailure() async {
         let mock = MockDockerAPIClient()
-        mock.shouldFail = true
-        mock.failureError = DockerAPIError.connectionFailed
+        mock.setFailure(true, error: DockerAPIError.connectionFailed)
 
         do {
             _ = try await mock.listContainers(all: true)
@@ -389,7 +388,7 @@ struct MockDockerAPIClientTests {
     func mockReturnsStats() async throws {
         let mock = MockDockerAPIClient()
         let mockStats = ContainerStats.mock(containerId: "test1", cpuPercent: 5.0)
-        mock.mockStats["test1"] = mockStats
+        mock.setMockStats(mockStats, forContainerID: "test1")
 
         let stats = try await mock.getContainerStats(id: "test1")
 
