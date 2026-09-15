@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   containers, and packaging issues in the uploaded DMG app
 - Clean-machine smoke launch now preserves the remote distributed artifact and
   exits nonzero when a console GUI launch is still required from an SSH-only
-  session
+  session, and passes the Settings launch flag through LaunchServices
 
 ## [2.0.4] - 2026-09-12
 

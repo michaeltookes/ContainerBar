@@ -119,7 +119,7 @@ smoke directory, prints the exact console command to run from the mini, and exit
 nonzero until the manual launch is completed:
 
 ```
-open -a "<extracted>/ContainerBar.app"
+open --env "CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1" -a "<extracted>/ContainerBar.app"
 # confirm the menu-bar icon appears, open Settings, then quit.
 rm -rf "<remote smoke directory>"
 ```

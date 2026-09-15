@@ -108,6 +108,7 @@ if [ ! -x "$APP_EXEC" ]; then
 fi
 APP_EXEC_DIR="$(cd "$(dirname "$APP_EXEC")" && pwd -P)"
 REAL_APP_EXEC="$APP_EXEC_DIR/$(basename "$APP_EXEC")"
+OPEN_SETTINGS_ENV="CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1"
 
 is_containerbar_running() {
     pgrep -f "$APP_EXEC" >/dev/null 2>&1 \
@@ -138,7 +139,7 @@ if launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
         echo "FAIL: ContainerBar is already running; quit it before smoke testing this artifact"
         exit 1
     fi
-    if ! CONTAINERBAR_OPEN_SETTINGS_ON_LAUNCH=1 open -a "$APP"; then
+    if ! open --env "$OPEN_SETTINGS_ENV" -a "$APP"; then
         echo "FAIL: open could not launch ContainerBar"
         exit 1
     fi
@@ -152,7 +153,7 @@ if launchctl print "gui/$(id -u)" >/dev/null 2>&1; then
     echo "-- launched and quit"
 else
     echo "-- NO GUI session over SSH: run the launch from the mini's console:"
-    echo "     open -a \"$APP\""
+    echo "     open --env \"$OPEN_SETTINGS_ENV\" -a \"$APP\""
     echo "   Confirm the menu-bar icon appears, open Settings, then quit."
     echo "   Then remove the preserved smoke directory:"
     echo "     rm -rf \"$REMOTE_TMP\""
