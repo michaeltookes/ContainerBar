@@ -775,11 +775,13 @@ def check_gatekeeper_zip(version):
     version_label = "Uploaded ZIP app version matches release"
     build_label = "Uploaded ZIP app build matches Info.plist"
     gatekeeper_label = "Gatekeeper accepts uploaded zip"
+    staple_label = "Uploaded ZIP app stapled ticket valid"
     rpath_label = "Uploaded ZIP app framework rpath valid"
     resources_label = "Uploaded ZIP required resource bundles packaged"
     swiftpm_path_label = "Uploaded ZIP has no SwiftPM release resource path embedded"
     arch_label = f"Uploaded ZIP executable contains {REQUIRED_EXECUTABLE_ARCH}"
     bundle_labels = (version_label, build_label)
+    notarization_labels = (gatekeeper_label, staple_label)
     packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     tag = f"v{version}"
     workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
@@ -788,7 +790,8 @@ def check_gatekeeper_zip(version):
         if not uploaded_zip:
             for label in bundle_labels:
                 check(label, False, detail)
-            check(gatekeeper_label, False, detail)
+            for label in notarization_labels:
+                check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
             return
@@ -799,7 +802,8 @@ def check_gatekeeper_zip(version):
             detail = f"could not extract {RELEASE_ZIP_ASSET} from {tag}"
             for label in bundle_labels:
                 check(label, False, detail)
-            check(gatekeeper_label, False, detail)
+            for label in notarization_labels:
+                check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
             return
@@ -809,7 +813,8 @@ def check_gatekeeper_zip(version):
             detail = f"{APP_NAME}.app not found inside zip"
             for label in bundle_labels:
                 check(label, False, detail)
-            check(gatekeeper_label, False, detail)
+            for label in notarization_labels:
+                check(label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
             return
@@ -818,6 +823,9 @@ def check_gatekeeper_zip(version):
 
         accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, accepted, gatekeeper_detail)
+
+        staple_ok, staple_detail = _stapler_valid(app)
+        check(staple_label, staple_ok, staple_detail)
 
         _check_framework_rpath(app, rpath_label)
         _check_required_resource_bundles(app, resources_label)

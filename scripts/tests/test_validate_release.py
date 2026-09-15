@@ -121,6 +121,13 @@ def uploaded_zip_packaging_passes(mod):
 
 
 @contextmanager
+def uploaded_zip_staple_passes(mod):
+    """Patch uploaded-ZIP app stapler validation for focused tests."""
+    with mock.patch.object(mod, "_stapler_valid", return_value=(True, "valid")) as stapler:
+        yield stapler
+
+
+@contextmanager
 def uploaded_dmg_container_passes(mod):
     """Patch uploaded-DMG container notarization checks for focused tests."""
     with mock.patch.object(mod, "_codesign_valid_container",
@@ -434,7 +441,7 @@ def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
     assert not extract.called
-    assert mod.failed == 7 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 8 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_accepted():
@@ -446,6 +453,7 @@ def test_gatekeeper_uploaded_zip_accepted():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")) as extract, \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
+             uploaded_zip_staple_passes(mod) as stapler, \
              uploaded_zip_packaging_passes(mod) as packaging_checks, \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
@@ -453,12 +461,16 @@ def test_gatekeeper_uploaded_zip_accepted():
     download.assert_called_once()
     assert extract.called
     assert gatekeeper.called
+    assert stapler.called
+    assert stapler.call_args[0][0].endswith(
+        os.path.join("extracted", f"{mod.APP_NAME}.app")
+    )
     for packaging_check in packaging_checks:
         assert packaging_check.called
         checked_app = packaging_check.call_args[0][0]
         assert checked_app.endswith(os.path.join("extracted", f"{mod.APP_NAME}.app"))
         assert checked_app != mod.APP_BUNDLE
-    assert mod.passed == 7 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 8 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_version_fails():
@@ -470,12 +482,13 @@ def test_gatekeeper_uploaded_zip_stale_app_version_fails():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3", "7")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
+             uploaded_zip_staple_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
     assert gatekeeper.called
-    assert mod.passed == 6 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 7 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_build_fails():
@@ -487,11 +500,12 @@ def test_gatekeeper_uploaded_zip_stale_app_build_fails():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "6")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")), \
+             uploaded_zip_staple_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 7 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_rejected():
@@ -503,10 +517,29 @@ def test_gatekeeper_uploaded_zip_rejected():
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(False, "rejected")), \
+             uploaded_zip_staple_passes(mod), \
              uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1 and mod.passed == 6
+    assert mod.failed == 1 and mod.passed == 7
+
+
+def test_gatekeeper_uploaded_zip_unstapled_app_fails():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")), \
+             mock.patch.object(mod, "_stapler_valid", return_value=(False, "not stapled")) as stapler, \
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
+            mod.check_gatekeeper_zip("2.0.4")
+
+    assert stapler.called
+    assert mod.failed == 1 and mod.passed == 7
 
 
 def test_gatekeeper_uploaded_zip_extract_failure_fails():
@@ -516,7 +549,7 @@ def test_gatekeeper_uploaded_zip_extract_failure_fails():
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip", return_value=False):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 7
+    assert mod.failed == 8
 
 
 def test_executable_architecture_passes_for_arm64():
