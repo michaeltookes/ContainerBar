@@ -31,6 +31,7 @@ This project was inspired by [Peter Steinberger's](https://github.com/steipete) 
 
 ## Requirements
 
+- **Apple Silicon (arm64) Mac** — ContainerBar ships as an Apple Silicon-only binary. Intel Macs are **not supported**; the app will not run on them and the Homebrew cask refuses to install on Intel hardware.
 - macOS 14 (Sonoma) or later
 - Docker Desktop or Podman (for local containers), or a remote Docker/Podman host accessible via SSH
 
