@@ -80,14 +80,6 @@ public struct ContainerStats: Codable, Sendable, Equatable {
     public var networkTxMB: Double {
         Double(networkTxBytes) / 1_048_576.0
     }
-
-    public var blockReadMB: Double {
-        Double(blockReadBytes) / 1_048_576.0
-    }
-
-    public var blockWriteMB: Double {
-        Double(blockWriteBytes) / 1_048_576.0
-    }
 }
 
 /// Aggregated metrics snapshot for all containers

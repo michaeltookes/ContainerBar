@@ -1,9 +1,5 @@
 import Foundation
 
-func parseTLSHeaders(_ headerString: String) -> [String: String] {
-    (try? HTTPResponseParser.parseStatusAndHeaders(headerString))?.1 ?? [:]
-}
-
 func parseTLSHTTPResponse(_ data: Data) throws -> HTTPResponse {
     guard let headerEnd = data.range(of: HTTPResponseParser.headerSeparator) else {
         throw DockerAPIError.invalidResponse
