@@ -19,6 +19,7 @@ NOTE: intentionally separate from `swift test` — this exercises Python, not Sw
 
 import hashlib
 import importlib.util
+import json
 import os
 import plistlib
 import tempfile
@@ -158,6 +159,36 @@ def test_download_github_release_asset_sha256_reports_download_failure():
 
     assert actual == ""
     assert "could not download" in detail
+
+
+def test_github_release_assets_parses_asset_metadata():
+    mod = load_module()
+    assets = [{"name": mod.RELEASE_ZIP_ASSET}, {"name": mod.RELEASE_DMG_ASSET}]
+    with mock.patch.object(mod, "run", return_value=(0, json.dumps({"assets": assets}))):
+        release_found, actual, detail = mod.github_release_assets("2.0.4")
+
+    assert release_found
+    assert actual == assets
+    assert detail == ""
+
+
+def test_github_release_requires_zip_and_dmg_assets():
+    mod = load_module()
+    assets = [{"name": mod.RELEASE_ZIP_ASSET}, {"name": mod.RELEASE_DMG_ASSET}]
+    with mock.patch.object(mod, "github_release_assets", return_value=(True, assets, "")):
+        mod.check_github_release("2.0.4")
+
+    assert mod.passed == 3 and mod.failed == 0
+
+
+def test_github_release_fails_when_dmg_asset_missing():
+    mod = load_module()
+    assets = [{"name": mod.RELEASE_ZIP_ASSET}]
+    with mock.patch.object(mod, "github_release_assets", return_value=(True, assets, "")):
+        mod.check_github_release("2.0.4")
+
+    assert mod.passed == 2
+    assert mod.failed == 1
 
 
 # ── check(): pass/fail accounting ───────────────────────────────────────────
@@ -492,9 +523,15 @@ def test_appcast_signature_and_length_ok():
     with temp_file(payload, binary=True) as zip_path, \
          temp_file(_appcast_with_enclosure("2.0.5", ed_signature="AbC123==", length=len(payload)),
                    suffix=".xml") as appcast_path:
-        mod.RELEASE_ZIP = zip_path
         mod.APPCAST_FILE = appcast_path
-        mod.check_appcast_signature("2.0.5")
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")) as download, \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")) as verify:
+            mod.check_appcast_signature("2.0.5")
+
+    download.assert_called_once()
+    verify.assert_called_once_with(zip_path, "AbC123==")
     assert mod.passed == 2 and mod.failed == 0 and mod.skipped == 0
 
 
@@ -504,9 +541,13 @@ def test_appcast_signature_missing_fails():
     with temp_file(payload, binary=True) as zip_path, \
          temp_file(_appcast_with_enclosure("2.0.5", ed_signature=None, length=len(payload)),
                    suffix=".xml") as appcast_path:
-        mod.RELEASE_ZIP = zip_path
         mod.APPCAST_FILE = appcast_path
-        mod.check_appcast_signature("2.0.5")
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature") as verify:
+            mod.check_appcast_signature("2.0.5")
+
+    assert not verify.called
     assert mod.failed == 1 and mod.passed == 1  # length ok, signature missing
 
 
@@ -516,10 +557,28 @@ def test_appcast_length_mismatch_fails():
     with temp_file(payload, binary=True) as zip_path, \
          temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=999),
                    suffix=".xml") as appcast_path:
-        mod.RELEASE_ZIP = zip_path
         mod.APPCAST_FILE = appcast_path
-        mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 1  # signature ok, length wrong
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")):
+            mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 1 and mod.passed == 1  # signature verifies, length wrong
+
+
+def test_appcast_signature_verification_failure():
+    mod = load_module()
+    payload = b"x" * 100
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="bad==", length=len(payload)),
+                   suffix=".xml") as appcast_path:
+        mod.APPCAST_FILE = appcast_path
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(False, "bad signature")):
+            mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 1 and mod.passed == 1  # signature fails, length ok
 
 
 def test_appcast_no_item_for_version_fails_both():
@@ -528,28 +587,31 @@ def test_appcast_no_item_for_version_fails_both():
     with temp_file(payload, binary=True) as zip_path, \
          temp_file(_appcast_with_enclosure("1.0.0", ed_signature="sig==", length=len(payload)),
                    suffix=".xml") as appcast_path:
-        mod.RELEASE_ZIP = zip_path
         mod.APPCAST_FILE = appcast_path
-        mod.check_appcast_signature("2.0.5")
+        with mock.patch.object(mod, "_download_github_release_asset") as download:
+            mod.check_appcast_signature("2.0.5")
+    assert not download.called
     assert mod.failed == 2
 
 
-def test_appcast_signature_skips_when_zip_absent():
+def test_appcast_signature_fails_when_uploaded_zip_unavailable():
     mod = load_module()
     with temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=10),
                    suffix=".xml") as appcast_path:
-        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
         mod.APPCAST_FILE = appcast_path
-        mod.check_appcast_signature("2.0.5")
-    assert mod.skipped == 2 and mod.passed == 0 and mod.failed == 0
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=("", "could not download")):
+            mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 2 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_skips_when_appcast_absent():
     mod = load_module()
-    with temp_file(b"x" * 10, binary=True) as zip_path:
-        mod.RELEASE_ZIP = zip_path
-        mod.APPCAST_FILE = "/nonexistent/appcast.xml"
+    mod.APPCAST_FILE = "/nonexistent/appcast.xml"
+    with mock.patch.object(mod, "_download_github_release_asset") as download:
         mod.check_appcast_signature("2.0.5")
+
+    assert not download.called
     assert mod.skipped == 2 and mod.passed == 0 and mod.failed == 0
 
 

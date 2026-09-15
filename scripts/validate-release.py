@@ -11,6 +11,7 @@ import subprocess
 import sys
 import os
 import hashlib
+import json
 import plistlib
 import re
 import shutil
@@ -32,6 +33,31 @@ APPCAST_FILE = os.path.join(PROJECT_ROOT, "docs", "appcast.xml")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
+SIGN_UPDATE_LOCATIONS = (
+    os.path.join(
+        PROJECT_ROOT,
+        ".build",
+        "xcode-release",
+        "SourcePackages",
+        "artifacts",
+        "sparkle",
+        "Sparkle",
+        "bin",
+        "sign_update",
+    ),
+    os.path.join(
+        PROJECT_ROOT,
+        ".build",
+        "artifacts",
+        "sparkle",
+        "Sparkle",
+        "bin",
+        "sign_update",
+    ),
+    "/opt/homebrew/bin/sign_update",
+    "/usr/local/bin/sign_update",
+    os.path.join(os.path.expanduser("~"), "Library", "Developer", "Sparkle", "bin", "sign_update"),
+)
 REQUIRED_RESOURCE_BUNDLES = (
     "ContainerBar_ContainerBar.bundle",
     "KeyboardShortcuts_KeyboardShortcuts.bundle",
@@ -95,6 +121,24 @@ def _normalize_sha256_digest(value):
     return digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
 
 
+def github_release_assets(version):
+    """Return (release_found, assets, detail) for the tagged GitHub release."""
+    tag = f"v{version}"
+    rc, output = run(["gh", "release", "view", tag, "--repo", GITHUB_REPO, "--json", "assets"])
+    if rc != 0:
+        return False, [], f"release not found: {tag}"
+
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError as exc:
+        return True, [], f"could not parse release assets: {exc}"
+
+    assets = payload.get("assets")
+    if not isinstance(assets, list):
+        return True, [], "unexpected GitHub release assets payload"
+    return True, assets, ""
+
+
 def github_release_asset_sha256(version):
     """Return the SHA-256 of the uploaded release zip asset.
 
@@ -131,35 +175,68 @@ def github_release_asset_sha256(version):
     return _download_github_release_asset_sha256(tag)
 
 
+def _download_github_release_asset(tag, asset_name, workdir):
+    """Download a named GitHub release asset into workdir."""
+    rc, _ = run(
+        [
+            "gh",
+            "release",
+            "download",
+            tag,
+            "--repo",
+            GITHUB_REPO,
+            "--pattern",
+            asset_name,
+            "--dir",
+            workdir,
+            "--clobber",
+        ]
+    )
+    if rc != 0:
+        return "", f"could not download {asset_name} from {tag}"
+
+    asset_path = os.path.join(workdir, asset_name)
+    if not os.path.isfile(asset_path):
+        return "", f"{asset_name} missing after download from {tag}"
+
+    return asset_path, ""
+
+
 def _download_github_release_asset_sha256(tag):
     """Download the uploaded release zip and return its SHA-256 digest."""
     workdir = tempfile.mkdtemp(prefix="cb-release-asset-")
     try:
-        rc, _ = run(
-            [
-                "gh",
-                "release",
-                "download",
-                tag,
-                "--repo",
-                GITHUB_REPO,
-                "--pattern",
-                RELEASE_ZIP_ASSET,
-                "--dir",
-                workdir,
-                "--clobber",
-            ]
-        )
-        if rc != 0:
-            return "", f"could not download {RELEASE_ZIP_ASSET} from {tag}"
-
-        asset_path = os.path.join(workdir, RELEASE_ZIP_ASSET)
-        if not os.path.isfile(asset_path):
-            return "", f"{RELEASE_ZIP_ASSET} missing after download from {tag}"
+        asset_path, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
+        if not asset_path:
+            return "", detail
 
         return sha256_of_file(asset_path), ""
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def sparkle_sign_update_path():
+    """Return the Sparkle sign_update tool path, if available."""
+    override = os.environ.get("SPARKLE_SIGN_UPDATE", "").strip()
+    if override:
+        return override if os.path.isfile(override) and os.access(override, os.X_OK) else ""
+
+    for path in SIGN_UPDATE_LOCATIONS:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return ""
+
+
+def verify_sparkle_update_signature(update_path, ed_signature):
+    """Verify a Sparkle EdDSA signature against an update archive."""
+    sign_update = sparkle_sign_update_path()
+    if not sign_update:
+        return False, "Sparkle sign_update not found"
+
+    rc, output = run([sign_update, "--verify", update_path, ed_signature])
+    if rc == 0:
+        return True, "verified"
+    return False, output or "sign_update --verify failed"
 
 
 def check_info_plist(version):
@@ -212,19 +289,26 @@ def check_homebrew_cask(version):
 
 
 def check_github_release(version):
-    """Verify GitHub release exists and has the zip asset."""
+    """Verify GitHub release exists and has the required assets."""
     tag = f"v{version}"
-    rc, _ = run(["gh", "release", "view", tag, "--repo", GITHUB_REPO])
-    check("GitHub release exists", rc == 0, tag)
+    release_found, assets, detail = github_release_assets(version)
+    check("GitHub release exists", release_found, tag)
 
-    if rc == 0:
-        _, assets = run(
-            ["gh", "release", "view", tag, "--repo", GITHUB_REPO, "--json", "assets", "-q", ".assets[].name"]
-        )
-        has_zip = RELEASE_ZIP_ASSET in assets.splitlines()
-        check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", has_zip)
-    else:
-        check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", False, "release not found")
+    if not release_found or detail:
+        failure_detail = detail or "release not found"
+        check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", False, failure_detail)
+        check(f"Release asset {RELEASE_DMG_ASSET} uploaded", False, failure_detail)
+        return
+
+    asset_names = {
+        asset.get("name", "")
+        for asset in assets
+        if isinstance(asset, dict)
+    }
+    has_zip = RELEASE_ZIP_ASSET in asset_names
+    has_dmg = RELEASE_DMG_ASSET in asset_names
+    check(f"Release asset {RELEASE_ZIP_ASSET} uploaded", has_zip)
+    check(f"Release asset {RELEASE_DMG_ASSET} uploaded", has_dmg)
 
 
 def check_appcast(version):
@@ -526,17 +610,9 @@ def _appcast_enclosure_for_version(root, version):
 
 
 def check_appcast_signature(version):
-    """Verify the appcast entry has an edSignature and a length matching the zip.
-
-    Reads the generated docs/appcast.xml against the local dist zip so the
-    byte size is checked before the appcast is deployed.
-    """
-    sig_label = "Appcast edSignature present"
-    len_label = "Appcast length matches zip size"
-    if not os.path.isfile(RELEASE_ZIP):
-        skip(sig_label, f"artifact absent: {RELEASE_ZIP}")
-        skip(len_label, f"artifact absent: {RELEASE_ZIP}")
-        return
+    """Verify the appcast entry matches the uploaded GitHub release zip."""
+    sig_label = "Appcast edSignature verifies uploaded zip"
+    len_label = "Appcast length matches uploaded zip size"
     if not os.path.isfile(APPCAST_FILE):
         skip(sig_label, f"appcast absent: {APPCAST_FILE}")
         skip(len_label, f"appcast absent: {APPCAST_FILE}")
@@ -556,20 +632,40 @@ def check_appcast_signature(version):
         check(len_label, False, f"no appcast item for v{version}")
         return
 
-    ed_signature = enclosure.get(f"{{{sparkle_ns}}}edSignature")
-    check(sig_label, bool(ed_signature), "present" if ed_signature else "missing edSignature")
-
-    zip_size = os.path.getsize(RELEASE_ZIP)
-    length_attr = enclosure.get("length")
+    tag = f"v{version}"
+    workdir = tempfile.mkdtemp(prefix="cb-appcast-asset-")
     try:
-        length_matches = length_attr is not None and int(length_attr) == zip_size
-    except ValueError:
-        length_matches = False
-    check(
-        len_label,
-        length_matches,
-        f"{zip_size} bytes" if length_matches else f"appcast length {length_attr} != zip {zip_size}",
-    )
+        uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
+        if not uploaded_zip:
+            check(sig_label, False, detail)
+            check(len_label, False, detail)
+            return
+
+        ed_signature = enclosure.get(f"{{{sparkle_ns}}}edSignature")
+        if ed_signature:
+            verified, verify_detail = verify_sparkle_update_signature(uploaded_zip, ed_signature)
+            check(sig_label, verified, verify_detail)
+        else:
+            check(sig_label, False, "missing edSignature")
+
+        zip_size = os.path.getsize(uploaded_zip)
+        length_attr = enclosure.get("length")
+        try:
+            length_matches = length_attr is not None and int(length_attr) == zip_size
+        except ValueError:
+            length_matches = False
+        length_detail = (
+            f"{zip_size} bytes"
+            if length_matches
+            else f"appcast length {length_attr} != uploaded zip {zip_size}"
+        )
+        check(
+            len_label,
+            length_matches,
+            length_detail,
+        )
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def main():
