@@ -53,7 +53,7 @@ enum TLSCertificateLoader {
 
         let keyAttributes: [String: Any] = [
             kSecAttrKeyType as String: keyType,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate
         ]
 
         var error: Unmanaged<CFError>?

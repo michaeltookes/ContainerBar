@@ -23,7 +23,7 @@ struct ContainerStoreTests {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
             DockerContainer.mock(id: "c1", name: "nginx", state: .running),
-            DockerContainer.mock(id: "c2", name: "redis", state: .exited),
+            DockerContainer.mock(id: "c2", name: "redis", state: .exited)
         ]
 
         let store = makeStore(mock: mock)
@@ -38,7 +38,7 @@ struct ContainerStoreTests {
     func refreshSetsConnected() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
 
         let store = makeStore(mock: mock)
@@ -82,7 +82,7 @@ struct ContainerStoreTests {
         // Fix mock and refresh again
         mock.shouldFail = false
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
 
         // Wait past rate limit
@@ -108,7 +108,7 @@ struct ContainerStoreTests {
 
         mock.shouldFail = false
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
         mock.responseDelay = .milliseconds(200)
 
@@ -134,7 +134,7 @@ struct ContainerStoreTests {
     func startContainerCallsThrough() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .exited),
+            DockerContainer.mock(id: "c1", name: "web", state: .exited)
         ]
 
         let store = makeStore(mock: mock)
@@ -155,7 +155,7 @@ struct ContainerStoreTests {
     func stopContainerCallsThrough() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
 
         let store = makeStore(mock: mock)
@@ -173,7 +173,7 @@ struct ContainerStoreTests {
     func restartContainerCallsThrough() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
 
         let store = makeStore(mock: mock)
@@ -191,7 +191,7 @@ struct ContainerStoreTests {
     func removeContainerPassesForceFlag() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .exited),
+            DockerContainer.mock(id: "c1", name: "web", state: .exited)
         ]
 
         let store = makeStore(mock: mock)
@@ -211,7 +211,7 @@ struct ContainerStoreTests {
     func actionTracksInProgressState() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
 
         let store = makeStore(mock: mock)
@@ -263,7 +263,7 @@ struct ContainerStoreTests {
     func metricsHistoryUpdates() async {
         let mock = MockDockerAPIClient()
         mock.mockContainers = [
-            DockerContainer.mock(id: "c1", name: "web", state: .running),
+            DockerContainer.mock(id: "c1", name: "web", state: .running)
         ]
         mock.mockStats["c1"] = ContainerStats.mock(
             containerId: "c1",

@@ -43,20 +43,4 @@ final class LaunchAtLoginManager {
             logger.error("Failed to \(enabled ? "enable" : "disable") launch at login: \(error.localizedDescription)")
         }
     }
-
-    /// Gets the current status as a human-readable string
-    var statusDescription: String {
-        switch SMAppService.mainApp.status {
-        case .notRegistered:
-            return "Not registered"
-        case .enabled:
-            return "Enabled"
-        case .requiresApproval:
-            return "Requires approval in System Settings"
-        case .notFound:
-            return "App not found"
-        @unknown default:
-            return "Unknown"
-        }
-    }
 }

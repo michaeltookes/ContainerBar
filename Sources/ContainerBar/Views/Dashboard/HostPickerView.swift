@@ -79,7 +79,7 @@ private struct HostPillButton: View {
         HostPickerView(
             hosts: [
                 DockerHost(name: "Beelink Docker", connectionType: .ssh, runtime: .docker),
-                DockerHost(name: "Beelink Podman", connectionType: .ssh, runtime: .podman),
+                DockerHost(name: "Beelink Podman", connectionType: .ssh, runtime: .podman)
             ],
             selectedHostId: nil,
             onSelectHost: { _ in }
@@ -88,7 +88,7 @@ private struct HostPillButton: View {
         // Single host (should be hidden in real use)
         HostPickerView(
             hosts: [
-                DockerHost(name: "Local Docker", connectionType: .unixSocket, runtime: .docker),
+                DockerHost(name: "Local Docker", connectionType: .unixSocket, runtime: .docker)
             ],
             selectedHostId: nil,
             onSelectHost: { _ in }

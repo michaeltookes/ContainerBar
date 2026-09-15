@@ -163,7 +163,7 @@ struct DockerAPITests {
         do {
             try validateTLSHTTPFraming([
                 "content-length": "5",
-                "transfer-encoding": "chunked",
+                "transfer-encoding": "chunked"
             ])
             Issue.record("Expected ambiguous TLS HTTP framing to throw")
         } catch let error as DockerAPIError {
@@ -351,7 +351,7 @@ struct MockDockerAPIClientTests {
         let mock = MockDockerAPIClient()
         mock.setMockContainers([
             DockerContainer.mock(id: "test1", name: "container1"),
-            DockerContainer.mock(id: "test2", name: "container2"),
+            DockerContainer.mock(id: "test2", name: "container2")
         ])
 
         let containers = try await mock.listContainers(all: true)

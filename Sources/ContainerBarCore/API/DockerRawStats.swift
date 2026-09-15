@@ -2,7 +2,8 @@ import Foundation
 
 /// Raw stats response from Docker API /containers/{id}/stats endpoint
 ///
-/// This matches the Docker Engine API v1.43 format exactly.
+/// This matches the Docker Engine API v1.44 stats format (the version the
+/// client requests in `DockerAPIClientImpl.apiVersion`).
 /// We parse this into the user-friendly ContainerStats model.
 struct DockerRawStats: Codable, Sendable {
     let read: String

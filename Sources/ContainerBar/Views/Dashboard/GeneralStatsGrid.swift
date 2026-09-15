@@ -23,16 +23,6 @@ struct GeneralStatsGrid: View {
                     .tracking(0.5)
 
                 Spacer()
-
-                // Menu button
-                Button {
-                    // TODO: Show stats menu
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)

@@ -138,7 +138,7 @@ struct AddHostSheet: View {
             ContainerRuntime.docker.defaultSocketPath,
             ContainerRuntime.docker.defaultRemoteSocketPath,
             ContainerRuntime.podman.defaultSocketPath,
-            ContainerRuntime.podman.defaultRemoteSocketPath,
+            ContainerRuntime.podman.defaultRemoteSocketPath
         ]
 
         if socketPath.isEmpty || knownDefaults.contains(socketPath) {

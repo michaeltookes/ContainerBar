@@ -5,7 +5,6 @@ struct SectionsSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
     @State private var selectedSectionId: UUID?
     @State private var showingAddSection = false
-    @State private var showingEditSection = false
     @State private var sectionToEdit: ContainerSection?
 
     var body: some View {
@@ -165,7 +164,6 @@ struct SectionEditorSheet: View {
 
     @State private var name: String = ""
     @State private var matchRules: [ContainerSection.MatchRule] = []
-    @State private var showingAddRule = false
 
     init(mode: Mode) {
         self.mode = mode

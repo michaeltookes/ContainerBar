@@ -88,24 +88,3 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
         }
     }
 }
-
-/// Container action error types
-public enum ContainerActionError: Error, LocalizedError, Sendable {
-    case containerNotRunning(String)
-    case containerAlreadyRunning(String)
-    case actionFailed(String, underlying: Error?)
-
-    public var errorDescription: String? {
-        switch self {
-        case .containerNotRunning(let name):
-            return "Container '\(name)' is not running"
-        case .containerAlreadyRunning(let name):
-            return "Container '\(name)' is already running"
-        case .actionFailed(let action, let underlying):
-            if let underlying {
-                return "Failed to \(action): \(underlying.localizedDescription)"
-            }
-            return "Failed to \(action)"
-        }
-    }
-}

@@ -163,7 +163,7 @@ public final class ContainerStore {
         defer { isRefreshing = false }
         connectionError = nil
 
-        logger.info("Refreshing container data")
+        logger.debug("Refreshing container data")
 
         // If no fetcher, try to initialize
         if fetcher == nil {
@@ -195,7 +195,7 @@ public final class ContainerStore {
                 stats: result.stats
             )
 
-            logger.info("Refresh complete: \(result.containers.count) containers")
+            logger.debug("Refresh complete: \(result.containers.count) containers")
         } catch {
             logger.error("Refresh failed: \(error.localizedDescription)")
             self.connectionError = userFriendlyConnectionErrorMessage(for: error)

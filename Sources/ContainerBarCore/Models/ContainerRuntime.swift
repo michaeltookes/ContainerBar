@@ -25,24 +25,6 @@ public enum ContainerRuntime: String, Codable, CaseIterable, Sendable, Equatable
         }
     }
 
-    /// Alternative socket paths to check for this runtime
-    public var alternativeSocketPaths: [String] {
-        switch self {
-        case .docker:
-            return [
-                "/var/run/docker.sock",
-                "\(FileManager.default.homeDirectoryForCurrentUser.path)/.docker/run/docker.sock"
-            ]
-        case .podman:
-            let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-            return [
-                "\(homeDir)/.local/share/containers/podman/machine/podman.sock",
-                "/var/run/podman/podman.sock",
-                "/run/podman/podman.sock"
-            ]
-        }
-    }
-
     /// Default rootless Podman UID assumed when the caller doesn't specify one.
     public static let defaultPodmanUID = 1000
 

@@ -67,7 +67,7 @@ public actor ContainerFetcher {
             }
         }
 
-        logger.info("Fetching containers (all=\(all), includeStats=\(includeStats)) from \(host.name) (\(host.runtime.displayName))")
+        logger.debug("Fetching containers (all=\(all), includeStats=\(includeStats)) from \(host.name) (\(host.runtime.displayName))")
 
         do {
             // Fetch container list
@@ -99,7 +99,7 @@ public actor ContainerFetcher {
             lastFetchResult = result
             lastFetchTime = Date()
 
-            logger.info("Fetch complete: \(containers.count) containers")
+            logger.debug("Fetch complete: \(containers.count) containers")
             return result
 
         } catch {

@@ -77,16 +77,6 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         )
     }
 
-    /// Creates a default local Podman host configuration
-    public static var localPodman: DockerHost {
-        DockerHost(
-            name: "Local Podman",
-            connectionType: .unixSocket,
-            runtime: .podman,
-            isDefault: false,
-            socketPath: ContainerRuntime.podman.defaultSocketPath
-        )
-    }
 }
 
 /// Connection type enumeration
@@ -143,25 +133,3 @@ public struct DockerSystemInfo: Codable, Sendable {
         case serverVersion = "ServerVersion"
     }
 }
-
-#if DEBUG
-extension DockerHost {
-    /// Creates a mock remote host for testing
-    public static func mockRemote(
-        name: String = "Remote Server",
-        host: String = "192.168.1.100",
-        port: Int = 2376,
-        runtime: ContainerRuntime = .docker
-    ) -> DockerHost {
-        DockerHost(
-            name: name,
-            connectionType: .tcpTLS,
-            runtime: runtime,
-            isDefault: false,
-            host: host,
-            port: port,
-            tlsEnabled: true
-        )
-    }
-}
-#endif

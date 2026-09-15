@@ -107,24 +107,6 @@ struct ContainerRowView: View {
 
 // MARK: - Supporting Views
 
-/// Runtime badge showing Docker or Podman icon
-struct RuntimeBadge: View {
-    let runtime: ContainerRuntime
-
-    var body: some View {
-        Image(systemName: runtime.badgeIconName)
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(badgeColor)
-    }
-
-    private var badgeColor: Color {
-        switch runtime {
-        case .docker: return .blue
-        case .podman: return .purple
-        }
-    }
-}
-
 /// Container state badge
 struct StatusBadge: View {
     let state: ContainerState

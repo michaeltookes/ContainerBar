@@ -107,13 +107,6 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
     }
 
-    /// Whether the tunnel has died since last connect
-    public var hasDied: Bool {
-        stateLock.withLock {
-            tunnelDied
-        }
-    }
-
     public func snapshotState() -> StateSnapshot {
         stateLock.withLock {
             StateSnapshot(

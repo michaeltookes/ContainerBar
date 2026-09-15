@@ -14,7 +14,7 @@ struct ContainerFetcherTests {
         mock.setMockContainers([
             DockerContainer.mock(id: "test1", name: "nginx", state: .running),
             DockerContainer.mock(id: "test2", name: "redis", state: .running),
-            DockerContainer.mock(id: "test3", name: "postgres", state: .exited),
+            DockerContainer.mock(id: "test3", name: "postgres", state: .exited)
         ])
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
@@ -31,7 +31,7 @@ struct ContainerFetcherTests {
         let mock = MockDockerAPIClient()
         mock.setMockContainers([
             DockerContainer.mock(id: "running1", name: "nginx", state: .running),
-            DockerContainer.mock(id: "stopped1", name: "redis", state: .exited),
+            DockerContainer.mock(id: "stopped1", name: "redis", state: .exited)
         ])
         mock.setMockStats(
             ContainerStats.mock(containerId: "running1", cpuPercent: 5.0),
@@ -53,7 +53,7 @@ struct ContainerFetcherTests {
             DockerContainer.mock(id: "c1", name: "web", state: .running),
             DockerContainer.mock(id: "c2", name: "db", state: .running),
             DockerContainer.mock(id: "c3", name: "cache", state: .paused),
-            DockerContainer.mock(id: "c4", name: "worker", state: .exited),
+            DockerContainer.mock(id: "c4", name: "worker", state: .exited)
         ])
         mock.setMockStats(
             ContainerStats.mock(
@@ -190,7 +190,7 @@ struct ContainerFetcherTests {
         mock.setMockContainers([
             DockerContainer.mock(id: "c1", name: "nginx", state: .running),
             DockerContainer.mock(id: "c2", name: "redis", state: .running),
-            DockerContainer.mock(id: "c3", name: "postgres", state: .exited),
+            DockerContainer.mock(id: "c3", name: "postgres", state: .exited)
         ])
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
@@ -202,7 +202,7 @@ struct ContainerFetcherTests {
         // Simulate 2 new containers appearing
         mock.appendMockContainers([
             DockerContainer.mock(id: "c4", name: "grafana", state: .running),
-            DockerContainer.mock(id: "c5", name: "prometheus", state: .running),
+            DockerContainer.mock(id: "c5", name: "prometheus", state: .running)
         ])
 
         // Wait past rate limit
@@ -224,7 +224,7 @@ struct ContainerFetcherTests {
             DockerContainer.mock(id: "c2", name: "redis", state: .running),
             DockerContainer.mock(id: "c3", name: "postgres", state: .running),
             DockerContainer.mock(id: "c4", name: "grafana", state: .exited),
-            DockerContainer.mock(id: "c5", name: "prometheus", state: .exited),
+            DockerContainer.mock(id: "c5", name: "prometheus", state: .exited)
         ])
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
@@ -284,11 +284,11 @@ struct ContainerFetcherTests {
         let mock = MockDockerAPIClient()
         mock.setMockContainers([
             DockerContainer.mock(id: "c1", name: "web", state: .running),
-            DockerContainer.mock(id: "c2", name: "db", state: .running),
+            DockerContainer.mock(id: "c2", name: "db", state: .running)
         ])
         mock.setMockStats([
             "c1": ContainerStats.mock(containerId: "c1", cpuPercent: 10.0, memoryUsageBytes: 100_000_000),
-            "c2": ContainerStats.mock(containerId: "c2", cpuPercent: 15.0, memoryUsageBytes: 200_000_000),
+            "c2": ContainerStats.mock(containerId: "c2", cpuPercent: 15.0, memoryUsageBytes: 200_000_000)
         ])
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
@@ -301,7 +301,7 @@ struct ContainerFetcherTests {
         mock.appendMockContainers([
             DockerContainer.mock(id: "c3", name: "cache", state: .running),
             DockerContainer.mock(id: "c4", name: "worker", state: .running),
-            DockerContainer.mock(id: "c5", name: "proxy", state: .running),
+            DockerContainer.mock(id: "c5", name: "proxy", state: .running)
         ])
         mock.updateMockStats { stats in
             stats["c3"] = ContainerStats.mock(containerId: "c3", cpuPercent: 5.0, memoryUsageBytes: 50_000_000)

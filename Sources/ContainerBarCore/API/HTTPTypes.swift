@@ -60,10 +60,6 @@ struct HTTPRequest: Sendable {
         return requestData
     }
 
-    func toHTTPString(resolvedHost: String? = nil) throws -> String {
-        String(decoding: try toHTTPData(resolvedHost: resolvedHost), as: UTF8.self)
-    }
-
     private static func validateHTTPComponent(_ value: String, name: String) throws {
         let containsLineBreak = value.unicodeScalars.contains { scalar in
             scalar.value == 0x0D || scalar.value == 0x0A
