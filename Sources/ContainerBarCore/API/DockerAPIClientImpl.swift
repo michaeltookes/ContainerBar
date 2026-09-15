@@ -112,7 +112,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let decoder = JSONDecoder()
         do {
             let containers = try decoder.decode([DockerContainer].self, from: response.body)
-            logger.info("Fetched \(containers.count) containers")
+            logger.debug("Fetched \(containers.count) containers")
             return containers
         } catch {
             logger.error("Failed to decode containers: \(error)")
