@@ -94,6 +94,20 @@ def _make_app_side_effect(app_name, version=None):
     return _side_effect
 
 
+@contextmanager
+def uploaded_zip_packaging_passes(mod):
+    """Patch uploaded-zip packaging helpers so focused tests stay readable."""
+    def pass_check(_app_path, label):
+        mod.check(label, True)
+
+    with mock.patch.object(mod, "_check_framework_rpath", side_effect=pass_check) as rpath, \
+         mock.patch.object(mod, "_check_required_resource_bundles", side_effect=pass_check) as resources, \
+         mock.patch.object(mod, "_check_no_swiftpm_release_resource_path",
+                           side_effect=pass_check) as swiftpm, \
+         mock.patch.object(mod, "_check_executable_architecture", side_effect=pass_check) as arch:
+        yield rpath, resources, swiftpm, arch
+
+
 # ── run(): shell-injection guard ────────────────────────────────────────────
 
 def test_run_rejects_shell_string():
@@ -281,24 +295,57 @@ def test_changelog_version_is_regex_escaped():
 
 def test_homebrew_cask_version_matches():
     mod = load_module()
-    cask = 'cask "containerbar" do\n  version "1.2.0"\nend\n'
+    cask = (
+        'cask "containerbar" do\n'
+        '  version "1.2.0"\n'
+        '  url "https://github.com/michaeltookes/ContainerBar/releases/download/v#{version}/ContainerBar.zip"\n'
+        "end\n"
+    )
     with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
         mod.check_homebrew_cask("1.2.0")
-    assert mod.passed == 1 and mod.failed == 0
+    assert mod.passed == 2 and mod.failed == 0
 
 
 def test_homebrew_cask_version_mismatch():
     mod = load_module()
-    with mock.patch.object(mod, "published_homebrew_cask", return_value=('  version "0.9.0"\n', "")):
+    cask = (
+        '  version "0.9.0"\n'
+        '  url "https://github.com/michaeltookes/ContainerBar/releases/download/v#{version}/ContainerBar.zip"\n'
+    )
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
         mod.check_homebrew_cask("1.2.0")
-    assert mod.failed == 1
+    assert mod.failed == 2
 
 
 def test_homebrew_cask_fetch_failure():
     mod = load_module()
     with mock.patch.object(mod, "published_homebrew_cask", return_value=("", "not found")):
         mod.check_homebrew_cask("1.2.0")
-    assert mod.failed == 1
+    assert mod.failed == 2
+
+
+def test_homebrew_cask_url_mismatch_fails():
+    mod = load_module()
+    cask = (
+        '  version "2.0.4"\n'
+        '  url "https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.3/ContainerBar.zip"\n'
+    )
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
+        mod.check_homebrew_cask("2.0.4")
+    assert mod.passed == 1 and mod.failed == 1
+
+
+def test_homebrew_cask_url_ignores_commented_directive():
+    mod = load_module()
+    expected = "https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.4/ContainerBar.zip"
+    cask = (
+        '  version "2.0.4"\n'
+        f'  # url "{expected}"\n'
+        '  url "https://github.com/michaeltookes/ContainerBar/releases/download/v2.0.3/ContainerBar.zip"\n'
+    )
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
+        mod.check_homebrew_cask("2.0.4")
+    assert mod.passed == 1 and mod.failed == 1
 
 
 # ── check_appcast ───────────────────────────────────────────────────────────
@@ -365,7 +412,7 @@ def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
     assert not extract.called
-    assert mod.failed == 2 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 6 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_accepted():
@@ -376,13 +423,19 @@ def test_gatekeeper_uploaded_zip_accepted():
              mock.patch.object(mod, "_extract_zip",
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")) as extract, \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
-                               return_value=(True, "accepted")) as gatekeeper:
+                               return_value=(True, "accepted")) as gatekeeper, \
+             uploaded_zip_packaging_passes(mod) as packaging_checks:
             mod.check_gatekeeper_zip("2.0.4")
 
     download.assert_called_once()
     assert extract.called
     assert gatekeeper.called
-    assert mod.passed == 2 and mod.failed == 0 and mod.skipped == 0
+    for packaging_check in packaging_checks:
+        assert packaging_check.called
+        checked_app = packaging_check.call_args[0][0]
+        assert checked_app.endswith(os.path.join("extracted", f"{mod.APP_NAME}.app"))
+        assert checked_app != mod.APP_BUNDLE
+    assert mod.passed == 6 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_version_fails():
@@ -393,11 +446,12 @@ def test_gatekeeper_uploaded_zip_stale_app_version_fails():
              mock.patch.object(mod, "_extract_zip",
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
-                               return_value=(True, "accepted")) as gatekeeper:
+                               return_value=(True, "accepted")) as gatekeeper, \
+             uploaded_zip_packaging_passes(mod):
             mod.check_gatekeeper_zip("2.0.4")
 
     assert gatekeeper.called
-    assert mod.passed == 1 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 5 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_rejected():
@@ -408,9 +462,10 @@ def test_gatekeeper_uploaded_zip_rejected():
              mock.patch.object(mod, "_extract_zip",
                                side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
-                               return_value=(False, "rejected")):
+                               return_value=(False, "rejected")), \
+             uploaded_zip_packaging_passes(mod):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1 and mod.passed == 1
+    assert mod.failed == 1 and mod.passed == 5
 
 
 def test_gatekeeper_uploaded_zip_extract_failure_fails():
@@ -420,7 +475,44 @@ def test_gatekeeper_uploaded_zip_extract_failure_fails():
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip", return_value=False):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 2
+    assert mod.failed == 6
+
+
+def test_executable_architecture_passes_for_arm64():
+    mod = load_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        app = os.path.join(tmp, f"{mod.APP_NAME}.app")
+        macos_dir = os.path.join(app, "Contents", "MacOS")
+        os.makedirs(macos_dir)
+        binary = os.path.join(macos_dir, mod.APP_NAME)
+        with open(binary, "wb") as handle:
+            handle.write(b"mach-o")
+
+        with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/lipo"), \
+             mock.patch.object(mod.subprocess, "run",
+                               return_value=fake_completed(stdout="arm64\n")) as run:
+            mod._check_executable_architecture(app, "Uploaded ZIP executable contains arm64")
+
+    run.assert_called_once()
+    assert run.call_args[0][0] == ["/usr/bin/lipo", "-archs", binary]
+    assert mod.passed == 1 and mod.failed == 0
+
+
+def test_executable_architecture_fails_for_x86_only():
+    mod = load_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        app = os.path.join(tmp, f"{mod.APP_NAME}.app")
+        macos_dir = os.path.join(app, "Contents", "MacOS")
+        os.makedirs(macos_dir)
+        with open(os.path.join(macos_dir, mod.APP_NAME), "wb") as handle:
+            handle.write(b"mach-o")
+
+        with mock.patch.object(mod.shutil, "which", return_value="/usr/bin/lipo"), \
+             mock.patch.object(mod.subprocess, "run",
+                               return_value=fake_completed(stdout="x86_64\n")):
+            mod._check_executable_architecture(app, "Uploaded ZIP executable contains arm64")
+
+    assert mod.failed == 1 and mod.passed == 0
 
 
 # ── check_dmg_contents ──────────────────────────────────────────────────────

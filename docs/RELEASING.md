@@ -63,12 +63,15 @@ python3 scripts/validate-release.py X.Y.Z
 Alongside the version/tag/changelog checks it now verifies the distribution
 artifacts:
 
-- Gatekeeper accepts the app extracted from the uploaded GitHub release
-  `ContainerBar.zip` (`spctl --assess --type execute`).
+- The app extracted from the uploaded GitHub release `ContainerBar.zip` has the
+  release version, contains the required resource bundles, has the framework
+  rpath, does not embed SwiftPM release build paths, contains an arm64
+  executable, and passes Gatekeeper (`spctl --assess --type execute`).
 - The uploaded GitHub release `ContainerBar.dmg` mounts and contains
   `ContainerBar.app`, and that mounted bundle has the release version, passes
   strict codesign verification, and passes Gatekeeper.
-- The published Homebrew cask version and `sha256` match the GitHub release.
+- The published Homebrew cask version, canonical download URL, and `sha256`
+  match the GitHub release.
 - The published Homebrew cask declares `depends_on arch: :arm64`.
 - The deployed appcast entry for the release has the canonical GitHub release
   zip enclosure URL, a `sparkle:edSignature` that verifies against the archive

@@ -62,6 +62,7 @@ REQUIRED_RESOURCE_BUNDLES = (
     "ContainerBar_ContainerBar.bundle",
     "KeyboardShortcuts_KeyboardShortcuts.bundle",
 )
+REQUIRED_EXECUTABLE_ARCH = "arm64"
 BROKEN_SWIFTPM_RELEASE_PATHS = (
     b".build/arm64-apple-macosx/release",
     b".build/arm64e-apple-macosx/release",
@@ -164,6 +165,29 @@ def _active_cask_sha256(content):
     """Return the active cask sha256 digest, ignoring commented-out lines."""
     match = re.search(r'(?m)^\s*sha256\s+"([0-9a-fA-F]{64})"', content)
     return match.group(1).lower() if match else ""
+
+
+def _active_cask_version(content):
+    """Return the active cask version, ignoring commented-out lines."""
+    match = re.search(r'(?m)^\s*version\s+"([^"]+)"', content)
+    return match.group(1) if match else ""
+
+
+def _active_cask_url(content):
+    """Return the active cask URL, ignoring commented-out lines."""
+    match = re.search(r'(?m)^\s*url\s+"([^"]+)"', content)
+    return match.group(1) if match else ""
+
+
+def expected_homebrew_cask_url(version):
+    """Return the canonical Homebrew cask URL for the release zip."""
+    return f"https://github.com/{GITHUB_REPO}/releases/download/v{version}/{RELEASE_ZIP_ASSET}"
+
+
+def _resolved_cask_url(url, cask_version, requested_version):
+    """Resolve the simple Homebrew #{version} interpolation used by the cask."""
+    version = cask_version or requested_version
+    return url.replace("#{version}", version)
 
 
 def _normalize_sha256_digest(value):
@@ -295,7 +319,7 @@ def verify_sparkle_update_signature(update_path, ed_signature):
 
 def expected_appcast_enclosure_url(version):
     """Return the canonical GitHub release URL for the appcast zip enclosure."""
-    return f"https://github.com/{GITHUB_REPO}/releases/download/v{version}/{RELEASE_ZIP_ASSET}"
+    return expected_homebrew_cask_url(version)
 
 
 def _app_bundle_short_version(app_path):
@@ -384,15 +408,23 @@ def check_git_tag(version):
 
 
 def check_homebrew_cask(version):
-    """Verify the published Homebrew cask has the correct version."""
+    """Verify the published Homebrew cask has the correct version and URL."""
+    version_label = "Published Homebrew cask version"
+    url_label = "Published Homebrew cask URL is canonical"
     content, detail = published_homebrew_cask()
     if not content:
-        check("Published Homebrew cask version", False, detail)
+        check(version_label, False, detail)
+        check(url_label, False, detail)
         return
 
-    match = re.search(r'version\s+"([^"]+)"', content)
-    cask_version = match.group(1) if match else ""
-    check("Published Homebrew cask version", cask_version == version, cask_version)
+    cask_version = _active_cask_version(content)
+    check(version_label, cask_version == version, cask_version)
+
+    cask_url = _active_cask_url(content)
+    resolved_url = _resolved_cask_url(cask_url, cask_version, version)
+    expected_url = expected_homebrew_cask_url(version)
+    url_matches = resolved_url == expected_url
+    check(url_label, url_matches, resolved_url or "missing url")
 
 
 def check_github_release(version):
@@ -486,21 +518,26 @@ def check_codesign():
 
 
 def check_framework_rpath():
-    """Verify the app binary can resolve embedded frameworks from Contents/Frameworks."""
-    binary = app_executable_path()
-    sparkle_framework = os.path.join(APP_BUNDLE, "Contents", "Frameworks", "Sparkle.framework")
+    """Verify the local app binary can resolve embedded frameworks."""
+    _check_framework_rpath(APP_BUNDLE, "App framework rpath valid")
+
+
+def _check_framework_rpath(app_path, label):
+    """Verify an app binary can resolve embedded frameworks from Contents/Frameworks."""
+    binary = app_executable_path(app_path)
+    sparkle_framework = os.path.join(app_path, "Contents", "Frameworks", "Sparkle.framework")
 
     if not os.path.isfile(binary):
-        check("App framework rpath valid", False, f"binary not found: {binary}")
+        check(label, False, f"binary not found: {binary}")
         return
 
     if not os.path.isdir(sparkle_framework):
-        check("App framework rpath valid", False, f"framework not found: {sparkle_framework}")
+        check(label, False, f"framework not found: {sparkle_framework}")
         return
 
     otool_bin = shutil.which("otool")
     if not otool_bin:
-        check("App framework rpath valid", False, "otool not found")
+        check(label, False, "otool not found")
         return
 
     try:
@@ -511,12 +548,12 @@ def check_framework_rpath():
             check=False,
         )
     except (FileNotFoundError, OSError) as exc:
-        check("App framework rpath valid", False, f"otool execution failed: {exc}")
+        check(label, False, f"otool execution failed: {exc}")
         return
 
     if result.returncode != 0:
         combined = (result.stdout + result.stderr).strip()
-        check("App framework rpath valid", False, combined if combined else "otool failed")
+        check(label, False, combined if combined else "otool failed")
         return
 
     rpaths = []
@@ -531,22 +568,31 @@ def check_framework_rpath():
             capture_path = False
 
     check(
-        "App framework rpath valid",
+        label,
         "@executable_path/../Frameworks" in rpaths,
         ", ".join(rpaths) if rpaths else "no LC_RPATH entries found",
     )
 
 
-def app_executable_path():
+def app_executable_path(app_path=None):
     """Return the packaged app executable path."""
-    return os.path.join(APP_BUNDLE, "Contents", "MacOS", "ContainerBar")
+    bundle = app_path or APP_BUNDLE
+    return os.path.join(bundle, "Contents", "MacOS", APP_NAME)
 
 
 def check_no_swiftpm_release_resource_path():
-    """Verify the binary does not embed SwiftPM release resource fallback paths."""
-    binary = app_executable_path()
+    """Verify the local binary does not embed SwiftPM release resource paths."""
+    _check_no_swiftpm_release_resource_path(
+        APP_BUNDLE,
+        "No SwiftPM release resource path embedded",
+    )
+
+
+def _check_no_swiftpm_release_resource_path(app_path, label):
+    """Verify a binary does not embed SwiftPM release resource fallback paths."""
+    binary = app_executable_path(app_path)
     if not os.path.isfile(binary):
-        check("No SwiftPM release resource path embedded", False, f"binary not found: {binary}")
+        check(label, False, f"binary not found: {binary}")
         return
     with open(binary, "rb") as f:
         binary_contents = f.read()
@@ -555,7 +601,7 @@ def check_no_swiftpm_release_resource_path():
         None,
     )
     check(
-        "No SwiftPM release resource path embedded",
+        label,
         embedded_path is None,
         (
             f"binary references {embedded_path.decode()}; SwiftPM resource accessor would crash on other Macs"
@@ -567,16 +613,57 @@ def check_no_swiftpm_release_resource_path():
 
 def check_required_resource_bundles():
     """Verify release-critical resource bundles are packaged inside the app."""
-    resources_dir = os.path.join(APP_BUNDLE, "Contents", "Resources")
+    _check_required_resource_bundles(APP_BUNDLE, "Required resource bundles packaged")
+
+
+def _check_required_resource_bundles(app_path, label):
+    """Verify release-critical resource bundles are packaged inside an app."""
+    resources_dir = os.path.join(app_path, "Contents", "Resources")
     missing = [
         name
         for name in REQUIRED_RESOURCE_BUNDLES
         if not os.path.isdir(os.path.join(resources_dir, name))
     ]
     check(
-        "Required resource bundles packaged",
+        label,
         not missing,
         ", ".join(missing) if missing else ", ".join(REQUIRED_RESOURCE_BUNDLES),
+    )
+
+
+def _check_executable_architecture(app_path, label):
+    """Verify an app executable contains the required release architecture."""
+    binary = app_executable_path(app_path)
+    if not os.path.isfile(binary):
+        check(label, False, f"binary not found: {binary}")
+        return
+
+    lipo_bin = shutil.which("lipo")
+    if not lipo_bin:
+        check(label, False, "lipo not found")
+        return
+
+    try:
+        result = subprocess.run(
+            [lipo_bin, "-archs", binary],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        check(label, False, f"lipo execution failed: {exc}")
+        return
+
+    if result.returncode != 0:
+        combined = (result.stdout + result.stderr).strip()
+        check(label, False, combined if combined else "lipo failed")
+        return
+
+    archs = result.stdout.split()
+    check(
+        label,
+        REQUIRED_EXECUTABLE_ARCH in archs,
+        " ".join(archs) if archs else "no architectures reported",
     )
 
 
@@ -603,10 +690,16 @@ def check_gatekeeper_zip(version):
     """Verify the app extracted from the uploaded release zip passes Gatekeeper.
 
     This is the artifact users actually download, so assess it as an execute
-    target rather than trusting the loose dist/ bundle or local zip.
+    target and validate its packaged contents rather than trusting the loose
+    dist/ bundle or local zip.
     """
     version_label = "Uploaded ZIP app version matches release"
     gatekeeper_label = "Gatekeeper accepts uploaded zip"
+    rpath_label = "Uploaded ZIP app framework rpath valid"
+    resources_label = "Uploaded ZIP required resource bundles packaged"
+    swiftpm_path_label = "Uploaded ZIP has no SwiftPM release resource path embedded"
+    arch_label = f"Uploaded ZIP executable contains {REQUIRED_EXECUTABLE_ARCH}"
+    packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     tag = f"v{version}"
     workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
     try:
@@ -614,6 +707,8 @@ def check_gatekeeper_zip(version):
         if not uploaded_zip:
             check(version_label, False, detail)
             check(gatekeeper_label, False, detail)
+            for label in packaging_labels:
+                check(label, False, detail)
             return
 
         extract_dir = os.path.join(workdir, "extracted")
@@ -622,6 +717,8 @@ def check_gatekeeper_zip(version):
             detail = f"could not extract {RELEASE_ZIP_ASSET} from {tag}"
             check(version_label, False, detail)
             check(gatekeeper_label, False, detail)
+            for label in packaging_labels:
+                check(label, False, detail)
             return
 
         app = os.path.join(extract_dir, f"{APP_NAME}.app")
@@ -629,6 +726,8 @@ def check_gatekeeper_zip(version):
             detail = f"{APP_NAME}.app not found inside zip"
             check(version_label, False, detail)
             check(gatekeeper_label, False, detail)
+            for label in packaging_labels:
+                check(label, False, detail)
             return
 
         bundle_version, version_detail = _app_bundle_short_version(app)
@@ -641,6 +740,11 @@ def check_gatekeeper_zip(version):
 
         accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, accepted, gatekeeper_detail)
+
+        _check_framework_rpath(app, rpath_label)
+        _check_required_resource_bundles(app, resources_label)
+        _check_no_swiftpm_release_resource_path(app, swiftpm_path_label)
+        _check_executable_architecture(app, arch_label)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
