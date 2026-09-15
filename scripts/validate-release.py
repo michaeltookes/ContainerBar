@@ -28,8 +28,6 @@ APP_BUNDLE = os.path.join(PROJECT_ROOT, "dist", f"{APP_NAME}.app")
 RELEASE_ZIP_ASSET = f"{APP_NAME}.zip"
 RELEASE_DMG_ASSET = f"{APP_NAME}.dmg"
 RELEASE_ZIP = os.path.join(PROJECT_ROOT, "dist", RELEASE_ZIP_ASSET)
-RELEASE_DMG = os.path.join(PROJECT_ROOT, "dist", RELEASE_DMG_ASSET)
-APPCAST_FILE = os.path.join(PROJECT_ROOT, "docs", "appcast.xml")
 HOMEBREW_CASK = os.path.expanduser("~/Desktop/Current Projects/homebrew-tap/Casks/containerbar.rb")
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
@@ -110,6 +108,34 @@ def run(cmd):
         raise TypeError("run() expects an argv sequence, not a shell command string")
     result = subprocess.run(cmd, capture_output=True, text=True, shell=False)
     return result.returncode, result.stdout.strip()
+
+
+def _fetch_url_bytes(url, timeout=10):
+    """Fetch URL bytes with the validator user agent."""
+    req = urllib.request.Request(url, headers={"User-Agent": "validate-release/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _download_url_to_file(url, dest):
+    """Download a URL to dest, returning (path, detail)."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "validate-release/1.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as handle:
+            shutil.copyfileobj(resp, handle)
+    except Exception as exc:
+        return "", f"could not download {url}: {exc}"
+    return dest, ""
+
+
+def fetch_appcast_root():
+    """Fetch and parse the deployed Sparkle appcast."""
+    try:
+        return ET.fromstring(_fetch_url_bytes(APPCAST_URL)), ""
+    except ET.ParseError as exc:
+        return None, f"appcast parse error: {exc}"
+    except Exception as exc:
+        return None, str(exc)
 
 
 def _normalize_sha256_digest(value):
@@ -239,6 +265,11 @@ def verify_sparkle_update_signature(update_path, ed_signature):
     return False, output or "sign_update --verify failed"
 
 
+def expected_appcast_enclosure_url(version):
+    """Return the canonical GitHub release URL for the appcast zip enclosure."""
+    return f"https://github.com/{GITHUB_REPO}/releases/download/v{version}/{RELEASE_ZIP_ASSET}"
+
+
 def check_info_plist(version):
     """Verify Info.plist version and build number."""
     try:
@@ -313,30 +344,27 @@ def check_github_release(version):
 
 def check_appcast(version):
     """Fetch appcast and verify it contains the version."""
-    try:
-        req = urllib.request.Request(APPCAST_URL, headers={"User-Agent": "validate-release/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = resp.read()
+    root, detail = fetch_appcast_root()
+    if root is None:
+        check("Appcast contains version", False, detail)
+        return
 
-        root = ET.fromstring(data)
-        namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
-        sparkle_ns = namespaces["sparkle"]
+    namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+    sparkle_ns = namespaces["sparkle"]
 
-        found = False
-        # Check both child elements and enclosure attributes
-        for item in root.findall(".//item"):
-            svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
-            if svs_elem is not None and svs_elem.text == version:
+    found = False
+    # Check both child elements and enclosure attributes
+    for item in root.findall(".//item"):
+        svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
+        if svs_elem is not None and svs_elem.text == version:
+            found = True
+            break
+        for enclosure in item.findall("enclosure"):
+            if enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
                 found = True
                 break
-            for enclosure in item.findall("enclosure"):
-                if enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
-                    found = True
-                    break
 
-        check("Appcast contains version", found, f"v{version}")
-    except Exception as e:
-        check("Appcast contains version", False, str(e))
+    check("Appcast contains version", found, f"v{version}")
 
 
 def check_notarization():
@@ -527,18 +555,21 @@ def check_gatekeeper_zip():
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-def check_dmg_contents():
-    """Verify dist/ContainerBar.dmg mounts and contains ContainerBar.app."""
-    label = "DMG mounts and contains app"
-    if not os.path.isfile(RELEASE_DMG):
-        skip(label, f"artifact absent: {RELEASE_DMG}")
-        return
-
+def check_dmg_contents(version):
+    """Verify the uploaded GitHub release DMG mounts and contains ContainerBar.app."""
+    label = "Uploaded DMG mounts and contains app"
+    workdir = tempfile.mkdtemp(prefix="cb-dmg-asset-")
     mountpoint = tempfile.mkdtemp(prefix="cb-dmg-")
     attached = False
     try:
-        if not _attach_dmg(RELEASE_DMG, mountpoint):
-            check(label, False, f"could not attach {RELEASE_DMG}")
+        tag = f"v{version}"
+        uploaded_dmg, detail = _download_github_release_asset(tag, RELEASE_DMG_ASSET, workdir)
+        if not uploaded_dmg:
+            check(label, False, detail)
+            return
+
+        if not _attach_dmg(uploaded_dmg, mountpoint):
+            check(label, False, f"could not attach {RELEASE_DMG_ASSET} from {tag}")
             return
         attached = True
         app = os.path.join(mountpoint, f"{APP_NAME}.app")
@@ -548,6 +579,7 @@ def check_dmg_contents():
         if attached:
             _detach_dmg(mountpoint)
         shutil.rmtree(mountpoint, ignore_errors=True)
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def check_cask_sha256(version):
@@ -610,45 +642,54 @@ def _appcast_enclosure_for_version(root, version):
 
 
 def check_appcast_signature(version):
-    """Verify the appcast entry matches the uploaded GitHub release zip."""
-    sig_label = "Appcast edSignature verifies uploaded zip"
-    len_label = "Appcast length matches uploaded zip size"
-    if not os.path.isfile(APPCAST_FILE):
-        skip(sig_label, f"appcast absent: {APPCAST_FILE}")
-        skip(len_label, f"appcast absent: {APPCAST_FILE}")
-        return
+    """Verify the deployed appcast entry matches its enclosure archive."""
+    url_label = "Appcast enclosure URL is canonical"
+    sig_label = "Appcast edSignature verifies enclosure archive"
+    len_label = "Appcast length matches enclosure archive size"
 
     sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
-    try:
-        root = ET.parse(APPCAST_FILE).getroot()
-    except ET.ParseError as exc:
-        check(sig_label, False, f"appcast parse error: {exc}")
-        check(len_label, False, "appcast parse error")
+    root, detail = fetch_appcast_root()
+    if root is None:
+        check(url_label, False, detail)
+        check(sig_label, False, detail)
+        check(len_label, False, detail)
         return
 
     enclosure = _appcast_enclosure_for_version(root, version)
     if enclosure is None:
+        check(url_label, False, f"no appcast item for v{version}")
         check(sig_label, False, f"no appcast item for v{version}")
         check(len_label, False, f"no appcast item for v{version}")
         return
 
-    tag = f"v{version}"
+    enclosure_url = enclosure.get("url", "")
+    expected_url = expected_appcast_enclosure_url(version)
+    url_matches = enclosure_url == expected_url
+    check(url_label, url_matches, enclosure_url or "missing url")
+    if not url_matches:
+        check(sig_label, False, "enclosure URL mismatch")
+        check(len_label, False, "enclosure URL mismatch")
+        return
+
     workdir = tempfile.mkdtemp(prefix="cb-appcast-asset-")
     try:
-        uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
-        if not uploaded_zip:
+        enclosure_zip, detail = _download_url_to_file(
+            enclosure_url,
+            os.path.join(workdir, RELEASE_ZIP_ASSET),
+        )
+        if not enclosure_zip:
             check(sig_label, False, detail)
             check(len_label, False, detail)
             return
 
         ed_signature = enclosure.get(f"{{{sparkle_ns}}}edSignature")
         if ed_signature:
-            verified, verify_detail = verify_sparkle_update_signature(uploaded_zip, ed_signature)
+            verified, verify_detail = verify_sparkle_update_signature(enclosure_zip, ed_signature)
             check(sig_label, verified, verify_detail)
         else:
             check(sig_label, False, "missing edSignature")
 
-        zip_size = os.path.getsize(uploaded_zip)
+        zip_size = os.path.getsize(enclosure_zip)
         length_attr = enclosure.get("length")
         try:
             length_matches = length_attr is not None and int(length_attr) == zip_size
@@ -657,7 +698,7 @@ def check_appcast_signature(version):
         length_detail = (
             f"{zip_size} bytes"
             if length_matches
-            else f"appcast length {length_attr} != uploaded zip {zip_size}"
+            else f"appcast length {length_attr} != enclosure archive {zip_size}"
         )
         check(
             len_label,
@@ -691,7 +732,7 @@ def main():
     check_no_swiftpm_release_resource_path()
     check_notarization()
     check_gatekeeper_zip()
-    check_dmg_contents()
+    check_dmg_contents(version)
     check_cask_sha256(version)
     check_cask_arm64()
     check_appcast_signature(version)

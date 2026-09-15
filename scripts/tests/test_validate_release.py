@@ -391,21 +391,29 @@ def test_gatekeeper_zip_extract_failure_fails():
 
 # ── check_dmg_contents ──────────────────────────────────────────────────────
 
-def test_dmg_skips_when_absent():
+def test_dmg_fails_when_uploaded_asset_unavailable():
     mod = load_module()
-    mod.RELEASE_DMG = "/nonexistent/ContainerBar.dmg"
-    mod.check_dmg_contents()
-    assert mod.skipped == 1
-    assert mod.passed == 0 and mod.failed == 0
+    with mock.patch.object(mod, "_download_github_release_asset",
+                           return_value=("", "could not download")) as download, \
+         mock.patch.object(mod, "_attach_dmg") as attach:
+        mod.check_dmg_contents("2.0.4")
+
+    download.assert_called_once()
+    assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_DMG_ASSET)
+    assert not attach.called
+    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_dmg_contains_app():
     mod = load_module()
     with temp_file(b"dmg", binary=True) as dmg_path:
-        mod.RELEASE_DMG = dmg_path
-        with mock.patch.object(mod, "_attach_dmg", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")) as download, \
+             mock.patch.object(mod, "_attach_dmg", side_effect=_make_app_side_effect(mod.APP_NAME)) as attach, \
              mock.patch.object(mod, "_detach_dmg") as detach:
-            mod.check_dmg_contents()
+            mod.check_dmg_contents("2.0.4")
+            download.assert_called_once()
+            assert attach.call_args[0][0] == dmg_path
             assert detach.called, "a mounted DMG must always be detached"
     assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
 
@@ -413,11 +421,12 @@ def test_dmg_contains_app():
 def test_dmg_missing_app_fails():
     mod = load_module()
     with temp_file(b"dmg", binary=True) as dmg_path:
-        mod.RELEASE_DMG = dmg_path
         # attaches successfully but the mountpoint has no .app
-        with mock.patch.object(mod, "_attach_dmg", return_value=True), \
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg", return_value=True), \
              mock.patch.object(mod, "_detach_dmg") as detach:
-            mod.check_dmg_contents()
+            mod.check_dmg_contents("2.0.4")
             assert detach.called
     assert mod.failed == 1
 
@@ -425,10 +434,11 @@ def test_dmg_missing_app_fails():
 def test_dmg_attach_failure_does_not_detach():
     mod = load_module()
     with temp_file(b"dmg", binary=True) as dmg_path:
-        mod.RELEASE_DMG = dmg_path
-        with mock.patch.object(mod, "_attach_dmg", return_value=False), \
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg", return_value=False), \
              mock.patch.object(mod, "_detach_dmg") as detach:
-            mod.check_dmg_contents()
+            mod.check_dmg_contents("2.0.4")
             assert not detach.called, "no attach means nothing to detach"
     assert mod.failed == 1
 
@@ -505,114 +515,155 @@ def test_cask_arm64_skips_when_absent():
 
 # ── check_appcast_signature ─────────────────────────────────────────────────
 
-def _appcast_with_enclosure(version, ed_signature=None, length=None):
+def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None):
     sig_attr = ' sparkle:edSignature="{}"'.format(ed_signature) if ed_signature is not None else ""
     len_attr = ' length="{}"'.format(length) if length is not None else ""
+    enclosure_url = url or (
+        "https://github.com/michaeltookes/ContainerBar/releases/download/"
+        "v{}/ContainerBar.zip".format(version)
+    )
     return (
         '<?xml version="1.0"?>'
         '<rss xmlns:sparkle="{ns}"><channel><item>'
         "<sparkle:shortVersionString>{v}</sparkle:shortVersionString>"
-        '<enclosure url="ContainerBar.zip"{sig}{ln}/>'
+        '<enclosure url="{url}"{sig}{ln}/>'
         "</item></channel></rss>"
-    ).format(ns=SPARKLE_NS, v=version, sig=sig_attr, ln=len_attr)
+    ).format(ns=SPARKLE_NS, v=version, url=enclosure_url, sig=sig_attr, ln=len_attr)
+
+
+def _appcast_root(mod, xml):
+    return mod.ET.fromstring(xml)
 
 
 def test_appcast_signature_and_length_ok():
     mod = load_module()
     payload = b"x" * 321
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="AbC123==", length=len(payload)),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset",
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature="AbC123==", length=len(payload)),
+    )
+    expected_url = mod.expected_appcast_enclosure_url("2.0.5")
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")) as download, \
              mock.patch.object(mod, "verify_sparkle_update_signature",
                                return_value=(True, "verified")) as verify:
             mod.check_appcast_signature("2.0.5")
 
     download.assert_called_once()
+    assert download.call_args[0][0] == expected_url
     verify.assert_called_once_with(zip_path, "AbC123==")
-    assert mod.passed == 2 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 3 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_missing_fails():
     mod = load_module()
     payload = b"x" * 100
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(_appcast_with_enclosure("2.0.5", ed_signature=None, length=len(payload)),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset",
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature=None, length=len(payload)),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "verify_sparkle_update_signature") as verify:
             mod.check_appcast_signature("2.0.5")
 
     assert not verify.called
-    assert mod.failed == 1 and mod.passed == 1  # length ok, signature missing
+    assert mod.failed == 1 and mod.passed == 2  # URL + length ok, signature missing
 
 
 def test_appcast_length_mismatch_fails():
     mod = load_module()
     payload = b"x" * 100
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=999),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset",
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature="sig==", length=999),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "verify_sparkle_update_signature",
                                return_value=(True, "verified")):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 1  # signature verifies, length wrong
+    assert mod.failed == 1 and mod.passed == 2  # URL + signature ok, length wrong
 
 
 def test_appcast_signature_verification_failure():
     mod = load_module()
     payload = b"x" * 100
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="bad==", length=len(payload)),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset",
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature="bad==", length=len(payload)),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "verify_sparkle_update_signature",
                                return_value=(False, "bad signature")):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 1  # signature fails, length ok
+    assert mod.failed == 1 and mod.passed == 2  # URL + length ok, signature fails
 
 
 def test_appcast_no_item_for_version_fails_both():
     mod = load_module()
-    payload = b"x" * 100
-    with temp_file(payload, binary=True) as zip_path, \
-         temp_file(_appcast_with_enclosure("1.0.0", ed_signature="sig==", length=len(payload)),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset") as download:
-            mod.check_appcast_signature("2.0.5")
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("1.0.0", ed_signature="sig==", length=100),
+    )
+    with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+         mock.patch.object(mod, "_download_url_to_file") as download:
+        mod.check_appcast_signature("2.0.5")
     assert not download.called
-    assert mod.failed == 2
+    assert mod.failed == 3
 
 
-def test_appcast_signature_fails_when_uploaded_zip_unavailable():
+def test_appcast_signature_fails_when_enclosure_archive_unavailable():
     mod = load_module()
-    with temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=10),
-                   suffix=".xml") as appcast_path:
-        mod.APPCAST_FILE = appcast_path
-        with mock.patch.object(mod, "_download_github_release_asset",
-                               return_value=("", "could not download")):
-            mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 2 and mod.passed == 0 and mod.skipped == 0
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature="sig==", length=10),
+    )
+    with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+         mock.patch.object(mod, "_download_url_to_file",
+                           return_value=("", "could not download")):
+        mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 2 and mod.passed == 1 and mod.skipped == 0
 
 
-def test_appcast_signature_skips_when_appcast_absent():
+def test_appcast_signature_fails_when_deployed_appcast_unavailable():
     mod = load_module()
-    mod.APPCAST_FILE = "/nonexistent/appcast.xml"
-    with mock.patch.object(mod, "_download_github_release_asset") as download:
+    with mock.patch.object(mod, "fetch_appcast_root", return_value=(None, "not found")), \
+         mock.patch.object(mod, "_download_url_to_file") as download:
         mod.check_appcast_signature("2.0.5")
 
     assert not download.called
-    assert mod.skipped == 2 and mod.passed == 0 and mod.failed == 0
+    assert mod.failed == 3 and mod.passed == 0 and mod.skipped == 0
+
+
+def test_appcast_signature_fails_when_enclosure_url_is_not_canonical():
+    mod = load_module()
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure(
+            "2.0.5",
+            ed_signature="sig==",
+            length=10,
+            url="https://example.com/releases/v2.0.5/ContainerBar.zip",
+        ),
+    )
+    with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+         mock.patch.object(mod, "_download_url_to_file") as download, \
+         mock.patch.object(mod, "verify_sparkle_update_signature") as verify:
+        mod.check_appcast_signature("2.0.5")
+
+    assert not download.called
+    assert not verify.called
+    assert mod.failed == 3 and mod.passed == 0 and mod.skipped == 0
 
 
 # ── standalone runner (no pytest on the mini) ───────────────────────────────

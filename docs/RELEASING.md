@@ -65,19 +65,21 @@ artifacts:
 
 - Gatekeeper accepts the app extracted from `dist/ContainerBar.zip`
   (`spctl --assess --type execute`).
-- `dist/ContainerBar.dmg` mounts and contains `ContainerBar.app`.
+- The uploaded GitHub release `ContainerBar.dmg` mounts and contains
+  `ContainerBar.app`.
 - The Homebrew cask `sha256` matches the uploaded GitHub release zip's sha256.
 - The Homebrew cask declares `depends_on arch: :arm64`.
-- The appcast entry for the release has a `sparkle:edSignature` that verifies
-  against the uploaded GitHub release zip, and a `length` attribute matching the
-  uploaded zip's byte size.
+- The deployed appcast entry for the release has the canonical GitHub release
+  zip enclosure URL, a `sparkle:edSignature` that verifies against the archive
+  fetched from that URL, and a `length` attribute matching that archive's byte
+  size.
 
-Local artifact checks **skip** (rather than fail) when their `dist/` artifact is
-absent, so the validator stays runnable outside a real release. The Homebrew
-cask checksum check skips only when the local cask file is absent, and the
-appcast metadata check skips only when the local appcast file is absent; a
-missing or unreadable GitHub release zip fails because Homebrew and Sparkle both
-install that uploaded archive.
+The local Gatekeeper zip check **skips** (rather than fails) when
+`dist/ContainerBar.zip` is absent, so the validator stays runnable outside a
+real release. The Homebrew cask checksum check skips only when the local cask
+file is absent. Missing or unreadable uploaded release assets, deployed
+appcast metadata, or appcast enclosure archives fail because those are the
+bytes users and Sparkle consume.
 
 The appcast signature check uses Sparkle's `sign_update --verify`. Set
 `SPARKLE_SIGN_UPDATE` if the tool is installed somewhere other than the
