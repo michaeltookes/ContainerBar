@@ -1,110 +1,211 @@
 import Foundation
 @testable import ContainerBarCore
 
-/// Mock Docker API client for testing
+/// Mock Docker API client for testing.
+///
+/// The unchecked Sendable conformance is limited to tests; all mutable state is
+/// synchronized through `stateLock` so task-group stats fetches can share it.
 public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
+    private let stateLock = NSLock()
 
-    public var mockContainers: [DockerContainer] = []
-    public var mockStats: [String: ContainerStats] = [:]
-    public var mockSystemInfo: DockerSystemInfo?
-    public var shouldFail = false
-    public var failureError: Error = DockerAPIError.connectionFailed
-    public var callCount = 0
-    public var lastCalledMethod: String?
+    private var _mockContainers: [DockerContainer] = []
+    private var _mockStats: [String: ContainerStats] = [:]
+    private var _mockSystemInfo: DockerSystemInfo?
+    private var _shouldFail = false
+    private var _failureError: Error = DockerAPIError.connectionFailed
+    private var _callCount = 0
+    private var _lastCalledMethod: String?
+
+    public var mockContainers: [DockerContainer] {
+        stateLock.withLock { _mockContainers }
+    }
+
+    public var mockStats: [String: ContainerStats] {
+        stateLock.withLock { _mockStats }
+    }
+
+    public var mockSystemInfo: DockerSystemInfo? {
+        stateLock.withLock { _mockSystemInfo }
+    }
+
+    public var shouldFail: Bool {
+        stateLock.withLock { _shouldFail }
+    }
+
+    public var failureError: Error {
+        stateLock.withLock { _failureError }
+    }
+
+    public var callCount: Int {
+        stateLock.withLock { _callCount }
+    }
+
+    public var lastCalledMethod: String? {
+        stateLock.withLock { _lastCalledMethod }
+    }
 
     public init() {}
 
+    public func setMockContainers(_ containers: [DockerContainer]) {
+        stateLock.withLock {
+            _mockContainers = containers
+        }
+    }
+
+    public func appendMockContainers(_ containers: [DockerContainer]) {
+        stateLock.withLock {
+            _mockContainers.append(contentsOf: containers)
+        }
+    }
+
+    public func updateMockContainers(_ update: (inout [DockerContainer]) -> Void) {
+        stateLock.withLock {
+            update(&_mockContainers)
+        }
+    }
+
+    public func setMockStats(_ stats: [String: ContainerStats]) {
+        stateLock.withLock {
+            _mockStats = stats
+        }
+    }
+
+    public func setMockStats(_ stats: ContainerStats, forContainerID id: String) {
+        stateLock.withLock {
+            _mockStats[id] = stats
+        }
+    }
+
+    public func updateMockStats(_ update: (inout [String: ContainerStats]) -> Void) {
+        stateLock.withLock {
+            update(&_mockStats)
+        }
+    }
+
+    public func setMockSystemInfo(_ systemInfo: DockerSystemInfo?) {
+        stateLock.withLock {
+            _mockSystemInfo = systemInfo
+        }
+    }
+
+    public func setFailure(_ shouldFail: Bool, error: Error = DockerAPIError.connectionFailed) {
+        stateLock.withLock {
+            _shouldFail = shouldFail
+            _failureError = error
+        }
+    }
+
+    private func recordCall(_ method: String) {
+        stateLock.withLock {
+            _callCount += 1
+            _lastCalledMethod = method
+        }
+    }
+
+    private func failureSnapshot() -> (shouldFail: Bool, error: Error) {
+        stateLock.withLock {
+            (_shouldFail, _failureError)
+        }
+    }
+
     public func ping() async throws {
-        callCount += 1
-        lastCalledMethod = "ping"
-        if shouldFail {
-            throw failureError
+        recordCall("ping")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
     }
 
     public func getSystemInfo() async throws -> DockerSystemInfo {
-        callCount += 1
-        lastCalledMethod = "getSystemInfo"
-        if shouldFail {
-            throw failureError
+        recordCall("getSystemInfo")
+        let snapshot = stateLock.withLock {
+            (_shouldFail, _failureError, _mockSystemInfo)
         }
-        guard let info = mockSystemInfo else {
+        if snapshot.0 {
+            throw snapshot.1
+        }
+        guard let info = snapshot.2 else {
             throw DockerAPIError.invalidResponse
         }
         return info
     }
 
     public func listContainers(all: Bool) async throws -> [DockerContainer] {
-        callCount += 1
-        lastCalledMethod = "listContainers"
-        if shouldFail {
-            throw failureError
+        recordCall("listContainers")
+        let snapshot = stateLock.withLock {
+            (_shouldFail, _failureError, _mockContainers)
         }
-        return mockContainers
+        if snapshot.0 {
+            throw snapshot.1
+        }
+        return snapshot.2
     }
 
     public func getContainer(id: String) async throws -> DockerContainer {
-        callCount += 1
-        lastCalledMethod = "getContainer"
-        if shouldFail {
-            throw failureError
+        recordCall("getContainer")
+        let snapshot = stateLock.withLock {
+            (_shouldFail, _failureError, _mockContainers)
         }
-        guard let container = mockContainers.first(where: { $0.id == id }) else {
+        if snapshot.0 {
+            throw snapshot.1
+        }
+        guard let container = snapshot.2.first(where: { $0.id == id }) else {
             throw DockerAPIError.notFound("Container \(id)")
         }
         return container
     }
 
     public func getContainerStats(id: String) async throws -> ContainerStats {
-        callCount += 1
-        lastCalledMethod = "getContainerStats"
-
-        if shouldFail {
-            throw failureError
+        recordCall("getContainerStats")
+        let snapshot = stateLock.withLock {
+            (_shouldFail, _failureError, _mockStats[id])
         }
-        guard let stats = mockStats[id] else {
+        if snapshot.0 {
+            throw snapshot.1
+        }
+        guard let stats = snapshot.2 else {
             throw DockerAPIError.notFound("Stats for \(id)")
         }
         return stats
     }
 
     public func startContainer(id: String) async throws {
-        callCount += 1
-        lastCalledMethod = "startContainer"
-        if shouldFail {
-            throw failureError
+        recordCall("startContainer")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
     }
 
     public func stopContainer(id: String, timeout: Int?) async throws {
-        callCount += 1
-        lastCalledMethod = "stopContainer"
-        if shouldFail {
-            throw failureError
+        recordCall("stopContainer")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
     }
 
     public func restartContainer(id: String, timeout: Int?) async throws {
-        callCount += 1
-        lastCalledMethod = "restartContainer"
-        if shouldFail {
-            throw failureError
+        recordCall("restartContainer")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
     }
 
     public func removeContainer(id: String, force: Bool, volumes: Bool) async throws {
-        callCount += 1
-        lastCalledMethod = "removeContainer"
-        if shouldFail {
-            throw failureError
+        recordCall("removeContainer")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
     }
 
     public func getContainerLogs(id: String, tail: Int?, timestamps: Bool) async throws -> String {
-        callCount += 1
-        lastCalledMethod = "getContainerLogs"
-        if shouldFail {
-            throw failureError
+        recordCall("getContainerLogs")
+        let snapshot = failureSnapshot()
+        if snapshot.shouldFail {
+            throw snapshot.error
         }
         return "Mock log output for container \(id)"
     }
