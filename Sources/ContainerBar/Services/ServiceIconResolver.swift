@@ -56,21 +56,6 @@ struct ServiceIconResolver {
         return nil
     }
 
-    /// Extracts the service name from a container image
-    func extractServiceName(from image: String) -> String? {
-        let normalizedImage = normalizeImage(image)
-        let segments = extractSegments(from: normalizedImage)
-
-        // Return the most likely service name (usually the last non-tag segment)
-        return segments.first { serviceMappings[$0] != nil } ?? segments.last
-    }
-
-    /// Check if a service icon exists in the bundle
-    func hasIcon(named name: String) -> Bool {
-        // Check if we have this icon in our assets.
-        return AppResourceBundle.url(forResource: name, withExtension: "png") != nil
-    }
-
     // MARK: - Private Helpers
 
     /// Normalizes an image name by removing registry prefixes and tags
@@ -153,10 +138,5 @@ extension DockerContainer {
     /// The service icon name for this container, if available
     var serviceIconName: String? {
         ServiceIconResolver.shared.iconName(for: self)
-    }
-
-    /// Whether this container has a known service icon
-    var hasServiceIcon: Bool {
-        serviceIconName != nil
     }
 }

@@ -117,28 +117,6 @@ struct ServiceIcon: View {
     }
 }
 
-// MARK: - Compact Service Icon
-
-/// A more compact version of ServiceIcon without status overlay
-struct CompactServiceIcon: View {
-    let container: DockerContainer
-    let size: CGFloat
-
-    init(container: DockerContainer, size: CGFloat = 16) {
-        self.container = container
-        self.size = size
-    }
-
-    var body: some View {
-        ServiceIcon(
-            container: container,
-            size: size,
-            showStatusIndicator: false,
-            showRuntimeBadge: false
-        )
-    }
-}
-
 // MARK: - Preview
 
 #if DEBUG
