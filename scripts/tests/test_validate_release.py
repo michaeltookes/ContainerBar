@@ -80,18 +80,30 @@ def fake_completed(stdout="", stderr="", returncode=0):
     return types.SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
-def _make_app_side_effect(app_name, version=None):
+def _make_app_side_effect(app_name, version=None, build=None):
     """Return a side_effect that mimics extract/attach by creating <name>.app."""
     def _side_effect(_src, dest):
         app = os.path.join(dest, f"{app_name}.app")
         os.makedirs(app, exist_ok=True)
-        if version is not None:
+        if version is not None or build is not None:
             contents_dir = os.path.join(app, "Contents")
             os.makedirs(contents_dir, exist_ok=True)
+            plist = {}
+            if version is not None:
+                plist["CFBundleShortVersionString"] = version
+            if build is not None:
+                plist["CFBundleVersion"] = build
             with open(os.path.join(contents_dir, "Info.plist"), "wb") as handle:
-                plistlib.dump({"CFBundleShortVersionString": version}, handle)
+                plistlib.dump(plist, handle)
         return True
     return _side_effect
+
+
+@contextmanager
+def expected_info_build(mod, build="7"):
+    """Patch the expected Distribution/Info.plist build number."""
+    with mock.patch.object(mod, "expected_info_plist_build_number", return_value=(build, "")):
+        yield
 
 
 @contextmanager
@@ -106,6 +118,16 @@ def uploaded_zip_packaging_passes(mod):
                            side_effect=pass_check) as swiftpm, \
          mock.patch.object(mod, "_check_executable_architecture", side_effect=pass_check) as arch:
         yield rpath, resources, swiftpm, arch
+
+
+@contextmanager
+def uploaded_dmg_container_passes(mod):
+    """Patch uploaded-DMG container notarization checks for focused tests."""
+    with mock.patch.object(mod, "_codesign_valid_container",
+                           return_value=(True, "verified")) as codesign, \
+         mock.patch.object(mod, "_stapler_valid",
+                           return_value=(True, "valid")) as stapler:
+        yield codesign, stapler
 
 
 # ── run(): shell-injection guard ────────────────────────────────────────────
@@ -412,7 +434,7 @@ def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
     assert not extract.called
-    assert mod.failed == 6 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 7 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_accepted():
@@ -421,10 +443,11 @@ def test_gatekeeper_uploaded_zip_accepted():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(zip_path, "")) as download, \
              mock.patch.object(mod, "_extract_zip",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")) as extract, \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")) as extract, \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
-             uploaded_zip_packaging_passes(mod) as packaging_checks:
+             uploaded_zip_packaging_passes(mod) as packaging_checks, \
+             expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
     download.assert_called_once()
@@ -435,7 +458,7 @@ def test_gatekeeper_uploaded_zip_accepted():
         checked_app = packaging_check.call_args[0][0]
         assert checked_app.endswith(os.path.join("extracted", f"{mod.APP_NAME}.app"))
         assert checked_app != mod.APP_BUNDLE
-    assert mod.passed == 6 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 7 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_stale_app_version_fails():
@@ -444,14 +467,31 @@ def test_gatekeeper_uploaded_zip_stale_app_version_fails():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3")), \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3", "7")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
-             uploaded_zip_packaging_passes(mod):
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
 
     assert gatekeeper.called
-    assert mod.passed == 5 and mod.failed == 1 and mod.skipped == 0
+    assert mod.passed == 6 and mod.failed == 1 and mod.skipped == 0
+
+
+def test_gatekeeper_uploaded_zip_stale_app_build_fails():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "6")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")), \
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
+            mod.check_gatekeeper_zip("2.0.4")
+
+    assert mod.passed == 6 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_rejected():
@@ -460,12 +500,13 @@ def test_gatekeeper_uploaded_zip_rejected():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(False, "rejected")), \
-             uploaded_zip_packaging_passes(mod):
+             uploaded_zip_packaging_passes(mod), \
+             expected_info_build(mod, "7"):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1 and mod.passed == 5
+    assert mod.failed == 1 and mod.passed == 6
 
 
 def test_gatekeeper_uploaded_zip_extract_failure_fails():
@@ -475,7 +516,7 @@ def test_gatekeeper_uploaded_zip_extract_failure_fails():
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip", return_value=False):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 6
+    assert mod.failed == 7
 
 
 def test_executable_architecture_passes_for_arm64():
@@ -527,7 +568,7 @@ def test_dmg_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_DMG_ASSET)
     assert not attach.called
-    assert mod.failed == 4 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 7 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_dmg_contains_valid_current_version_app():
@@ -536,18 +577,23 @@ def test_dmg_contains_valid_current_version_app():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")) as download, \
              mock.patch.object(mod, "_attach_dmg",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")) as attach, \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")) as attach, \
              mock.patch.object(mod, "_detach_dmg") as detach, \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")) as codesign, \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
-                               return_value=(True, "accepted")) as gatekeeper:
+                               return_value=(True, "accepted")) as gatekeeper, \
+             uploaded_dmg_container_passes(mod) as container_checks, \
+             expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
             download.assert_called_once()
             assert attach.call_args[0][0] == dmg_path
             assert detach.called, "a mounted DMG must always be detached"
             assert codesign.called
             assert gatekeeper.called
-    assert mod.passed == 4 and mod.failed == 0 and mod.skipped == 0
+            for container_check in container_checks:
+                assert container_check.called
+                assert container_check.call_args[0][0] == dmg_path
+    assert mod.passed == 7 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_dmg_stale_app_version_fails():
@@ -556,13 +602,32 @@ def test_dmg_stale_app_version_fails():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")), \
              mock.patch.object(mod, "_attach_dmg",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3")), \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3", "7")), \
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
-             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")):
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_dmg_container_passes(mod), \
+             expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 3 and mod.failed == 1
+    assert mod.passed == 6 and mod.failed == 1
+
+
+def test_dmg_stale_app_build_fails():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "6")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_dmg_container_passes(mod), \
+             expected_info_build(mod, "7"):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 6 and mod.failed == 1
 
 
 def test_dmg_missing_app_fails():
@@ -572,10 +637,11 @@ def test_dmg_missing_app_fails():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")), \
              mock.patch.object(mod, "_attach_dmg", return_value=True), \
-             mock.patch.object(mod, "_detach_dmg") as detach:
+             mock.patch.object(mod, "_detach_dmg") as detach, \
+             uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert detach.called
-    assert mod.failed == 4
+    assert mod.passed == 2 and mod.failed == 5
 
 
 def test_dmg_attach_failure_does_not_detach():
@@ -584,10 +650,11 @@ def test_dmg_attach_failure_does_not_detach():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")), \
              mock.patch.object(mod, "_attach_dmg", return_value=False), \
-             mock.patch.object(mod, "_detach_dmg") as detach:
+             mock.patch.object(mod, "_detach_dmg") as detach, \
+             uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert not detach.called, "no attach means nothing to detach"
-    assert mod.failed == 4
+    assert mod.passed == 2 and mod.failed == 5
 
 
 def test_dmg_codesign_failure_fails_bundle_validation():
@@ -596,13 +663,15 @@ def test_dmg_codesign_failure_fails_bundle_validation():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")), \
              mock.patch.object(mod, "_attach_dmg",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(False, "bad signature")), \
-             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")):
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_dmg_container_passes(mod), \
+             expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 3 and mod.failed == 1
+    assert mod.passed == 6 and mod.failed == 1
 
 
 def test_dmg_gatekeeper_failure_fails_bundle_validation():
@@ -611,13 +680,52 @@ def test_dmg_gatekeeper_failure_fails_bundle_validation():
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(dmg_path, "")), \
              mock.patch.object(mod, "_attach_dmg",
-                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
-             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(False, "rejected")):
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(False, "rejected")), \
+             uploaded_dmg_container_passes(mod), \
+             expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 3 and mod.failed == 1
+    assert mod.passed == 6 and mod.failed == 1
+
+
+def test_dmg_container_codesign_failure_fails_validation():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_codesign_valid_container",
+                               return_value=(False, "bad dmg signature")), \
+             mock.patch.object(mod, "_stapler_valid", return_value=(True, "valid")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             expected_info_build(mod, "7"):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 6 and mod.failed == 1
+
+
+def test_dmg_container_stapler_failure_fails_validation():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(dmg_path, "")), \
+             mock.patch.object(mod, "_codesign_valid_container", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_stapler_valid", return_value=(False, "not stapled")), \
+             mock.patch.object(mod, "_attach_dmg",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4", "7")), \
+             mock.patch.object(mod, "_detach_dmg"), \
+             mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             expected_info_build(mod, "7"):
+            mod.check_dmg_contents("2.0.4")
+
+    assert mod.passed == 6 and mod.failed == 1
 
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────
@@ -711,9 +819,11 @@ def test_cask_arm64_fails_when_published_cask_unavailable():
 
 # ── check_appcast_signature ─────────────────────────────────────────────────
 
-def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None):
+def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None, build="7", build_attr=False):
     sig_attr = ' sparkle:edSignature="{}"'.format(ed_signature) if ed_signature is not None else ""
     len_attr = ' length="{}"'.format(length) if length is not None else ""
+    build_element = "" if build is None or build_attr else "<sparkle:version>{}</sparkle:version>".format(build)
+    build_attr_value = ' sparkle:version="{}"'.format(build) if build is not None and build_attr else ""
     enclosure_url = url or (
         "https://github.com/michaeltookes/ContainerBar/releases/download/"
         "v{}/ContainerBar.zip".format(version)
@@ -721,10 +831,19 @@ def _appcast_with_enclosure(version, ed_signature=None, length=None, url=None):
     return (
         '<?xml version="1.0"?>'
         '<rss xmlns:sparkle="{ns}"><channel><item>'
+        "{build_element}"
         "<sparkle:shortVersionString>{v}</sparkle:shortVersionString>"
-        '<enclosure url="{url}"{sig}{ln}/>'
+        '<enclosure url="{url}"{sig}{ln}{build_attr}/>'
         "</item></channel></rss>"
-    ).format(ns=SPARKLE_NS, v=version, url=enclosure_url, sig=sig_attr, ln=len_attr)
+    ).format(
+        ns=SPARKLE_NS,
+        v=version,
+        url=enclosure_url,
+        sig=sig_attr,
+        ln=len_attr,
+        build_element=build_element,
+        build_attr=build_attr_value,
+    )
 
 
 def _appcast_root(mod, xml):
@@ -744,13 +863,14 @@ def test_appcast_signature_and_length_ok():
              mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")) as download, \
              mock.patch.object(mod, "verify_sparkle_update_signature",
-                               return_value=(True, "verified")) as verify:
+                               return_value=(True, "verified")) as verify, \
+             expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
 
     download.assert_called_once()
     assert download.call_args[0][0] == expected_url
     verify.assert_called_once_with(zip_path, "AbC123==")
-    assert mod.passed == 3 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 4 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_missing_fails():
@@ -764,11 +884,12 @@ def test_appcast_signature_missing_fails():
         with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
              mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
-             mock.patch.object(mod, "verify_sparkle_update_signature") as verify:
+             mock.patch.object(mod, "verify_sparkle_update_signature") as verify, \
+             expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
 
     assert not verify.called
-    assert mod.failed == 1 and mod.passed == 2  # URL + length ok, signature missing
+    assert mod.failed == 1 and mod.passed == 3  # URL + build + length ok, signature missing
 
 
 def test_appcast_length_mismatch_fails():
@@ -783,9 +904,10 @@ def test_appcast_length_mismatch_fails():
              mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "verify_sparkle_update_signature",
-                               return_value=(True, "verified")):
+                               return_value=(True, "verified")), \
+             expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 2  # URL + signature ok, length wrong
+    assert mod.failed == 1 and mod.passed == 3  # URL + build + signature ok, length wrong
 
 
 def test_appcast_signature_verification_failure():
@@ -800,9 +922,52 @@ def test_appcast_signature_verification_failure():
              mock.patch.object(mod, "_download_url_to_file",
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "verify_sparkle_update_signature",
-                               return_value=(False, "bad signature")):
+                               return_value=(False, "bad signature")), \
+             expected_info_build(mod, "7"):
             mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 1 and mod.passed == 2  # URL + length ok, signature fails
+    assert mod.failed == 1 and mod.passed == 3  # URL + build + length ok, signature fails
+
+
+def test_appcast_build_mismatch_fails():
+    mod = load_module()
+    payload = b"x" * 100
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure("2.0.5", ed_signature="sig==", length=len(payload), build="6"),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")), \
+             expected_info_build(mod, "7"):
+            mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 1 and mod.passed == 3
+
+
+def test_appcast_build_matches_enclosure_attribute():
+    mod = load_module()
+    payload = b"x" * 100
+    appcast = _appcast_root(
+        mod,
+        _appcast_with_enclosure(
+            "2.0.5",
+            ed_signature="sig==",
+            length=len(payload),
+            build="7",
+            build_attr=True,
+        ),
+    )
+    with temp_file(payload, binary=True) as zip_path:
+        with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
+             mock.patch.object(mod, "_download_url_to_file",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "verify_sparkle_update_signature",
+                               return_value=(True, "verified")), \
+             expected_info_build(mod, "7"):
+            mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 0 and mod.passed == 4
 
 
 def test_appcast_no_item_for_version_fails_both():
@@ -815,7 +980,7 @@ def test_appcast_no_item_for_version_fails_both():
          mock.patch.object(mod, "_download_url_to_file") as download:
         mod.check_appcast_signature("2.0.5")
     assert not download.called
-    assert mod.failed == 3
+    assert mod.failed == 4
 
 
 def test_appcast_signature_fails_when_enclosure_archive_unavailable():
@@ -826,9 +991,10 @@ def test_appcast_signature_fails_when_enclosure_archive_unavailable():
     )
     with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
          mock.patch.object(mod, "_download_url_to_file",
-                           return_value=("", "could not download")):
+                           return_value=("", "could not download")), \
+         expected_info_build(mod, "7"):
         mod.check_appcast_signature("2.0.5")
-    assert mod.failed == 2 and mod.passed == 1 and mod.skipped == 0
+    assert mod.failed == 2 and mod.passed == 2 and mod.skipped == 0
 
 
 def test_appcast_signature_fails_when_deployed_appcast_unavailable():
@@ -838,7 +1004,7 @@ def test_appcast_signature_fails_when_deployed_appcast_unavailable():
         mod.check_appcast_signature("2.0.5")
 
     assert not download.called
-    assert mod.failed == 3 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 4 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_appcast_signature_fails_when_enclosure_url_is_not_canonical():
@@ -854,12 +1020,13 @@ def test_appcast_signature_fails_when_enclosure_url_is_not_canonical():
     )
     with mock.patch.object(mod, "fetch_appcast_root", return_value=(appcast, "")), \
          mock.patch.object(mod, "_download_url_to_file") as download, \
-         mock.patch.object(mod, "verify_sparkle_update_signature") as verify:
+         mock.patch.object(mod, "verify_sparkle_update_signature") as verify, \
+         expected_info_build(mod, "7"):
         mod.check_appcast_signature("2.0.5")
 
     assert not download.called
     assert not verify.called
-    assert mod.failed == 3 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 3 and mod.passed == 1 and mod.skipped == 0
 
 
 # ── standalone runner (no pytest on the mini) ───────────────────────────────

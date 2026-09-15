@@ -33,6 +33,7 @@ HOMEBREW_CASK_PATH = "Casks/containerbar.rb"
 HOMEBREW_CASK_URL = f"https://raw.githubusercontent.com/{HOMEBREW_TAP_REPO}/main/{HOMEBREW_CASK_PATH}"
 GITHUB_REPO = "michaeltookes/ContainerBar"
 APPCAST_URL = "https://michaeltookes.github.io/ContainerBar/appcast.xml"
+SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 SIGN_UPDATE_LOCATIONS = (
     os.path.join(
         PROJECT_ROOT,
@@ -322,28 +323,83 @@ def expected_appcast_enclosure_url(version):
     return expected_homebrew_cask_url(version)
 
 
-def _app_bundle_short_version(app_path):
-    """Return CFBundleShortVersionString from an app bundle."""
-    plist_path = os.path.join(app_path, "Contents", "Info.plist")
+def _plist_string(plist, key):
+    """Return a plist value as a stripped string."""
+    value = plist.get(key, "")
+    return str(value).strip() if value is not None else ""
+
+
+def _read_bundle_version_fields(plist_path):
+    """Return bundle short version, build number, and per-field detail strings."""
     try:
         with open(plist_path, "rb") as handle:
             plist = plistlib.load(handle)
     except Exception as exc:
-        return "", f"could not read {plist_path}: {exc}"
+        detail = f"could not read {plist_path}: {exc}"
+        return "", "", detail, detail
 
-    version = plist.get("CFBundleShortVersionString", "")
-    return version, "" if version else "CFBundleShortVersionString missing"
+    short_version = _plist_string(plist, "CFBundleShortVersionString")
+    build_number = _plist_string(plist, "CFBundleVersion")
+    version_detail = "" if short_version else "CFBundleShortVersionString missing"
+    build_detail = "" if build_number else "CFBundleVersion missing"
+    return short_version, build_number, version_detail, build_detail
 
 
-def _codesign_valid(app_path):
-    """Return whether an app bundle passes strict codesign verification."""
+def _info_plist_versions():
+    """Return expected version fields from the distribution Info.plist."""
+    return _read_bundle_version_fields(INFO_PLIST)
+
+
+def expected_info_plist_build_number():
+    """Return the expected CFBundleVersion from Distribution/Info.plist."""
+    _, build_number, _, build_detail = _info_plist_versions()
+    return build_number, build_detail
+
+
+def _app_bundle_versions(app_path):
+    """Return CFBundleShortVersionString and CFBundleVersion from an app bundle."""
+    plist_path = os.path.join(app_path, "Contents", "Info.plist")
+    return _read_bundle_version_fields(plist_path)
+
+
+def _app_bundle_short_version(app_path):
+    """Return CFBundleShortVersionString from an app bundle."""
+    version, _, version_detail, _ = _app_bundle_versions(app_path)
+    return version, version_detail
+
+
+def _check_app_bundle_version_and_build(app_path, release_version, version_label, build_label):
+    """Validate an app bundle's marketing version and build number."""
+    bundle_version, bundle_build, version_detail, build_detail = _app_bundle_versions(app_path)
+    version_matches = bundle_version == release_version
+    check(
+        version_label,
+        version_matches,
+        bundle_version if version_matches else version_detail or f"{bundle_version or '(none)'} != {release_version}",
+    )
+
+    expected_build, expected_detail = expected_info_plist_build_number()
+    build_matches = bool(expected_build) and bundle_build == expected_build
+    if build_matches:
+        detail = bundle_build
+    elif expected_detail:
+        detail = expected_detail
+    elif build_detail:
+        detail = build_detail
+    else:
+        detail = f"{bundle_build or '(none)'} != {expected_build}"
+    check(build_label, build_matches, detail)
+
+
+def _codesign_verify(path, extra_options=()):
+    """Return whether a path passes codesign verification with extra options."""
     codesign_bin = shutil.which("codesign")
     if not codesign_bin:
         return False, "codesign not found"
 
     try:
         result = subprocess.run(
-            [codesign_bin, "--verify", "--deep", "--strict", "--verbose=2", app_path],
+            [codesign_bin, "--verify", *extra_options, "--verbose=2", path],
             capture_output=True,
             text=True,
             check=False,
@@ -353,6 +409,35 @@ def _codesign_valid(app_path):
 
     combined = (result.stdout + result.stderr).strip()
     return result.returncode == 0, combined if combined else "verified"
+
+
+def _codesign_valid(app_path):
+    """Return whether an app bundle passes strict codesign verification."""
+    return _codesign_verify(app_path, ("--deep", "--strict"))
+
+
+def _codesign_valid_container(path):
+    """Return whether a signed release container passes codesign verification."""
+    return _codesign_verify(path)
+
+
+def _stapler_valid(path):
+    """Return whether a release artifact has a valid stapled notarization ticket."""
+    xcrun_bin = shutil.which("xcrun")
+    if not xcrun_bin:
+        return False, "xcrun not found"
+    try:
+        result = subprocess.run(
+            [xcrun_bin, "stapler", "validate", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return False, f"stapler execution failed: {exc}"
+
+    combined = (result.stdout + result.stderr).strip()
+    return result.returncode == 0, combined if combined else "valid"
 
 
 def _gatekeeper_accepts_app(app_path):
@@ -374,16 +459,13 @@ def _gatekeeper_accepts_app(app_path):
 
 def check_info_plist(version):
     """Verify Info.plist version and build number."""
-    try:
-        with open(INFO_PLIST, "rb") as f:
-            plist = plistlib.load(f)
-        plist_version = plist.get("CFBundleShortVersionString", "")
-        build_number = plist.get("CFBundleVersion", "")
-        check("Info.plist version", plist_version == version, plist_version)
-        check("Info.plist build", build_number != "", build_number)
-    except Exception as e:
-        check("Info.plist version", False, str(e))
-        check("Info.plist build", False, "could not read")
+    plist_version, build_number, version_detail, build_detail = _info_plist_versions()
+    check(
+        "Info.plist version",
+        plist_version == version,
+        plist_version if plist_version == version else version_detail or plist_version,
+    )
+    check("Info.plist build", build_number != "", build_number or build_detail)
 
 
 def check_changelog(version):
@@ -457,18 +539,15 @@ def check_appcast(version):
         check("Appcast contains version", False, detail)
         return
 
-    namespaces = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
-    sparkle_ns = namespaces["sparkle"]
-
     found = False
     # Check both child elements and enclosure attributes
     for item in root.findall(".//item"):
-        svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
+        svs_elem = item.find(f"{{{SPARKLE_NS}}}shortVersionString")
         if svs_elem is not None and svs_elem.text == version:
             found = True
             break
         for enclosure in item.findall("enclosure"):
-            if enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
+            if enclosure.get(f"{{{SPARKLE_NS}}}shortVersionString") == version:
                 found = True
                 break
 
@@ -694,18 +773,21 @@ def check_gatekeeper_zip(version):
     dist/ bundle or local zip.
     """
     version_label = "Uploaded ZIP app version matches release"
+    build_label = "Uploaded ZIP app build matches Info.plist"
     gatekeeper_label = "Gatekeeper accepts uploaded zip"
     rpath_label = "Uploaded ZIP app framework rpath valid"
     resources_label = "Uploaded ZIP required resource bundles packaged"
     swiftpm_path_label = "Uploaded ZIP has no SwiftPM release resource path embedded"
     arch_label = f"Uploaded ZIP executable contains {REQUIRED_EXECUTABLE_ARCH}"
+    bundle_labels = (version_label, build_label)
     packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     tag = f"v{version}"
     workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
     try:
         uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
         if not uploaded_zip:
-            check(version_label, False, detail)
+            for label in bundle_labels:
+                check(label, False, detail)
             check(gatekeeper_label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
@@ -715,7 +797,8 @@ def check_gatekeeper_zip(version):
         os.makedirs(extract_dir, exist_ok=True)
         if not _extract_zip(uploaded_zip, extract_dir):
             detail = f"could not extract {RELEASE_ZIP_ASSET} from {tag}"
-            check(version_label, False, detail)
+            for label in bundle_labels:
+                check(label, False, detail)
             check(gatekeeper_label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
@@ -724,19 +807,14 @@ def check_gatekeeper_zip(version):
         app = os.path.join(extract_dir, f"{APP_NAME}.app")
         if not os.path.isdir(app):
             detail = f"{APP_NAME}.app not found inside zip"
-            check(version_label, False, detail)
+            for label in bundle_labels:
+                check(label, False, detail)
             check(gatekeeper_label, False, detail)
             for label in packaging_labels:
                 check(label, False, detail)
             return
 
-        bundle_version, version_detail = _app_bundle_short_version(app)
-        version_matches = bundle_version == version
-        check(
-            version_label,
-            version_matches,
-            bundle_version if version_matches else version_detail or f"{bundle_version or '(none)'} != {version}",
-        )
+        _check_app_bundle_version_and_build(app, version, version_label, build_label)
 
         accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, accepted, gatekeeper_detail)
@@ -753,8 +831,13 @@ def check_dmg_contents(version):
     """Verify the uploaded GitHub release DMG contains the intended valid app."""
     contains_label = "Uploaded DMG mounts and contains app"
     version_label = "Uploaded DMG app version matches release"
+    build_label = "Uploaded DMG app build matches Info.plist"
     codesign_label = "Uploaded DMG app codesign valid"
     gatekeeper_label = "Uploaded DMG app Gatekeeper accepted"
+    dmg_codesign_label = "Uploaded DMG container codesign valid"
+    dmg_staple_label = "Uploaded DMG container stapled ticket valid"
+    app_labels = (contains_label, version_label, build_label, codesign_label, gatekeeper_label)
+    container_labels = (dmg_codesign_label, dmg_staple_label)
     workdir = tempfile.mkdtemp(prefix="cb-dmg-asset-")
     mountpoint = tempfile.mkdtemp(prefix="cb-dmg-")
     attached = False
@@ -762,18 +845,20 @@ def check_dmg_contents(version):
         tag = f"v{version}"
         uploaded_dmg, detail = _download_github_release_asset(tag, RELEASE_DMG_ASSET, workdir)
         if not uploaded_dmg:
-            check(contains_label, False, detail)
-            check(version_label, False, detail)
-            check(codesign_label, False, detail)
-            check(gatekeeper_label, False, detail)
+            for label in app_labels + container_labels:
+                check(label, False, detail)
             return
+
+        dmg_codesign_ok, dmg_codesign_detail = _codesign_valid_container(uploaded_dmg)
+        check(dmg_codesign_label, dmg_codesign_ok, dmg_codesign_detail)
+
+        dmg_staple_ok, dmg_staple_detail = _stapler_valid(uploaded_dmg)
+        check(dmg_staple_label, dmg_staple_ok, dmg_staple_detail)
 
         if not _attach_dmg(uploaded_dmg, mountpoint):
             detail = f"could not attach {RELEASE_DMG_ASSET} from {tag}"
-            check(contains_label, False, detail)
-            check(version_label, False, detail)
-            check(codesign_label, False, detail)
-            check(gatekeeper_label, False, detail)
+            for label in app_labels:
+                check(label, False, detail)
             return
         attached = True
         app = os.path.join(mountpoint, f"{APP_NAME}.app")
@@ -781,18 +866,11 @@ def check_dmg_contents(version):
         missing_detail = f"{APP_NAME}.app missing in DMG"
         check(contains_label, present, f"{APP_NAME}.app" if present else missing_detail)
         if not present:
-            check(version_label, False, missing_detail)
-            check(codesign_label, False, missing_detail)
-            check(gatekeeper_label, False, missing_detail)
+            for label in (version_label, build_label, codesign_label, gatekeeper_label):
+                check(label, False, missing_detail)
             return
 
-        bundle_version, version_detail = _app_bundle_short_version(app)
-        version_matches = bundle_version == version
-        check(
-            version_label,
-            version_matches,
-            bundle_version if version_matches else version_detail or f"{bundle_version or '(none)'} != {version}",
-        )
+        _check_app_bundle_version_and_build(app, version, version_label, build_label)
 
         codesign_ok, codesign_detail = _codesign_valid(app)
         check(codesign_label, codesign_ok, codesign_detail)
@@ -840,38 +918,62 @@ def check_cask_arm64():
     check(label, found, "depends_on arch: :arm64" if found else "missing depends_on arch: :arm64")
 
 
-def _appcast_enclosure_for_version(root, version):
-    """Return the <enclosure> element whose item matches version, or None."""
-    sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+def _appcast_item_and_enclosure_for_version(root, version):
+    """Return the appcast item and enclosure for version, or (None, None)."""
     for item in root.findall(".//item"):
-        svs_elem = item.find(f"{{{sparkle_ns}}}shortVersionString")
+        svs_elem = item.find(f"{{{SPARKLE_NS}}}shortVersionString")
         item_matches = svs_elem is not None and svs_elem.text == version
         for enclosure in item.findall("enclosure"):
-            if item_matches or enclosure.get(f"{{{sparkle_ns}}}shortVersionString") == version:
-                return enclosure
-    return None
+            if item_matches or enclosure.get(f"{{{SPARKLE_NS}}}shortVersionString") == version:
+                return item, enclosure
+    return None, None
+
+
+def _appcast_enclosure_for_version(root, version):
+    """Return the <enclosure> element whose item matches version, or None."""
+    _, enclosure = _appcast_item_and_enclosure_for_version(root, version)
+    return enclosure
+
+
+def _appcast_sparkle_version(item, enclosure):
+    """Return sparkle:version from an enclosure attribute or item child."""
+    attr_value = enclosure.get(f"{{{SPARKLE_NS}}}version") if enclosure is not None else ""
+    if attr_value:
+        return attr_value.strip()
+
+    version_elem = item.find(f"{{{SPARKLE_NS}}}version") if item is not None else None
+    return version_elem.text.strip() if version_elem is not None and version_elem.text else ""
 
 
 def check_appcast_signature(version):
     """Verify the deployed appcast entry matches its enclosure archive."""
     url_label = "Appcast enclosure URL is canonical"
+    build_label = "Appcast sparkle:version matches Info.plist build"
     sig_label = "Appcast edSignature verifies enclosure archive"
     len_label = "Appcast length matches enclosure archive size"
+    appcast_labels = (url_label, build_label, sig_label, len_label)
 
-    sparkle_ns = "http://www.andymatuschak.org/xml-namespaces/sparkle"
     root, detail = fetch_appcast_root()
     if root is None:
-        check(url_label, False, detail)
-        check(sig_label, False, detail)
-        check(len_label, False, detail)
+        for label in appcast_labels:
+            check(label, False, detail)
         return
 
-    enclosure = _appcast_enclosure_for_version(root, version)
+    item, enclosure = _appcast_item_and_enclosure_for_version(root, version)
     if enclosure is None:
-        check(url_label, False, f"no appcast item for v{version}")
-        check(sig_label, False, f"no appcast item for v{version}")
-        check(len_label, False, f"no appcast item for v{version}")
+        detail = f"no appcast item for v{version}"
+        for label in appcast_labels:
+            check(label, False, detail)
         return
+
+    expected_build, expected_detail = expected_info_plist_build_number()
+    appcast_build = _appcast_sparkle_version(item, enclosure)
+    build_matches = bool(expected_build) and appcast_build == expected_build
+    check(
+        build_label,
+        build_matches,
+        appcast_build if build_matches else expected_detail or f"appcast {appcast_build or '(none)'} != Info.plist {expected_build}",
+    )
 
     enclosure_url = enclosure.get("url", "")
     expected_url = expected_appcast_enclosure_url(version)
@@ -893,7 +995,7 @@ def check_appcast_signature(version):
             check(len_label, False, detail)
             return
 
-        ed_signature = enclosure.get(f"{{{sparkle_ns}}}edSignature")
+        ed_signature = enclosure.get(f"{{{SPARKLE_NS}}}edSignature")
         if ed_signature:
             verified, verify_detail = verify_sparkle_update_signature(enclosure_zip, ed_signature)
             check(sig_label, verified, verify_detail)
