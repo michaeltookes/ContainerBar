@@ -99,6 +99,18 @@ def _make_app_side_effect(app_name, version=None, build=None):
     return _side_effect
 
 
+def _make_app_with_marker_side_effect(app_name, marker):
+    """Return a side_effect that creates a small app bundle with marker content."""
+    def _side_effect(_src, dest):
+        app = os.path.join(dest, f"{app_name}.app")
+        resources_dir = os.path.join(app, "Contents", "Resources")
+        os.makedirs(resources_dir, exist_ok=True)
+        with open(os.path.join(resources_dir, "marker.txt"), "w") as handle:
+            handle.write(marker)
+        return True
+    return _side_effect
+
+
 @contextmanager
 def expected_info_build(mod, build="7"):
     """Patch the expected Distribution/Info.plist build number."""
@@ -938,6 +950,50 @@ def test_dmg_container_stapler_failure_fails_validation():
             mod.check_dmg_contents("2.0.4")
 
     assert mod.passed == 11 and mod.failed == 1
+
+
+# ── check_uploaded_artifact_consistency ─────────────────────────────────────
+
+def test_uploaded_artifact_consistency_passes_for_matching_apps():
+    mod = load_module()
+
+    def fake_download(_tag, asset_name, _workdir):
+        return f"/tmp/{asset_name}", ""
+
+    with mock.patch.object(mod, "_download_github_release_asset",
+                           side_effect=fake_download) as download, \
+         mock.patch.object(mod, "_extract_zip",
+                           side_effect=_make_app_with_marker_side_effect(mod.APP_NAME, "same")) as extract, \
+         mock.patch.object(mod, "_attach_dmg",
+                           side_effect=_make_app_with_marker_side_effect(mod.APP_NAME, "same")) as attach, \
+         mock.patch.object(mod, "_detach_dmg") as detach:
+        mod.check_uploaded_artifact_consistency("2.0.4")
+
+    assert download.call_count == 2
+    assert download.call_args_list[0][0][1] == mod.RELEASE_ZIP_ASSET
+    assert download.call_args_list[1][0][1] == mod.RELEASE_DMG_ASSET
+    assert extract.called
+    assert attach.called
+    assert detach.called
+    assert mod.passed == 1 and mod.failed == 0
+
+
+def test_uploaded_artifact_consistency_fails_for_different_apps():
+    mod = load_module()
+
+    def fake_download(_tag, asset_name, _workdir):
+        return f"/tmp/{asset_name}", ""
+
+    with mock.patch.object(mod, "_download_github_release_asset",
+                           side_effect=fake_download), \
+         mock.patch.object(mod, "_extract_zip",
+                           side_effect=_make_app_with_marker_side_effect(mod.APP_NAME, "zip")), \
+         mock.patch.object(mod, "_attach_dmg",
+                           side_effect=_make_app_with_marker_side_effect(mod.APP_NAME, "dmg")), \
+         mock.patch.object(mod, "_detach_dmg"):
+        mod.check_uploaded_artifact_consistency("2.0.4")
+
+    assert mod.passed == 0 and mod.failed == 1
 
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────

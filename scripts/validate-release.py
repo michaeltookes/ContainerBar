@@ -15,6 +15,7 @@ import json
 import plistlib
 import re
 import shutil
+import stat
 import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -862,6 +863,70 @@ def _check_executable_architecture(app_path, label):
     )
 
 
+def _app_bundle_content_hash(app_path):
+    """Return a deterministic hash of app bundle file and symlink contents."""
+    if not os.path.isdir(app_path):
+        return "", f"app not found: {app_path}"
+
+    digest = hashlib.sha256()
+    try:
+        for root, dirnames, filenames in os.walk(app_path, topdown=True, followlinks=False):
+            dirnames.sort()
+            filenames.sort()
+            for name in sorted([*dirnames, *filenames]):
+                path = os.path.join(root, name)
+                rel_path = os.path.relpath(path, app_path).replace(os.sep, "/")
+                info = os.lstat(path)
+                mode = stat.S_IMODE(info.st_mode)
+                digest.update(rel_path.encode("utf-8"))
+                digest.update(b"\0")
+
+                if stat.S_ISLNK(info.st_mode):
+                    digest.update(b"L")
+                    digest.update(os.readlink(path).encode("utf-8"))
+                elif stat.S_ISDIR(info.st_mode):
+                    digest.update(b"D")
+                    digest.update(str(mode).encode("ascii"))
+                elif stat.S_ISREG(info.st_mode):
+                    digest.update(b"F")
+                    digest.update(str(mode).encode("ascii"))
+                    with open(path, "rb") as handle:
+                        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                            digest.update(chunk)
+                else:
+                    digest.update(b"O")
+                    digest.update(str(info.st_mode).encode("ascii"))
+                digest.update(b"\0")
+    except OSError as exc:
+        return "", f"could not hash {app_path}: {exc}"
+
+    return digest.hexdigest(), ""
+
+
+def _check_app_bundle_content_match(zip_app, dmg_app, label):
+    """Verify two app bundle trees have identical on-disk contents."""
+    zip_hash, zip_detail = _app_bundle_content_hash(zip_app)
+    if not zip_hash:
+        check(label, False, zip_detail)
+        return
+
+    dmg_hash, dmg_detail = _app_bundle_content_hash(dmg_app)
+    if not dmg_hash:
+        check(label, False, dmg_detail)
+        return
+
+    matches = zip_hash == dmg_hash
+    check(
+        label,
+        matches,
+        (
+            f"bundle hash {zip_hash[:12]}"
+            if matches
+            else f"zip bundle hash {zip_hash[:12]} != dmg bundle hash {dmg_hash[:12]}"
+        ),
+    )
+
+
 def _extract_zip(zip_path, dest):
     """Extract a distributable zip into dest. Returns True on success."""
     rc, _ = run(["ditto", "-x", "-k", zip_path, dest])
@@ -1040,6 +1105,53 @@ def check_dmg_contents(version):
         _check_required_resource_bundles(app, resources_label)
         _check_no_swiftpm_release_resource_path(app, swiftpm_path_label)
         _check_executable_architecture(app, arch_label)
+    finally:
+        if attached:
+            _detach_dmg(mountpoint)
+        shutil.rmtree(mountpoint, ignore_errors=True)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_uploaded_artifact_consistency(version):
+    """Verify uploaded ZIP and DMG artifacts contain the same app bundle."""
+    label = "Uploaded ZIP and DMG contain the same app"
+    tag = f"v{version}"
+    workdir = tempfile.mkdtemp(prefix="cb-artifact-consistency-")
+    mountpoint = tempfile.mkdtemp(prefix="cb-artifact-consistency-dmg-")
+    attached = False
+    try:
+        uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
+        if not uploaded_zip:
+            check(label, False, detail)
+            return
+
+        extract_dir = os.path.join(workdir, "zip")
+        os.makedirs(extract_dir, exist_ok=True)
+        if not _extract_zip(uploaded_zip, extract_dir):
+            check(label, False, f"could not extract {RELEASE_ZIP_ASSET} from {tag}")
+            return
+
+        zip_app = os.path.join(extract_dir, f"{APP_NAME}.app")
+        if not os.path.isdir(zip_app):
+            check(label, False, f"{APP_NAME}.app not found inside zip")
+            return
+
+        uploaded_dmg, detail = _download_github_release_asset(tag, RELEASE_DMG_ASSET, workdir)
+        if not uploaded_dmg:
+            check(label, False, detail)
+            return
+
+        if not _attach_dmg(uploaded_dmg, mountpoint):
+            check(label, False, f"could not attach {RELEASE_DMG_ASSET} from {tag}")
+            return
+        attached = True
+
+        dmg_app = os.path.join(mountpoint, f"{APP_NAME}.app")
+        if not os.path.isdir(dmg_app):
+            check(label, False, f"{APP_NAME}.app missing in DMG")
+            return
+
+        _check_app_bundle_content_match(zip_app, dmg_app, label)
     finally:
         if attached:
             _detach_dmg(mountpoint)
@@ -1234,6 +1346,7 @@ def main():
     check_notarization()
     check_gatekeeper_zip(version)
     check_dmg_contents(version)
+    check_uploaded_artifact_consistency(version)
     check_cask_sha256(version)
     check_cask_arm64()
     check_appcast_signature(version)

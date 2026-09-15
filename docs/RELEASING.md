@@ -74,6 +74,7 @@ artifacts:
   by the production Developer ID team with the production bundle identifier,
   contains only an arm64 executable, passes strict codesign verification, and
   passes Gatekeeper.
+- The uploaded ZIP and DMG contain the same signed app bundle contents.
 - The published Homebrew cask version, canonical download URL, and `sha256`
   match the GitHub release.
 - The published Homebrew cask declares `depends_on arch: :arm64`.
