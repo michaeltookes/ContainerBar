@@ -574,6 +574,14 @@ def test_cask_arm64_missing_fails():
     assert mod.failed == 1
 
 
+def test_cask_arm64_ignores_commented_directive():
+    mod = load_module()
+    cask = 'cask "containerbar" do\n  # depends_on arch: :arm64\nend\n'
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")):
+        mod.check_cask_arm64()
+    assert mod.failed == 1 and mod.passed == 0
+
+
 def test_cask_arm64_fails_when_published_cask_unavailable():
     mod = load_module()
     with mock.patch.object(mod, "published_homebrew_cask", return_value=("", "not found")):

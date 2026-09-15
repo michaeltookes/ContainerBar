@@ -155,6 +155,11 @@ def published_homebrew_cask():
     return _published_cask_cache
 
 
+def _cask_has_active_arm64_dependency(content):
+    """Return true only when the cask has an active arm64 dependency line."""
+    return re.search(r"(?m)^\s*depends_on\s+arch:\s*:arm64\b", content) is not None
+
+
 def _normalize_sha256_digest(value):
     """Return a lowercase SHA-256 hex digest from GitHub's digest format."""
     digest = value.strip()
@@ -708,7 +713,7 @@ def check_cask_arm64():
         check(label, False, detail)
         return
 
-    found = re.search(r"depends_on\s+arch:\s*:arm64", content) is not None
+    found = _cask_has_active_arm64_dependency(content)
     check(label, found, "depends_on arch: :arm64" if found else "missing depends_on arch: :arm64")
 
 
