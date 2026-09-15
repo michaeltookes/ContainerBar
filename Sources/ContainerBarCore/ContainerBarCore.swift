@@ -25,15 +25,3 @@
 /// ```
 
 import Foundation
-import Logging
-
-/// Logger for ContainerBarCore operations
-public let coreLogger = Logger(label: "com.containerbar.core")
-
-/// ContainerBarCore version information
-public enum ContainerBarCoreVersion {
-    public static let major = 1
-    public static let minor = 0
-    public static let patch = 0
-    public static let string = "\(major).\(minor).\(patch)"
-}
