@@ -834,9 +834,14 @@ def check_dmg_contents(version):
     build_label = "Uploaded DMG app build matches Info.plist"
     codesign_label = "Uploaded DMG app codesign valid"
     gatekeeper_label = "Uploaded DMG app Gatekeeper accepted"
+    rpath_label = "Uploaded DMG app framework rpath valid"
+    resources_label = "Uploaded DMG required resource bundles packaged"
+    swiftpm_path_label = "Uploaded DMG has no SwiftPM release resource path embedded"
+    arch_label = f"Uploaded DMG executable contains {REQUIRED_EXECUTABLE_ARCH}"
     dmg_codesign_label = "Uploaded DMG container codesign valid"
     dmg_staple_label = "Uploaded DMG container stapled ticket valid"
     app_labels = (contains_label, version_label, build_label, codesign_label, gatekeeper_label)
+    packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
     container_labels = (dmg_codesign_label, dmg_staple_label)
     workdir = tempfile.mkdtemp(prefix="cb-dmg-asset-")
     mountpoint = tempfile.mkdtemp(prefix="cb-dmg-")
@@ -845,7 +850,7 @@ def check_dmg_contents(version):
         tag = f"v{version}"
         uploaded_dmg, detail = _download_github_release_asset(tag, RELEASE_DMG_ASSET, workdir)
         if not uploaded_dmg:
-            for label in app_labels + container_labels:
+            for label in app_labels + packaging_labels + container_labels:
                 check(label, False, detail)
             return
 
@@ -857,7 +862,7 @@ def check_dmg_contents(version):
 
         if not _attach_dmg(uploaded_dmg, mountpoint):
             detail = f"could not attach {RELEASE_DMG_ASSET} from {tag}"
-            for label in app_labels:
+            for label in app_labels + packaging_labels:
                 check(label, False, detail)
             return
         attached = True
@@ -866,7 +871,13 @@ def check_dmg_contents(version):
         missing_detail = f"{APP_NAME}.app missing in DMG"
         check(contains_label, present, f"{APP_NAME}.app" if present else missing_detail)
         if not present:
-            for label in (version_label, build_label, codesign_label, gatekeeper_label):
+            for label in (
+                version_label,
+                build_label,
+                codesign_label,
+                gatekeeper_label,
+                *packaging_labels,
+            ):
                 check(label, False, missing_detail)
             return
 
@@ -877,6 +888,11 @@ def check_dmg_contents(version):
 
         gatekeeper_ok, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, gatekeeper_ok, gatekeeper_detail)
+
+        _check_framework_rpath(app, rpath_label)
+        _check_required_resource_bundles(app, resources_label)
+        _check_no_swiftpm_release_resource_path(app, swiftpm_path_label)
+        _check_executable_architecture(app, arch_label)
     finally:
         if attached:
             _detach_dmg(mountpoint)

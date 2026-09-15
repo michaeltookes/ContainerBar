@@ -568,7 +568,7 @@ def test_dmg_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_DMG_ASSET)
     assert not attach.called
-    assert mod.failed == 7 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 11 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_dmg_contains_valid_current_version_app():
@@ -583,6 +583,7 @@ def test_dmg_contains_valid_current_version_app():
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper, \
              uploaded_dmg_container_passes(mod) as container_checks, \
+             uploaded_zip_packaging_passes(mod) as packaging_checks, \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
             download.assert_called_once()
@@ -593,7 +594,12 @@ def test_dmg_contains_valid_current_version_app():
             for container_check in container_checks:
                 assert container_check.called
                 assert container_check.call_args[0][0] == dmg_path
-    assert mod.passed == 7 and mod.failed == 0 and mod.skipped == 0
+            for packaging_check in packaging_checks:
+                assert packaging_check.called
+                checked_app = packaging_check.call_args[0][0]
+                assert checked_app.endswith(f"{mod.APP_NAME}.app")
+                assert checked_app != mod.APP_BUNDLE
+    assert mod.passed == 11 and mod.failed == 0 and mod.skipped == 0
 
 
 def test_dmg_stale_app_version_fails():
@@ -607,10 +613,11 @@ def test_dmg_stale_app_version_fails():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 def test_dmg_stale_app_build_fails():
@@ -624,10 +631,11 @@ def test_dmg_stale_app_build_fails():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 def test_dmg_missing_app_fails():
@@ -641,7 +649,7 @@ def test_dmg_missing_app_fails():
              uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert detach.called
-    assert mod.passed == 2 and mod.failed == 5
+    assert mod.passed == 2 and mod.failed == 9
 
 
 def test_dmg_attach_failure_does_not_detach():
@@ -654,7 +662,7 @@ def test_dmg_attach_failure_does_not_detach():
              uploaded_dmg_container_passes(mod):
             mod.check_dmg_contents("2.0.4")
             assert not detach.called, "no attach means nothing to detach"
-    assert mod.passed == 2 and mod.failed == 5
+    assert mod.passed == 2 and mod.failed == 9
 
 
 def test_dmg_codesign_failure_fails_bundle_validation():
@@ -668,10 +676,11 @@ def test_dmg_codesign_failure_fails_bundle_validation():
              mock.patch.object(mod, "_codesign_valid", return_value=(False, "bad signature")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 def test_dmg_gatekeeper_failure_fails_bundle_validation():
@@ -685,10 +694,11 @@ def test_dmg_gatekeeper_failure_fails_bundle_validation():
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(False, "rejected")), \
              uploaded_dmg_container_passes(mod), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 def test_dmg_container_codesign_failure_fails_validation():
@@ -704,10 +714,11 @@ def test_dmg_container_codesign_failure_fails_validation():
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 def test_dmg_container_stapler_failure_fails_validation():
@@ -722,10 +733,11 @@ def test_dmg_container_stapler_failure_fails_validation():
              mock.patch.object(mod, "_detach_dmg"), \
              mock.patch.object(mod, "_codesign_valid", return_value=(True, "verified")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app", return_value=(True, "accepted")), \
+             uploaded_zip_packaging_passes(mod), \
              expected_info_build(mod, "7"):
             mod.check_dmg_contents("2.0.4")
 
-    assert mod.passed == 6 and mod.failed == 1
+    assert mod.passed == 10 and mod.failed == 1
 
 
 # ── check_cask_sha256 ───────────────────────────────────────────────────────
