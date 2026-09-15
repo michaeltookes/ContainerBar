@@ -21,6 +21,7 @@ import importlib.util
 import os
 import plistlib
 import tempfile
+import types
 from contextlib import contextmanager
 from unittest import mock
 
@@ -39,6 +40,7 @@ def load_module():
     spec.loader.exec_module(module)
     module.passed = 0
     module.failed = 0
+    module.skipped = 0
     return module
 
 
@@ -69,6 +71,19 @@ def temp_file(content, suffix="", binary=False):
         yield path
     finally:
         os.unlink(path)
+
+
+def fake_completed(stdout="", stderr="", returncode=0):
+    """Stand-in for subprocess.run's CompletedProcess (only fields we read)."""
+    return types.SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
+
+
+def _make_app_side_effect(app_name):
+    """Return a side_effect that mimics extract/attach by creating <name>.app."""
+    def _side_effect(_src, dest):
+        os.makedirs(os.path.join(dest, f"{app_name}.app"), exist_ok=True)
+        return True
+    return _side_effect
 
 
 # ── run(): shell-injection guard ────────────────────────────────────────────
@@ -245,6 +260,240 @@ def test_appcast_network_error_fails_gracefully():
     with mock.patch.object(mod.urllib.request, "urlopen", side_effect=OSError("boom")):
         mod.check_appcast("2.0.4")
     assert mod.failed == 1  # exception is caught and recorded, not raised
+
+
+# ── check_gatekeeper_zip ────────────────────────────────────────────────────
+
+def test_gatekeeper_zip_skips_when_absent():
+    mod = load_module()
+    mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
+    mod.check_gatekeeper_zip()
+    assert mod.skipped == 1
+    assert mod.passed == 0 and mod.failed == 0
+
+
+def test_gatekeeper_zip_accepted():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        mod.RELEASE_ZIP = zip_path
+        with mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+             mock.patch.object(mod.subprocess, "run",
+                               return_value=fake_completed(stderr="source=Notarized Developer ID\naccepted\n")):
+            mod.check_gatekeeper_zip()
+    assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
+
+
+def test_gatekeeper_zip_rejected():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        mod.RELEASE_ZIP = zip_path
+        with mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+             mock.patch.object(mod.subprocess, "run",
+                               return_value=fake_completed(stderr="rejected\n", returncode=3)):
+            mod.check_gatekeeper_zip()
+    assert mod.failed == 1 and mod.passed == 0
+
+
+def test_gatekeeper_zip_extract_failure_fails():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        mod.RELEASE_ZIP = zip_path
+        with mock.patch.object(mod, "_extract_zip", return_value=False):
+            mod.check_gatekeeper_zip()
+    assert mod.failed == 1
+
+
+# ── check_dmg_contents ──────────────────────────────────────────────────────
+
+def test_dmg_skips_when_absent():
+    mod = load_module()
+    mod.RELEASE_DMG = "/nonexistent/ContainerBar.dmg"
+    mod.check_dmg_contents()
+    assert mod.skipped == 1
+    assert mod.passed == 0 and mod.failed == 0
+
+
+def test_dmg_contains_app():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        mod.RELEASE_DMG = dmg_path
+        with mock.patch.object(mod, "_attach_dmg", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+             mock.patch.object(mod, "_detach_dmg") as detach:
+            mod.check_dmg_contents()
+            assert detach.called, "a mounted DMG must always be detached"
+    assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
+
+
+def test_dmg_missing_app_fails():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        mod.RELEASE_DMG = dmg_path
+        # attaches successfully but the mountpoint has no .app
+        with mock.patch.object(mod, "_attach_dmg", return_value=True), \
+             mock.patch.object(mod, "_detach_dmg") as detach:
+            mod.check_dmg_contents()
+            assert detach.called
+    assert mod.failed == 1
+
+
+def test_dmg_attach_failure_does_not_detach():
+    mod = load_module()
+    with temp_file(b"dmg", binary=True) as dmg_path:
+        mod.RELEASE_DMG = dmg_path
+        with mock.patch.object(mod, "_attach_dmg", return_value=False), \
+             mock.patch.object(mod, "_detach_dmg") as detach:
+            mod.check_dmg_contents()
+            assert not detach.called, "no attach means nothing to detach"
+    assert mod.failed == 1
+
+
+# ── check_cask_sha256 ───────────────────────────────────────────────────────
+
+def test_cask_sha256_matches():
+    mod = load_module()
+    payload = b"container-bar-zip-bytes"
+    import hashlib
+    digest = hashlib.sha256(payload).hexdigest()
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(f'cask "containerbar" do\n  sha256 "{digest}"\nend\n') as cask_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.HOMEBREW_CASK = cask_path
+        mod.check_cask_sha256()
+    assert mod.passed == 1 and mod.failed == 0
+
+
+def test_cask_sha256_mismatch():
+    mod = load_module()
+    with temp_file(b"zip-bytes", binary=True) as zip_path, \
+         temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.HOMEBREW_CASK = cask_path
+        mod.check_cask_sha256()
+    assert mod.failed == 1
+
+
+def test_cask_sha256_skips_when_zip_absent():
+    mod = load_module()
+    with temp_file('  sha256 "{}"\n'.format("0" * 64)) as cask_path:
+        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
+        mod.HOMEBREW_CASK = cask_path
+        mod.check_cask_sha256()
+    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+
+
+def test_cask_sha256_skips_when_cask_absent():
+    mod = load_module()
+    with temp_file(b"zip-bytes", binary=True) as zip_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
+        mod.check_cask_sha256()
+    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+
+
+# ── check_cask_arm64 ────────────────────────────────────────────────────────
+
+def test_cask_arm64_present():
+    mod = load_module()
+    with temp_file('cask "containerbar" do\n  depends_on arch: :arm64\nend\n') as cask_path:
+        mod.HOMEBREW_CASK = cask_path
+        mod.check_cask_arm64()
+    assert mod.passed == 1 and mod.failed == 0
+
+
+def test_cask_arm64_missing_fails():
+    mod = load_module()
+    with temp_file('cask "containerbar" do\n  version "2.0.4"\nend\n') as cask_path:
+        mod.HOMEBREW_CASK = cask_path
+        mod.check_cask_arm64()
+    assert mod.failed == 1
+
+
+def test_cask_arm64_skips_when_absent():
+    mod = load_module()
+    mod.HOMEBREW_CASK = "/nonexistent/containerbar.rb"
+    mod.check_cask_arm64()
+    assert mod.skipped == 1 and mod.passed == 0 and mod.failed == 0
+
+
+# ── check_appcast_signature ─────────────────────────────────────────────────
+
+def _appcast_with_enclosure(version, ed_signature=None, length=None):
+    sig_attr = ' sparkle:edSignature="{}"'.format(ed_signature) if ed_signature is not None else ""
+    len_attr = ' length="{}"'.format(length) if length is not None else ""
+    return (
+        '<?xml version="1.0"?>'
+        '<rss xmlns:sparkle="{ns}"><channel><item>'
+        "<sparkle:shortVersionString>{v}</sparkle:shortVersionString>"
+        '<enclosure url="ContainerBar.zip"{sig}{ln}/>'
+        "</item></channel></rss>"
+    ).format(ns=SPARKLE_NS, v=version, sig=sig_attr, ln=len_attr)
+
+
+def test_appcast_signature_and_length_ok():
+    mod = load_module()
+    payload = b"x" * 321
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="AbC123==", length=len(payload)),
+                   suffix=".xml") as appcast_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.APPCAST_FILE = appcast_path
+        mod.check_appcast_signature("2.0.5")
+    assert mod.passed == 2 and mod.failed == 0 and mod.skipped == 0
+
+
+def test_appcast_signature_missing_fails():
+    mod = load_module()
+    payload = b"x" * 100
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(_appcast_with_enclosure("2.0.5", ed_signature=None, length=len(payload)),
+                   suffix=".xml") as appcast_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.APPCAST_FILE = appcast_path
+        mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 1 and mod.passed == 1  # length ok, signature missing
+
+
+def test_appcast_length_mismatch_fails():
+    mod = load_module()
+    payload = b"x" * 100
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=999),
+                   suffix=".xml") as appcast_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.APPCAST_FILE = appcast_path
+        mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 1 and mod.passed == 1  # signature ok, length wrong
+
+
+def test_appcast_no_item_for_version_fails_both():
+    mod = load_module()
+    payload = b"x" * 100
+    with temp_file(payload, binary=True) as zip_path, \
+         temp_file(_appcast_with_enclosure("1.0.0", ed_signature="sig==", length=len(payload)),
+                   suffix=".xml") as appcast_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.APPCAST_FILE = appcast_path
+        mod.check_appcast_signature("2.0.5")
+    assert mod.failed == 2
+
+
+def test_appcast_signature_skips_when_zip_absent():
+    mod = load_module()
+    with temp_file(_appcast_with_enclosure("2.0.5", ed_signature="sig==", length=10),
+                   suffix=".xml") as appcast_path:
+        mod.RELEASE_ZIP = "/nonexistent/ContainerBar.zip"
+        mod.APPCAST_FILE = appcast_path
+        mod.check_appcast_signature("2.0.5")
+    assert mod.skipped == 2 and mod.passed == 0 and mod.failed == 0
+
+
+def test_appcast_signature_skips_when_appcast_absent():
+    mod = load_module()
+    with temp_file(b"x" * 10, binary=True) as zip_path:
+        mod.RELEASE_ZIP = zip_path
+        mod.APPCAST_FILE = "/nonexistent/appcast.xml"
+        mod.check_appcast_signature("2.0.5")
+    assert mod.skipped == 2 and mod.passed == 0 and mod.failed == 0
 
 
 # ── standalone runner (no pytest on the mini) ───────────────────────────────
