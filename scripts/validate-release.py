@@ -160,6 +160,12 @@ def _cask_has_active_arm64_dependency(content):
     return re.search(r"(?m)^\s*depends_on\s+arch:\s*:arm64\b", content) is not None
 
 
+def _active_cask_sha256(content):
+    """Return the active cask sha256 digest, ignoring commented-out lines."""
+    match = re.search(r'(?m)^\s*sha256\s+"([0-9a-fA-F]{64})"', content)
+    return match.group(1).lower() if match else ""
+
+
 def _normalize_sha256_digest(value):
     """Return a lowercase SHA-256 hex digest from GitHub's digest format."""
     digest = value.strip()
@@ -599,28 +605,42 @@ def check_gatekeeper_zip(version):
     This is the artifact users actually download, so assess it as an execute
     target rather than trusting the loose dist/ bundle or local zip.
     """
-    label = "Gatekeeper accepts uploaded zip"
+    version_label = "Uploaded ZIP app version matches release"
+    gatekeeper_label = "Gatekeeper accepts uploaded zip"
     tag = f"v{version}"
     workdir = tempfile.mkdtemp(prefix="cb-gatekeeper-asset-")
     try:
         uploaded_zip, detail = _download_github_release_asset(tag, RELEASE_ZIP_ASSET, workdir)
         if not uploaded_zip:
-            check(label, False, detail)
+            check(version_label, False, detail)
+            check(gatekeeper_label, False, detail)
             return
 
         extract_dir = os.path.join(workdir, "extracted")
         os.makedirs(extract_dir, exist_ok=True)
         if not _extract_zip(uploaded_zip, extract_dir):
-            check(label, False, f"could not extract {RELEASE_ZIP_ASSET} from {tag}")
+            detail = f"could not extract {RELEASE_ZIP_ASSET} from {tag}"
+            check(version_label, False, detail)
+            check(gatekeeper_label, False, detail)
             return
 
         app = os.path.join(extract_dir, f"{APP_NAME}.app")
         if not os.path.isdir(app):
-            check(label, False, f"{APP_NAME}.app not found inside zip")
+            detail = f"{APP_NAME}.app not found inside zip"
+            check(version_label, False, detail)
+            check(gatekeeper_label, False, detail)
             return
 
+        bundle_version, version_detail = _app_bundle_short_version(app)
+        version_matches = bundle_version == version
+        check(
+            version_label,
+            version_matches,
+            bundle_version if version_matches else version_detail or f"{bundle_version or '(none)'} != {version}",
+        )
+
         accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
-        check(label, accepted, gatekeeper_detail)
+        check(gatekeeper_label, accepted, gatekeeper_detail)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -690,8 +710,7 @@ def check_cask_sha256(version):
         check(label, False, detail)
         return
 
-    match = re.search(r'sha256\s+"([0-9a-fA-F]{64})"', content)
-    cask_sha = match.group(1).lower() if match else ""
+    cask_sha = _active_cask_sha256(content)
     actual_sha, digest_detail = github_release_asset_sha256(version)
     if not actual_sha:
         check(label, False, digest_detail)

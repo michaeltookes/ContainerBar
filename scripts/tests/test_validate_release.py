@@ -365,7 +365,7 @@ def test_gatekeeper_zip_fails_when_uploaded_asset_unavailable():
     download.assert_called_once()
     assert download.call_args[0][0:2] == ("v2.0.4", mod.RELEASE_ZIP_ASSET)
     assert not extract.called
-    assert mod.failed == 1 and mod.passed == 0 and mod.skipped == 0
+    assert mod.failed == 2 and mod.passed == 0 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_accepted():
@@ -373,7 +373,8 @@ def test_gatekeeper_uploaded_zip_accepted():
     with temp_file(b"zip", binary=True) as zip_path:
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(zip_path, "")) as download, \
-             mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)) as extract, \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")) as extract, \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(True, "accepted")) as gatekeeper:
             mod.check_gatekeeper_zip("2.0.4")
@@ -381,7 +382,22 @@ def test_gatekeeper_uploaded_zip_accepted():
     download.assert_called_once()
     assert extract.called
     assert gatekeeper.called
-    assert mod.passed == 1 and mod.failed == 0 and mod.skipped == 0
+    assert mod.passed == 2 and mod.failed == 0 and mod.skipped == 0
+
+
+def test_gatekeeper_uploaded_zip_stale_app_version_fails():
+    mod = load_module()
+    with temp_file(b"zip", binary=True) as zip_path:
+        with mock.patch.object(mod, "_download_github_release_asset",
+                               return_value=(zip_path, "")), \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.3")), \
+             mock.patch.object(mod, "_gatekeeper_accepts_app",
+                               return_value=(True, "accepted")) as gatekeeper:
+            mod.check_gatekeeper_zip("2.0.4")
+
+    assert gatekeeper.called
+    assert mod.passed == 1 and mod.failed == 1 and mod.skipped == 0
 
 
 def test_gatekeeper_uploaded_zip_rejected():
@@ -389,11 +405,12 @@ def test_gatekeeper_uploaded_zip_rejected():
     with temp_file(b"zip", binary=True) as zip_path:
         with mock.patch.object(mod, "_download_github_release_asset",
                                return_value=(zip_path, "")), \
-             mock.patch.object(mod, "_extract_zip", side_effect=_make_app_side_effect(mod.APP_NAME)), \
+             mock.patch.object(mod, "_extract_zip",
+                               side_effect=_make_app_side_effect(mod.APP_NAME, "2.0.4")), \
              mock.patch.object(mod, "_gatekeeper_accepts_app",
                                return_value=(False, "rejected")):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1 and mod.passed == 0
+    assert mod.failed == 1 and mod.passed == 1
 
 
 def test_gatekeeper_uploaded_zip_extract_failure_fails():
@@ -403,7 +420,7 @@ def test_gatekeeper_uploaded_zip_extract_failure_fails():
                                return_value=(zip_path, "")), \
              mock.patch.object(mod, "_extract_zip", return_value=False):
             mod.check_gatekeeper_zip("2.0.4")
-    assert mod.failed == 1
+    assert mod.failed == 2
 
 
 # ── check_dmg_contents ──────────────────────────────────────────────────────
@@ -534,6 +551,17 @@ def test_cask_sha256_mismatch():
          mock.patch.object(mod, "github_release_asset_sha256", return_value=("d" * 64, "")):
         mod.check_cask_sha256("2.0.4")
     assert mod.failed == 1
+
+
+def test_cask_sha256_ignores_commented_digest():
+    mod = load_module()
+    uploaded_digest = "d" * 64
+    stale_active_digest = "0" * 64
+    cask = '# sha256 "{}"\n  sha256 "{}"\n'.format(uploaded_digest, stale_active_digest)
+    with mock.patch.object(mod, "published_homebrew_cask", return_value=(cask, "")), \
+         mock.patch.object(mod, "github_release_asset_sha256", return_value=(uploaded_digest, "")):
+        mod.check_cask_sha256("2.0.4")
+    assert mod.failed == 1 and mod.passed == 0
 
 
 def test_cask_sha256_fails_when_release_asset_digest_unavailable():
