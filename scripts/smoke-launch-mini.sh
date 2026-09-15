@@ -9,7 +9,7 @@
 #
 # Usage: ./scripts/smoke-launch-mini.sh [--zip PATH] [--host USER@HOST]
 #   --zip PATH    distributable zip to test (default: dist/ContainerBar.zip)
-#   --host U@H    clean machine over SSH (default: luciusfox@192.168.86.28)
+#   --host U@H    clean machine over SSH (default: $SMOKE_HOST; required)
 #
 # The zip is copied into a throwaway temp dir on the target and run from there,
 # so the test exercises the distributed artifact, not a source tree. The Lucius
@@ -29,7 +29,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 ZIP_PATH="$PROJECT_ROOT/dist/ContainerBar.zip"
-MINI_HOST="luciusfox@192.168.86.28"
+# The target is deliberately not hardcoded: this repo is public, so the
+# clean machine's address comes from --host or the SMOKE_HOST env var.
+MINI_HOST="${SMOKE_HOST:-}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -57,6 +59,11 @@ if [ ! -f "$ZIP_PATH" ]; then
     echo "Error: zip not found: $ZIP_PATH" >&2
     echo "Build and notarize a release first (see docs/RELEASING.md)." >&2
     exit 1
+fi
+
+if [ -z "$MINI_HOST" ]; then
+    echo "No target machine: pass --host USER@HOST or set SMOKE_HOST." >&2
+    exit 2
 fi
 
 echo "==> Copying $ZIP_PATH to $MINI_HOST"

@@ -86,8 +86,9 @@ for CI, but the smoke test must run the **distributed zip**, copied to a
 throwaway location, not that checkout.
 
 ```bash
-# after dist/ContainerBar.zip is notarized and stapled:
-./scripts/smoke-launch-mini.sh --zip dist/ContainerBar.zip
+# after dist/ContainerBar.zip is notarized and stapled. The target machine is
+# never hardcoded (this repo is public): pass --host or export SMOKE_HOST.
+SMOKE_HOST=user@clean-machine ./scripts/smoke-launch-mini.sh --zip dist/ContainerBar.zip
 ```
 
 The helper copies the zip to a temp dir on the mini, extracts it, and verifies
