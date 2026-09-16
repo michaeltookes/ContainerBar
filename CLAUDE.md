@@ -54,7 +54,7 @@ Referenced by the `/release-prep` skill:
 | Version keys | `CFBundleShortVersionString`, `CFBundleVersion` |
 | Changelog | `CHANGELOG.md` (Keep a Changelog format) |
 | Build script | `./scripts/build-release.sh` |
-| Notarize script | `./scripts/notarize.sh` |
+| Notarize script | `./scripts/notarize.sh` (use `--dmg` for non-interactive DMG notarization) |
 | Release artifacts | `dist/ContainerBar.zip`, `dist/ContainerBar.dmg` |
 | Tag format | `v{VERSION}` |
 | Asset naming | `ContainerBar.zip` (no version in filename) |
@@ -67,6 +67,18 @@ Referenced by the `/release-prep` skill:
 | Homebrew cask URL template | `https://github.com/michaeltookes/ContainerBar/releases/download/v{VERSION}/ContainerBar.zip` |
 | Notarization keychain profile | `ContainerBar-Notarize` |
 | Validation script | `./scripts/validate-release.py` |
+| Release runbook | `docs/RELEASING.md` |
+| Clean-machine smoke launch | `./scripts/smoke-launch-mini.sh` (run the distributed zip on a no-checkout machine) |
+| Architecture | Apple Silicon only (arm64-only binary; cask uses `depends_on arch: :arm64`) |
+
+**`gh` account requirement:** release uploads to this repo must run as the
+`michaeltookes` account — the `prowltools` login cannot write releases here.
+Before any `gh release` step: `export GH_TOKEN="$(gh auth token -u michaeltookes)"`.
+
+**Clean-machine smoke launch:** after notarization, smoke-launch the distributed
+build on a machine without a source checkout (see `docs/RELEASING.md`). The
+Lucius Mac mini serves as that machine, running the notarized zip — not its
+`~/qa/ContainerBar` checkout.
 
 ## Backlog Management
 

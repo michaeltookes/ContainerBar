@@ -5,6 +5,29 @@ All notable changes to ContainerBar will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Release validation now checks the uploaded GitHub ZIP and DMG, deployed Sparkle
+  appcast, and published Homebrew cask metadata instead of trusting local
+  release files
+- Release documentation now records the non-interactive DMG notarization flow
+  and the required clean-machine smoke launch for distributed artifacts
+
+### Fixed
+- Release validation now fails for missing or stale uploaded artifacts,
+  mismatched bundle build numbers, invalid appcast signature/length metadata,
+  missing or mixed appcast arm64 hardware requirements, non-production signing
+  identities or bundle identifiers, universal or non-arm64 executables,
+  stale or mistyped embedded Sparkle feed URLs, mismatched ZIP/DMG app
+  contents, unstapled ZIP apps, un-notarized DMG containers, and packaging
+  issues in the uploaded DMG app
+- Clean-machine smoke launch now preserves the remote distributed artifact and
+  exits nonzero when a console GUI launch is still required from an SSH-only
+  session, and passes the Settings launch flag through LaunchServices
+- Notarization now removes stale final and temporary DMGs when DMG creation is
+  explicitly skipped
+
 ## [2.0.4] - 2026-09-12
 
 ### Fixed
@@ -131,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launch at login option
 - Native macOS 14+ application built with Swift and SwiftUI
 
+[Unreleased]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.4...HEAD
 [2.0.4]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/michaeltookes/ContainerBar/compare/v2.0.1...v2.0.2
