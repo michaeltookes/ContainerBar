@@ -46,11 +46,12 @@ func validateTLSHTTPFraming(_ headers: [String: String]) throws {
     }
 }
 
-func parseTLSContentLength(_ value: String) throws -> Int {
+func parseTLSContentLength(_ value: String, maxBodySize: Int = defaultMaxHTTPBodySize) throws -> Int {
     guard !value.isEmpty,
           value.allSatisfy({ $0.isNumber }),
           let contentLength = Int(value),
-          (0...defaultMaxHTTPBodySize).contains(contentLength) else {
+          maxBodySize >= 0,
+          contentLength <= maxBodySize else {
         throw DockerAPIError.invalidResponse
     }
 

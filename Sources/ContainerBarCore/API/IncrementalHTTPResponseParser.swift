@@ -128,7 +128,7 @@ struct IncrementalHTTPResponseParser {
         bodyStart = headerRange.upperBound
 
         if let contentLength = parsedHeaders["content-length"] {
-            framing = .contentLength(try parseTLSContentLength(contentLength))
+            framing = .contentLength(try parseTLSContentLength(contentLength, maxBodySize: maxBodySize))
         } else if parsedHeaders["transfer-encoding"]?.lowercased() == "chunked" {
             framing = .chunked
         } else {

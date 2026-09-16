@@ -149,6 +149,14 @@ struct IncrementalHTTPResponseParserLimitTests {
         #expect(isConnectionFailed(error, containing: "HTTP response body exceeded"))
     }
 
+    @Test("Content-Length over the injected body cap is rejected")
+    func contentLengthOverInjectedCapRejected() {
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 4)
+        let raw = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isInvalidResponse(error))
+    }
+
     @Test("Content-Length over the production cap is rejected as invalidResponse")
     func contentLengthOverProductionCapRejected() {
         // 128 MiB + 1, rejected by parseTLSContentLength without allocating.
