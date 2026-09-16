@@ -68,13 +68,13 @@ artifacts:
   release version, contains the required resource bundles, has the framework
   rpath, does not embed SwiftPM release build paths, is signed by the production
   Developer ID team with the production bundle identifier, contains only an
-  arm64 executable, has a stapled ticket, and passes Gatekeeper
-  (`spctl --assess --type execute`).
+  arm64 executable, points Sparkle at the canonical appcast URL, has a stapled
+  ticket, and passes Gatekeeper (`spctl --assess --type execute`).
 - The uploaded GitHub release `ContainerBar.dmg` mounts and contains
   `ContainerBar.app`, and that mounted bundle has the release version, is signed
   by the production Developer ID team with the production bundle identifier,
-  contains only an arm64 executable, passes strict codesign verification, and
-  passes Gatekeeper.
+  contains only an arm64 executable, points Sparkle at the canonical appcast
+  URL, passes strict codesign verification, and passes Gatekeeper.
 - The uploaded ZIP and DMG contain the same signed app bundle contents.
 - The published Homebrew cask version, canonical download URL, and `sha256`
   match the GitHub release.

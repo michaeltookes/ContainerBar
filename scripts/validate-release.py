@@ -390,6 +390,20 @@ def _app_bundle_identifier(app_path):
     return _read_bundle_identifier(plist_path)
 
 
+def _app_bundle_sparkle_feed_url(app_path):
+    """Return SUFeedURL from an app bundle."""
+    plist_path = os.path.join(app_path, "Contents", "Info.plist")
+    try:
+        with open(plist_path, "rb") as handle:
+            plist = plistlib.load(handle)
+    except Exception as exc:
+        detail = f"could not read {plist_path}: {exc}"
+        return "", detail
+
+    feed_url = _plist_string(plist, "SUFeedURL")
+    return feed_url, "" if feed_url else "SUFeedURL missing"
+
+
 def _app_bundle_short_version(app_path):
     """Return CFBundleShortVersionString from an app bundle."""
     version, _, version_detail, _ = _app_bundle_versions(app_path)
@@ -417,6 +431,17 @@ def _check_app_bundle_version_and_build(app_path, release_version, version_label
     else:
         detail = f"{bundle_build or '(none)'} != {expected_build}"
     check(build_label, build_matches, detail)
+
+
+def _check_app_bundle_sparkle_feed_url(app_path, label):
+    """Validate an app bundle points Sparkle at the canonical deployed appcast."""
+    feed_url, detail = _app_bundle_sparkle_feed_url(app_path)
+    feed_matches = feed_url == APPCAST_URL
+    check(
+        label,
+        feed_matches,
+        feed_url if feed_matches else detail or f"SUFeedURL {feed_url or '(none)'} != {APPCAST_URL}",
+    )
 
 
 def _codesign_verify(path, extra_options=()):
@@ -955,6 +980,7 @@ def check_gatekeeper_zip(version):
     """
     version_label = "Uploaded ZIP app version matches release"
     build_label = "Uploaded ZIP app build matches Info.plist"
+    feed_label = "Uploaded ZIP app Sparkle feed URL is canonical"
     gatekeeper_label = "Gatekeeper accepts uploaded zip"
     staple_label = "Uploaded ZIP app stapled ticket valid"
     signing_label = "Uploaded ZIP app production signing identity"
@@ -962,7 +988,7 @@ def check_gatekeeper_zip(version):
     resources_label = "Uploaded ZIP required resource bundles packaged"
     swiftpm_path_label = "Uploaded ZIP has no SwiftPM release resource path embedded"
     arch_label = f"Uploaded ZIP executable is {REQUIRED_EXECUTABLE_ARCH}-only"
-    bundle_labels = (version_label, build_label)
+    bundle_labels = (version_label, build_label, feed_label)
     notarization_labels = (gatekeeper_label, staple_label)
     signing_labels = (signing_label,)
     packaging_labels = (rpath_label, resources_label, swiftpm_path_label, arch_label)
@@ -1009,6 +1035,7 @@ def check_gatekeeper_zip(version):
             return
 
         _check_app_bundle_version_and_build(app, version, version_label, build_label)
+        _check_app_bundle_sparkle_feed_url(app, feed_label)
 
         accepted, gatekeeper_detail = _gatekeeper_accepts_app(app)
         check(gatekeeper_label, accepted, gatekeeper_detail)
@@ -1032,6 +1059,7 @@ def check_dmg_contents(version):
     contains_label = "Uploaded DMG mounts and contains app"
     version_label = "Uploaded DMG app version matches release"
     build_label = "Uploaded DMG app build matches Info.plist"
+    feed_label = "Uploaded DMG app Sparkle feed URL is canonical"
     codesign_label = "Uploaded DMG app codesign valid"
     signing_label = "Uploaded DMG app production signing identity"
     gatekeeper_label = "Uploaded DMG app Gatekeeper accepted"
@@ -1045,6 +1073,7 @@ def check_dmg_contents(version):
         contains_label,
         version_label,
         build_label,
+        feed_label,
         codesign_label,
         signing_label,
         gatekeeper_label,
@@ -1082,6 +1111,7 @@ def check_dmg_contents(version):
             for label in (
                 version_label,
                 build_label,
+                feed_label,
                 codesign_label,
                 signing_label,
                 gatekeeper_label,
@@ -1091,6 +1121,7 @@ def check_dmg_contents(version):
             return
 
         _check_app_bundle_version_and_build(app, version, version_label, build_label)
+        _check_app_bundle_sparkle_feed_url(app, feed_label)
 
         codesign_ok, codesign_detail = _codesign_valid(app)
         check(codesign_label, codesign_ok, codesign_detail)
