@@ -24,6 +24,53 @@ final class TLSConnection: @unchecked Sendable {
             throw DockerAPIError.invalidConfiguration("TLS port must be between 0 and 65535")
         }
 
+        let tlsOptions = try Self.makeTLSOptions(
+            caCertPath: caCertPath,
+            clientCertPath: clientCertPath,
+            clientKeyPath: clientKeyPath
+        )
+
+        let logger = Logger(label: "com.containerbar.tls")
+
+        self.transport = NWConnectionTransport(config: .init(
+            resolvedHost: host,
+            // TLS disconnect waits on `ioGate` (see NWConnectionTransport.disconnect).
+            disconnectWaitsForGate: true,
+            makeConnection: {
+                let nwHost = NWEndpoint.Host(host)
+                let nwPort = NWEndpoint.Port(rawValue: validatedPort)!
+                let params = NWParameters(tls: tlsOptions, tcp: .init())
+                return NWConnection(host: nwHost, port: nwPort, using: params)
+            },
+            mapStateFailure: { error in
+                DockerAPIError.tlsConnectionFailed(error.localizedDescription)
+            },
+            adoptionFailureError: {
+                DockerAPIError.tlsConnectionFailed("Connection adoption failed")
+            },
+            mapSendFailure: { error in
+                DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)")
+            },
+            logConnectionEstablished: {
+                logger.info("TLS connection established to \(host):\(validatedPort)")
+            },
+            // TLS unconditionally cleans up the current connection on failure.
+            shouldCleanupFailedConnection: nil
+        ))
+    }
+
+    deinit {
+        disconnectForTeardown()
+    }
+
+    /// Builds the TLS options, configuring the client identity and CA anchor
+    /// when provided. Throws `invalidConfiguration` for a half-specified
+    /// client identity or an unusable client certificate.
+    private static func makeTLSOptions(
+        caCertPath: String?,
+        clientCertPath: String?,
+        clientKeyPath: String?
+    ) throws -> NWProtocolTLS.Options {
         let tlsOptions = NWProtocolTLS.Options()
 
         if (clientCertPath == nil) != (clientKeyPath == nil) {
@@ -60,37 +107,7 @@ final class TLSConnection: @unchecked Sendable {
             )
         }
 
-        let logger = Logger(label: "com.containerbar.tls")
-
-        self.transport = NWConnectionTransport(config: .init(
-            resolvedHost: host,
-            // TLS disconnect waits on `ioGate` (see NWConnectionTransport.disconnect).
-            disconnectWaitsForGate: true,
-            makeConnection: {
-                let nwHost = NWEndpoint.Host(host)
-                let nwPort = NWEndpoint.Port(rawValue: validatedPort)!
-                let params = NWParameters(tls: tlsOptions, tcp: .init())
-                return NWConnection(host: nwHost, port: nwPort, using: params)
-            },
-            mapStateFailure: { error in
-                DockerAPIError.tlsConnectionFailed(error.localizedDescription)
-            },
-            adoptionFailureError: {
-                DockerAPIError.tlsConnectionFailed("Connection adoption failed")
-            },
-            mapSendFailure: { error in
-                DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)")
-            },
-            logConnectionEstablished: {
-                logger.info("TLS connection established to \(host):\(validatedPort)")
-            },
-            // TLS unconditionally cleans up the current connection on failure.
-            shouldCleanupFailedConnection: nil
-        ))
-    }
-
-    deinit {
-        disconnectForTeardown()
+        return tlsOptions
     }
 
     // MARK: - Connection Management

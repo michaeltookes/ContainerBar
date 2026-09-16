@@ -117,47 +117,62 @@ final class NWConnectionTransport: @unchecked Sendable {
             case .wait:
                 try await Task.sleep(for: .milliseconds(50))
             case .start(let conn):
-                do {
-                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                        conn.stateUpdateHandler = { state in
-                            switch state {
-                            case .ready:
-                                conn.stateUpdateHandler = nil
-                                continuation.resume()
-                            case .failed(let error):
-                                conn.stateUpdateHandler = nil
-                                continuation.resume(throwing: self.config.mapStateFailure(error))
-                            case .cancelled:
-                                conn.stateUpdateHandler = nil
-                                continuation.resume(throwing: DockerAPIError.connectionFailed)
-                            default:
-                                break
-                            }
-                        }
-                        conn.start(queue: DispatchQueue.global(qos: .userInitiated))
-                    }
+                try await startConnection(conn)
+                return
+            }
+        }
+    }
 
-                    let adopted = lock.withLock { () -> Bool in
-                        guard let current = connection, current === conn else {
-                            return false
-                        }
-                        _isConnected = true
-                        _isConnecting = false
-                        return true
-                    }
+    /// Drives a freshly-created connection to `.ready`, then adopts it. On any
+    /// failure the transport's connect-failure cleanup policy is applied.
+    private func startConnection(_ conn: NWConnection) async throws {
+        do {
+            try await awaitConnectionReady(conn)
 
-                    guard adopted else {
-                        conn.cancel()
-                        throw config.adoptionFailureError()
-                    }
+            guard adoptConnection(conn) else {
+                conn.cancel()
+                throw config.adoptionFailureError()
+            }
 
-                    config.logConnectionEstablished()
-                    return
-                } catch {
-                    cleanUpFailedConnection(conn)
-                    throw error
+            config.logConnectionEstablished()
+        } catch {
+            cleanUpFailedConnection(conn)
+            throw error
+        }
+    }
+
+    /// Starts `conn` and suspends until it reaches `.ready`, `.failed`, or
+    /// `.cancelled`, mapping the terminal states to `DockerAPIError`s.
+    private func awaitConnectionReady(_ conn: NWConnection) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    conn.stateUpdateHandler = nil
+                    continuation.resume()
+                case .failed(let error):
+                    conn.stateUpdateHandler = nil
+                    continuation.resume(throwing: self.config.mapStateFailure(error))
+                case .cancelled:
+                    conn.stateUpdateHandler = nil
+                    continuation.resume(throwing: DockerAPIError.connectionFailed)
+                default:
+                    break
                 }
             }
+            conn.start(queue: DispatchQueue.global(qos: .userInitiated))
+        }
+    }
+
+    /// Marks `conn` as the live connection if it is still the current one.
+    private func adoptConnection(_ conn: NWConnection) -> Bool {
+        lock.withLock {
+            guard let current = connection, current === conn else {
+                return false
+            }
+            _isConnected = true
+            _isConnecting = false
+            return true
         }
     }
 
