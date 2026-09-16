@@ -6,9 +6,14 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## Medium Priority
 
-### CB-050: CI hardening
+### CB-059: Configure required status checks on `main`
 **Priority**: Medium
-**Description**: Make `Swift CI` and `Prowl QA` required status checks on `main`, add `timeout-minutes` to every job, pin third-party actions to commit SHAs, add a PR template and issue templates modeled on sentwise, and add the portable `claude-pr-description.yml` workflow.
+**Description**: Follow-up from CB-050 / PR #47. Configure GitHub branch
+protection or a repository ruleset for `main` so the Swift CI jobs (`Build &
+Test` and `SwiftLint`) and `Prowl QA` must pass before merge. This remains a
+manual owner action because required-check enforcement lives in GitHub
+repository settings rather than committed workflow files. Keep this item open
+until the owner verifies the rule is active against `main`.
 
 ### CB-055: Make Docker HTTP response parsing unit-testable independent of live transports
 **Priority**: Medium
