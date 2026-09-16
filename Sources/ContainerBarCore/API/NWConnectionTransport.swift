@@ -18,10 +18,13 @@ import Network
 /// that holds `ioGate`, which an actor's serialized executor could not express.
 final class NWConnectionTransport: @unchecked Sendable {
 
-    /// Per-transport policy captured at construction. Closures are plain (not
-    /// `@Sendable`) and may capture non-`Sendable` values such as
-    /// `NWProtocolTLS.Options`; that is safe because this class is
-    /// `@unchecked Sendable` and every closure is invoked under `ioGate`/`lock`.
+    /// Per-transport policy captured at construction. `makeConnection` and the
+    /// other lifecycle closures are plain (not `@Sendable`) and may capture
+    /// non-`Sendable` values such as `NWProtocolTLS.Options`; that is safe
+    /// because this class is `@unchecked Sendable` and they run under
+    /// `ioGate`/`lock`. The two error mappers are `@Sendable` because they are
+    /// handed to Network.framework callbacks, which must not retain the
+    /// transport.
     struct Config {
         /// Host sent in the HTTP `Host` header for outgoing requests.
         let resolvedHost: String
@@ -32,12 +35,12 @@ final class NWConnectionTransport: @unchecked Sendable {
         let makeConnection: () -> NWConnection
         /// Maps an `NWError` from the `.failed` connection state to a transport
         /// specific `DockerAPIError`.
-        let mapStateFailure: (NWError) -> DockerAPIError
+        let mapStateFailure: @Sendable (NWError) -> DockerAPIError
         /// Error thrown when a freshly-established connection can no longer be
         /// adopted (a newer connect replaced it).
         let adoptionFailureError: () -> DockerAPIError
         /// Maps an `NWError` from a failed `send` to a `DockerAPIError`.
-        let mapSendFailure: (NWError) -> DockerAPIError
+        let mapSendFailure: @Sendable (NWError) -> DockerAPIError
         /// Emits the transport's "connection established" log line.
         let logConnectionEstablished: () -> Void
         /// Connect-failure cleanup policy. `nil` means "always clean up the
@@ -144,6 +147,9 @@ final class NWConnectionTransport: @unchecked Sendable {
     /// Starts `conn` and suspends until it reaches `.ready`, `.failed`, or
     /// `.cancelled`, mapping the terminal states to `DockerAPIError`s.
     private func awaitConnectionReady(_ conn: NWConnection) async throws {
+        // Capture only the mapper so the state handler does not retain the
+        // transport for as long as the connection lives.
+        let mapStateFailure = config.mapStateFailure
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             conn.stateUpdateHandler = { state in
                 switch state {
@@ -152,7 +158,7 @@ final class NWConnectionTransport: @unchecked Sendable {
                     continuation.resume()
                 case .failed(let error):
                     conn.stateUpdateHandler = nil
-                    continuation.resume(throwing: self.config.mapStateFailure(error))
+                    continuation.resume(throwing: mapStateFailure(error))
                 case .cancelled:
                     conn.stateUpdateHandler = nil
                     continuation.resume(throwing: DockerAPIError.connectionFailed)
@@ -223,11 +229,12 @@ final class NWConnectionTransport: @unchecked Sendable {
             }
 
             let requestData = try request.toHTTPData(resolvedHost: self.config.resolvedHost)
+            let mapSendFailure = self.config.mapSendFailure
 
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 conn.send(content: requestData, completion: .contentProcessed { error in
                     if let error {
-                        continuation.resume(throwing: self.config.mapSendFailure(error))
+                        continuation.resume(throwing: mapSendFailure(error))
                     } else {
                         continuation.resume()
                     }
