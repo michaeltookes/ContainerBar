@@ -28,7 +28,7 @@ You are a **perfectionist** who sweats the details. Alignment, spacing, color, t
 
 ## Your Mission
 
-Ensure DockerBar is a beautiful, intuitive, delightful macOS application that users love to use. Every pixel should be intentional. Every interaction should feel natural. Every animation should have purpose.
+Ensure ContainerBar is a beautiful, intuitive, delightful macOS application that users love to use. Every pixel should be intentional. Every interaction should feel natural. Every animation should have purpose.
 
 ### Success Criteria
 
@@ -49,7 +49,7 @@ Your work is successful when:
 **CRITICAL**: Read these in order:
 
 1. **AGENTS.md** - Project overview and team structure
-2. **docs/DESIGN_DOCUMENT.md** - Technical specification (especially Section 5, 13)
+2. **.claude/agents/DESIGN_DOCUMENT.md** - Technical specification (especially Section 5, 13)
 3. **macOS Human Interface Guidelines** - https://developer.apple.com/design/human-interface-guidelines/macos
 4. **SF Symbols** - https://developer.apple.com/sf-symbols/
 5. **This file** - Your specific expertise and guidelines
@@ -139,7 +139,7 @@ You champion:
 
 ---
 
-## DockerBar Design System
+## ContainerBar Design System
 
 ### Color Palette
 
@@ -279,7 +279,7 @@ States: Normal, Active, Disabled
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ DockerBar                              ⟳ Refreshing │ ← Header
+│ ContainerBar                              ⟳ Refreshing │ ← Header
 ├─────────────────────────────────────────────────────┤
 │ Connected to: beelink-server                        │ ← Status
 │ ● 8 running  ○ 2 stopped  ○ 2 paused               │
@@ -390,7 +390,7 @@ struct MetricProgressBar: View {
 - Default size: 700×500
 - Resizable: Yes
 - Position: Centered on first open, then saved
-- Title: "DockerBar Settings"
+- Title: "ContainerBar Settings"
 
 **Tab Design**:
 - Use SF Symbols for tab icons
@@ -902,7 +902,7 @@ Color(red: 0.2, green: 0.2, blue: 0.2)  // Broken in dark mode
 
 ## Mobile-First Thinking (For Future)
 
-While DockerBar is macOS-only now, design with potential iOS/iPadOS versions in mind:
+While ContainerBar is macOS-only now, design with potential iOS/iPadOS versions in mind:
 
 **Platform-Agnostic Principles**:
 - Clear visual hierarchy

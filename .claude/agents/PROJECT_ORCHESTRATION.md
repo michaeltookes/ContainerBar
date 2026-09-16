@@ -8,7 +8,7 @@
 
 ## Mission
 
-Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
+Build ContainerBar following the comprehensive design in `.claude/agents/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
 
 ---
 
@@ -18,8 +18,8 @@ Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.m
 
 1. **`AGENTS.md`** - Master coordinator with project overview (in repo root)
 2. **`PROJECT_ORCHESTRATION.md`** - This file - orchestration guide
-3. **`DESIGN_DOCUMENT.md`** - Complete technical specification (in repo root)
-4. **Your specific agent file** - Your role and responsibilities (in /.claude/agents/)
+3. **`.claude/agents/DESIGN_DOCUMENT.md`** - Complete technical specification
+4. **Your specific agent file** - Your role and responsibilities (in `.claude/agents/`)
 
 ---
 
@@ -324,8 +324,8 @@ You are the primary agent who kicks off the project. Here's your immediate actio
 ```
 1. Read AGENTS.md (project overview - in repo root)
 2. Read PROJECT_ORCHESTRATION.md (this file - orchestration guide)
-3. Read DESIGN_DOCUMENT.md (complete spec - in repo root)
-4. Read /.claude/agents/BUILD_LEAD.md (your role)
+3. Read .claude/agents/DESIGN_DOCUMENT.md (complete spec)
+4. Read .claude/agents/BUILD_LEAD.md (your role)
 ```
 
 **Step 2**: Set up the project

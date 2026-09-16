@@ -1,4 +1,4 @@
-# DockerBar Daily Standup
+# ContainerBar Daily Standup
 
 ---
 
@@ -8,14 +8,14 @@
 
 - Read all requirements documentation (AGENTS.md, PROJECT_ORCHESTRATION.md, DESIGN_DOCUMENT.md, BUILD_LEAD.md)
 - Created Swift package structure with Package.swift
-- Set up DockerBar and DockerBarCore targets with all dependencies (swift-log, KeyboardShortcuts, Sparkle)
-- Created DockerBarCore module structure:
+- Set up ContainerBar and ContainerBarCore targets with all dependencies (swift-log, KeyboardShortcuts, Sparkle)
+- Created ContainerBarCore module structure:
   - Models: DockerContainer, ContainerStats, DockerHost, Errors
   - API: DockerAPIClient protocol
   - Services: ConsecutiveFailureGate
   - Strategies: ContainerFetchStrategy protocol
-- Created DockerBar app module structure:
-  - DockerBarApp.swift - App entry point with SwiftUI App protocol
+- Created ContainerBar app module structure:
+  - ContainerBarApp.swift - App entry point with SwiftUI App protocol
   - AppDelegate.swift - NSApplicationDelegate for app lifecycle
   - StatusItemController.swift - Menu bar status item with dropdown menu
   - Stores/ContainerStore.swift - @Observable state management for containers
@@ -24,7 +24,7 @@
 - Wrote initial test suite (12 tests, all passing):
   - DockerContainerTests
   - ContainerStatsTests
-  - DockerBarTests (smoke test)
+  - ContainerBarTests (smoke test)
 - Build compiles successfully with zero warnings
 - All tests pass
 
@@ -215,13 +215,13 @@ Ready to proceed with Day 3-4 tasks: Menu Bar UI implementation.
 ### Files Created
 
 ```
-Sources/DockerBarCore/API/
+Sources/ContainerBarCore/API/
 ├── UnixSocketConnection.swift  # Unix socket + HTTP
 ├── DockerRawStats.swift        # Raw API response parsing
 ├── DockerAPIClientImpl.swift   # API client implementation
-Sources/DockerBarCore/Services/
+Sources/ContainerBarCore/Services/
 ├── ContainerFetcher.swift      # High-level fetch service
-Tests/DockerBarCoreTests/
+Tests/ContainerBarCoreTests/
 ├── Mocks/MockDockerAPIClient.swift
 ├── DockerAPITests.swift
 ```
@@ -290,11 +290,11 @@ User-friendly message: "Docker not running. Please start Docker Desktop."
 ### Files Modified
 
 ```
-Sources/DockerBar/Views/DockerIconRenderer.swift  # Fixed color for template images
-Sources/DockerBar/StatusItemController.swift       # Use SF Symbols
-Sources/DockerBar/AppDelegate.swift                # Activation policy timing
-Sources/DockerBarCore/API/DockerAPIClientImpl.swift # API version v1.44
-DockerBar.app/Contents/Info.plist                  # App bundle (created)
+Sources/ContainerBar/Views/DockerIconRenderer.swift  # Fixed color for template images
+Sources/ContainerBar/StatusItemController.swift       # Use SF Symbols
+Sources/ContainerBar/AppDelegate.swift                # Activation policy timing
+Sources/ContainerBarCore/API/DockerAPIClientImpl.swift # API version v1.44
+ContainerBar.app/Contents/Info.plist                  # App bundle (created)
 ```
 
 ### Next Up (Day 8-9)
@@ -334,7 +334,7 @@ DockerBar.app/Contents/Info.plist                  # App bundle (created)
 - Automatic ad-hoc code signing for development
 - Proper app bundle creation
 
-**Docker Desktop Interaction**: Docker Desktop may show "Lingering processes detected" if DockerBar is running when Docker starts. Solution: Stop DockerBar, start Docker Desktop, then relaunch DockerBar.
+**Docker Desktop Interaction**: Docker Desktop may show "Lingering processes detected" if ContainerBar is running when Docker starts. Solution: Stop ContainerBar, start Docker Desktop, then relaunch ContainerBar.
 
 ### Next Up (Day 8-9)
 
@@ -345,7 +345,7 @@ DockerBar.app/Contents/Info.plist                  # App bundle (created)
 
 ### Milestone
 
-🎉 **MVP Complete** - DockerBar successfully displays all Docker containers in the menu bar!
+🎉 **MVP Complete** - ContainerBar successfully displays all Docker containers in the menu bar!
 
 ---
 

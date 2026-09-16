@@ -1,4 +1,4 @@
-# DockerBar Technical Decisions
+# ContainerBar Technical Decisions
 
 This document records major technical decisions made during development.
 
@@ -6,11 +6,11 @@ This document records major technical decisions made during development.
 
 ## January 17, 2026 - Decision: Project Structure
 
-**Context**: Need to establish the Swift package structure for DockerBar
+**Context**: Need to establish the Swift package structure for ContainerBar
 
 **Options**:
 1. Single target with all code
-2. Separate DockerBar (app) and DockerBarCore (library) targets
+2. Separate ContainerBar (app) and ContainerBarCore (library) targets
 3. Additional targets for CLI, widgets, etc.
 
 **Decision**: Option 2 - Two main targets
