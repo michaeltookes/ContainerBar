@@ -33,7 +33,7 @@ struct IncrementalHTTPResponseParser {
     private var buffer = Data()
 
     private enum BodyFraming {
-        case none
+        case unframed
         case contentLength(Int)
         case chunked
     }
@@ -70,7 +70,7 @@ struct IncrementalHTTPResponseParser {
         let available = buffer[bodyStart...]
 
         switch framing {
-        case .none:
+        case .unframed:
             return HTTPResponse(statusCode: statusCode, headers: headers, body: Data(available))
         case .contentLength(let length):
             guard available.count >= length else { return nil }
@@ -127,7 +127,7 @@ struct IncrementalHTTPResponseParser {
         } else if parsedHeaders["transfer-encoding"]?.lowercased() == "chunked" {
             framing = .chunked
         } else {
-            framing = .none
+            framing = .unframed
         }
 
         return true
