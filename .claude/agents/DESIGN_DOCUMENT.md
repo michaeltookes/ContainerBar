@@ -1489,12 +1489,11 @@ brew install sparkle    # For sign_update, generate_appcast
 ### Build Commands
 
 ```bash
-# Development build (single architecture)
+# Development build (Apple Silicon / arm64)
 swift build
 
-# Release build (universal binary)
-swift build -c release --arch arm64
-swift build -c release --arch x86_64
+# Optimized local build (development only)
+swift build -c release
 
 # Run tests
 swift test
@@ -1505,6 +1504,8 @@ swiftformat .
 # Lint
 swiftlint
 ```
+
+> **Note:** ContainerBar is Apple Silicon (arm64) only — there is no Intel or universal build. The commands above are for local development. Distributable releases are produced by `./scripts/build-release.sh` (an `xcodebuild` path), **not** `swift build -c release`; see `docs/RELEASING.md` and the Release Configuration table in `CLAUDE.md`.
 
 ## 9.2 Project Structure
 
