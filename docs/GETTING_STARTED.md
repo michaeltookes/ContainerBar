@@ -24,12 +24,26 @@ ContainerBar is a lightweight macOS menu bar application for monitoring and mana
 
 ## Requirements
 
+- **Apple Silicon (arm64) Mac** — ContainerBar ships as an Apple Silicon-only binary. Intel Macs are **not supported**; the app will not run on them and the Homebrew cask refuses to install on Intel hardware.
 - macOS 14.0 (Sonoma) or later
 - Docker Desktop or Podman (for local containers), or a remote Docker/Podman host accessible via SSH
 
 ## Installation
 
-1. Download the latest release from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases)
+Both install methods deliver the same signed, notarized Apple Silicon build.
+
+### Homebrew (recommended)
+
+```bash
+brew tap michaeltookes/tap
+brew install --cask containerbar
+```
+
+The cask declares `depends_on arch: :arm64`, so Homebrew will refuse to install it on an Intel Mac.
+
+### Direct download
+
+1. Download the latest `ContainerBar.dmg` (or `ContainerBar.zip`) from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases)
 2. Open the DMG file and drag ContainerBar to your Applications folder
 3. Launch ContainerBar from Applications
 4. The ContainerBar icon will appear in your menu bar
