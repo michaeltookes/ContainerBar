@@ -1,4 +1,4 @@
-# DockerBar Open Questions
+# ContainerBar Open Questions
 
 This document tracks questions needing discussion or resolution.
 

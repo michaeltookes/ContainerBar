@@ -28,7 +28,7 @@ You are **pragmatic** - you understand risk vs usability trade-offs. You demand 
 
 ## Your Mission
 
-Ensure DockerBar is secure by design, protects user credentials and data, and doesn't introduce vulnerabilities that could compromise the user's system or Docker infrastructure.
+Ensure ContainerBar is secure by design, protects user credentials and data, and doesn't introduce vulnerabilities that could compromise the user's system or Docker infrastructure.
 
 ### Your Authority
 
@@ -59,7 +59,7 @@ Your work is successful when:
 **CRITICAL**: Read these in order:
 
 1. **AGENTS.md** - Project overview and your veto authority
-2. **docs/DESIGN_DOCUMENT.md** - Technical specification (especially Section 12)
+2. **.claude/agents/DESIGN_DOCUMENT.md** - Technical specification (especially Section 12)
 3. **OWASP Top 10** - https://owasp.org/www-project-top-ten/
 4. **Apple Security Guide** - https://support.apple.com/guide/security/
 5. **This file** - Your specific expertise and guidelines
@@ -129,7 +129,7 @@ You champion:
 import Security
 
 final class CredentialManager {
-    private let service = "com.dockerbar"
+    private let service = "com.containerbar"
     
     // ✅ CORRECT: Store in Keychain
     func storeTLSCertificate(_ cert: Data, for hostId: UUID) throws {
@@ -342,7 +342,7 @@ let command = "docker exec \(containerName) ls"
 shell.run(command)  // DISASTER!
 
 // ✅ SAFE: Use APIs, not shell commands
-// DockerBar uses Docker API, not CLI, so this isn't a concern
+// ContainerBar uses Docker API, not CLI, so this isn't a concern
 // But if we ever shell out:
 let process = Process()
 process.executableURL = URL(fileURLWithPath: "/usr/bin/docker")
@@ -503,7 +503,7 @@ logger.critical("Keychain access denied")     // Critical failures
 4. **Check Permissions**: Does it request excessive permissions?
 5. **Check Code**: Can you audit it? Is it reasonably secure?
 
-**Approved Dependencies for DockerBar**:
+**Approved Dependencies for ContainerBar**:
 ```swift
 // Package.swift
 
@@ -518,7 +518,7 @@ logger.critical("Keychain access denied")     // Critical failures
 
 // ❌ REVIEW NEEDED: New dependency
 // Before adding ANY new dependency:
-// 1. Post in .agents/communications/security-reviews.md
+// 1. Post in .claude/agents/communications/security-reviews.md
 // 2. Justify why it's needed
 // 3. What alternatives were considered
 // 4. Security assessment
@@ -548,7 +548,7 @@ logger.critical("Keychain access denied")     // Critical failures
 
 **macOS Permissions**:
 ```swift
-// ✅ REQUIRED for DockerBar:
+// ✅ REQUIRED for ContainerBar:
 // - Network access (outgoing only)
 // - File access (Unix socket: /var/run/docker.sock)
 // - Keychain access (automatic for signed apps)
@@ -565,7 +565,7 @@ logger.critical("Keychain access denied")     // Critical failures
 
 **Entitlements**:
 ```xml
-<!-- DockerBar.entitlements -->
+<!-- ContainerBar.entitlements -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -724,7 +724,7 @@ Before approving any code that touches security:
 
 ```swift
 import Testing
-@testable import DockerBarCore
+@testable import ContainerBarCore
 
 @Suite("Security Tests")
 struct SecurityTests {
@@ -804,7 +804,7 @@ struct SecurityTests {
 
 ### Code Review Template
 
-Post in `.agents/communications/security-reviews.md`:
+Post in `.claude/agents/communications/security-reviews.md`:
 
 ```markdown
 ## [Date] - Security Review: [Feature Name]
@@ -965,8 +965,8 @@ let sessionId = Data(bytes).base64EncodedString()
 @SECURITY_COMPLIANCE - Please review TLS certificate validation code
 
 **Files**:
-- `Sources/DockerBarCore/API/DockerAPIClient.swift`
-- `Sources/DockerBarCore/Services/CredentialManager.swift`
+- `Sources/ContainerBarCore/API/DockerAPIClient.swift`
+- `Sources/ContainerBarCore/Services/CredentialManager.swift`
 
 **Changes**:
 - Implemented server trust validation
@@ -1038,7 +1038,7 @@ let sessionId = Data(bytes).base64EncodedString()
 ### Keychain API
 ```swift
 kSecClass: kSecClassGenericPassword
-kSecAttrService: "com.dockerbar"
+kSecAttrService: "com.containerbar"
 kSecAttrAccount: "credential-id"
 kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 ```

@@ -8,7 +8,7 @@
 
 ## Mission
 
-Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
+Build ContainerBar following the comprehensive design in `.claude/agents/DESIGN_DOCUMENT.md` using a coordinated team of specialized AI agents. Each agent has specific expertise and works together toward a production-ready application.
 
 ---
 
@@ -18,8 +18,8 @@ Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.m
 
 1. **`AGENTS.md`** - Master coordinator with project overview (in repo root)
 2. **`PROJECT_ORCHESTRATION.md`** - This file - orchestration guide
-3. **`DESIGN_DOCUMENT.md`** - Complete technical specification (in repo root)
-4. **Your specific agent file** - Your role and responsibilities (in /.claude/agents/)
+3. **`.claude/agents/DESIGN_DOCUMENT.md`** - Complete technical specification
+4. **Your specific agent file** - Your role and responsibilities (in `.claude/agents/`)
 
 ---
 
@@ -28,37 +28,37 @@ Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.m
 ### Primary Agents
 
 **@BUILD_LEAD** - Lead Developer
-- **File**: `/.claude/agents/BUILD_LEAD.md`
+- **File**: `.claude/agents/BUILD_LEAD.md`
 - **Role**: Owns implementation, spawns sub-agents, coordinates work
 - **Authority**: Technical architecture decisions
 - **Starts**: Immediately after reading requirements
 
 **@UI_UX** - Design Expert
-- **File**: `/.claude/agents/UI_UX.md`
+- **File**: `.claude/agents/UI_UX.md`
 - **Role**: Design review, UX guidance, accessibility
 - **Authority**: Design decisions (can be overridden by SECURITY)
 - **Reviews**: All UI implementations
 
 **@SECURITY_COMPLIANCE** - Security Expert (VETO POWER)
-- **File**: `/.claude/agents/SECURITY_COMPLIANCE.md`
+- **File**: `.claude/agents/SECURITY_COMPLIANCE.md`
 - **Role**: Security review, vulnerability prevention
 - **Authority**: **VETO POWER** on security decisions
 - **Reviews**: All credential handling, network code, input validation
 
 **@TEST_AGENT** - Quality Assurance
-- **File**: `/.claude/agents/TEST_AGENT.md`
+- **File**: `.claude/agents/TEST_AGENT.md`
 - **Role**: Testing, quality gates, coverage enforcement
 - **Authority**: Can block releases if tests fail
 - **Reviews**: Test coverage after every change
 
 **@REVIEW_AGENT** - Code Review
-- **File**: `/.claude/agents/REVIEW_AGENT.md`
+- **File**: `.claude/agents/REVIEW_AGENT.md`
 - **Role**: Code review after EVERY change
 - **Authority**: Code quality gates
 - **Reviews**: All code for clean code principles
 
 **@DOC_AGENT** - Documentation
-- **File**: `/.claude/agents/DOC_AGENT.md`
+- **File**: `.claude/agents/DOC_AGENT.md`
 - **Role**: Documentation after EVERY change
 - **Authority**: Documentation completeness
 - **Updates**: README, CHANGELOG, docs, code comments
@@ -66,12 +66,12 @@ Build ContainerBar following the comprehensive design in `docs/DESIGN_DOCUMENT.m
 ### Sub-Agents (Spawned by BUILD_LEAD)
 
 **@SWIFT_EXPERT** - Swift Specialist
-- **File**: `/.claude/agents/SWIFT_EXPERT.md`
+- **File**: `.claude/agents/SWIFT_EXPERT.md`
 - **Spawned for**: Swift 6 concurrency, AppKit, SwiftUI patterns
 - **Works with**: BUILD_LEAD
 
 **@API_INTEGRATION** - Networking Specialist
-- **File**: `/.claude/agents/API_INTEGRATION.md`
+- **File**: `.claude/agents/API_INTEGRATION.md`
 - **Spawned for**: Docker API client, networking, connection strategies
 - **Works with**: BUILD_LEAD
 
@@ -93,7 +93,7 @@ TASKS:
 2. Create Swift package structure (Package.swift)
 3. Set up ContainerBar and ContainerBarCore targets
 4. Create basic README
-5. Post completion in /.claude/agents/communications/daily-standup.md
+5. Post completion in .claude/agents/communications/daily-standup.md
 
 QUALITY GATES:
 - @REVIEW_AGENT: Review package structure
@@ -194,7 +194,7 @@ QUALITY GATES:
 
 ### Daily Standups
 
-**EVERY DAY**: Each active agent posts in `/.claude/agents/communications/daily-standup.md`
+**EVERY DAY**: Each active agent posts in `.claude/agents/communications/daily-standup.md`
 
 ```markdown
 ## [Date] - @AGENT_NAME
@@ -215,7 +215,7 @@ QUALITY GATES:
 
 ### Decision Making
 
-**WHEN NEEDED**: Post in `/.claude/agents/communications/decisions.md`
+**WHEN NEEDED**: Post in `.claude/agents/communications/decisions.md`
 
 ```markdown
 ## [Date] - Decision: [Title]
@@ -235,7 +235,7 @@ QUALITY GATES:
 
 ### Questions
 
-**WHEN STUCK**: Post in `/.claude/agents/communications/open-questions.md`
+**WHEN STUCK**: Post in `.claude/agents/communications/open-questions.md`
 
 ```markdown
 ## [Date] - Question: [Title]
@@ -324,8 +324,8 @@ You are the primary agent who kicks off the project. Here's your immediate actio
 ```
 1. Read AGENTS.md (project overview - in repo root)
 2. Read PROJECT_ORCHESTRATION.md (this file - orchestration guide)
-3. Read DESIGN_DOCUMENT.md (complete spec - in repo root)
-4. Read /.claude/agents/BUILD_LEAD.md (your role)
+3. Read .claude/agents/DESIGN_DOCUMENT.md (complete spec)
+4. Read .claude/agents/BUILD_LEAD.md (your role)
 ```
 
 **Step 2**: Set up the project
@@ -422,7 +422,7 @@ All agents post daily standups with progress
 ### For All Agents
 
 1. **Read First**: AGENTS.md (repo root), PROJECT_ORCHESTRATION.md, DESIGN_DOCUMENT.md, your agent file
-2. **Communicate**: Use /.claude/agents/communications/ for all coordination
+2. **Communicate**: Use .claude/agents/communications/ for all coordination
 3. **Quality First**: Don't skip quality gates
 4. **Security Always**: Never compromise security
 5. **Document Everything**: After every change

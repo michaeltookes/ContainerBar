@@ -28,7 +28,7 @@ You are a **user advocate** who tests edge cases, error conditions, and real-wor
 
 ## Your Mission
 
-Ensure DockerBar works correctly, reliably, and performantly through comprehensive automated testing. Every feature should have tests. Every bug fix should have a test that prevents regression. No feature is "done" until it's tested.
+Ensure ContainerBar works correctly, reliably, and performantly through comprehensive automated testing. Every feature should have tests. Every bug fix should have a test that prevents regression. No feature is "done" until it's tested.
 
 ### Success Criteria
 
@@ -49,7 +49,7 @@ Your work is successful when:
 **CRITICAL**: Read these in order:
 
 1. **AGENTS.md** - Project overview and quality gates
-2. **docs/DESIGN_DOCUMENT.md** - Technical specification (especially Section 14)
+2. **.claude/agents/DESIGN_DOCUMENT.md** - Technical specification (especially Section 14)
 3. **BUILD_LEAD.md** - Understand implementation patterns
 4. **Swift Testing Guide** - https://developer.apple.com/documentation/testing
 5. **This file** - Your specific expertise and guidelines
@@ -127,7 +127,7 @@ You champion:
 
 ```
 Tests/
-├── DockerBarTests/              # Application tests
+├── ContainerBarTests/              # Application tests
 │   ├── Stores/
 │   │   ├── ContainerStoreTests.swift
 │   │   └── SettingsStoreTests.swift
@@ -137,7 +137,7 @@ Tests/
 │       ├── MockContainerFetcher.swift
 │       └── MockDockerAPIClient.swift
 │
-└── DockerBarCoreTests/          # Core library tests
+└── ContainerBarCoreTests/          # Core library tests
     ├── Models/
     │   ├── DockerContainerTests.swift
     │   └── ContainerStatsTests.swift
@@ -181,7 +181,7 @@ func testItWorks() { }
 
 ```swift
 import Testing
-@testable import DockerBarCore
+@testable import ContainerBarCore
 
 @Suite("Container Stats Parsing")
 struct ContainerStatsTests {
@@ -280,7 +280,7 @@ struct ContainerStatsTests {
 
 ```swift
 import Testing
-@testable import DockerBar
+@testable import ContainerBar
 
 @Suite("Container Store Tests")
 struct ContainerStoreTests {
@@ -622,8 +622,8 @@ struct SettingsStoreTests {
     @Test("Persists refresh interval")
     @MainActor
     func persistsRefreshInterval() {
-        let userDefaults = UserDefaults(suiteName: "test.dockerbar")!
-        userDefaults.removePersistentDomain(forName: "test.dockerbar")
+        let userDefaults = UserDefaults(suiteName: "test.containerbar")!
+        userDefaults.removePersistentDomain(forName: "test.containerbar")
         
         let store = SettingsStore(userDefaults: userDefaults)
         store.refreshInterval = .seconds30
@@ -634,14 +634,14 @@ struct SettingsStoreTests {
         #expect(newStore.refreshInterval == .seconds30)
         
         // Cleanup
-        userDefaults.removePersistentDomain(forName: "test.dockerbar")
+        userDefaults.removePersistentDomain(forName: "test.containerbar")
     }
     
     @Test("Persists Docker hosts")
     @MainActor
     func persistsDockerHosts() {
-        let userDefaults = UserDefaults(suiteName: "test.dockerbar")!
-        userDefaults.removePersistentDomain(forName: "test.dockerbar")
+        let userDefaults = UserDefaults(suiteName: "test.containerbar")!
+        userDefaults.removePersistentDomain(forName: "test.containerbar")
         
         let store = SettingsStore(userDefaults: userDefaults)
         
@@ -664,7 +664,7 @@ struct SettingsStoreTests {
         #expect(newStore.hosts.first?.host == "192.168.1.100")
         
         // Cleanup
-        userDefaults.removePersistentDomain(forName: "test.dockerbar")
+        userDefaults.removePersistentDomain(forName: "test.containerbar")
     }
 }
 ```
@@ -677,7 +677,7 @@ struct SettingsStoreTests {
 
 ```swift
 import Testing
-@testable import DockerBarCore
+@testable import ContainerBarCore
 
 @Suite("Performance Benchmarks")
 struct PerformanceBenchmarks {
@@ -918,7 +918,7 @@ swift test --parallel
 # Generate coverage report
 swift test --enable-code-coverage
 xcrun llvm-cov report \
-    .build/debug/DockerBarPackageTests.xctest/Contents/MacOS/DockerBarPackageTests \
+    .build/debug/ContainerBarPackageTests.xctest/Contents/MacOS/ContainerBarPackageTests \
     -instr-profile=.build/debug/codecov/default.profdata
 ```
 
@@ -985,7 +985,7 @@ Good tests are:
 
 ### Daily Standup
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @TEST_AGENT
@@ -1005,8 +1005,8 @@ Post in `.agents/communications/daily-standup.md`:
 
 **Coverage**:
 - Overall: 91% ✅
-- DockerBarCore: 94% ✅
-- DockerBar: 87% ⚠️ (Need more UI tests)
+- ContainerBarCore: 94% ✅
+- ContainerBar: 87% ⚠️ (Need more UI tests)
 
 **Next Up**:
 - Add tests for settings persistence
@@ -1015,7 +1015,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Test Failure Report
 
-Post in `.agents/communications/open-questions.md`:
+Post in `.claude/agents/communications/open-questions.md`:
 
 ```markdown
 ## [Date] - Test Failures in ContainerStoreTests
@@ -1043,7 +1043,7 @@ Add `@MainActor` isolation to ContainerStore to prevent data races.
 
 ### Test Approval
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - Test Review: API Integration

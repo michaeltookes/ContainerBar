@@ -6,10 +6,6 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## Medium Priority
 
-### CB-049: Documentation refresh
-**Priority**: Medium
-**Description**: `docs/GETTING_STARTED.md`, README, and the `.claude/agents/*.md` files predate the 2.0.x transport rewrite, the xcodebuild release path, and the current backlog discipline. Update install instructions (Silicon-only note, Homebrew and direct download), the architecture section, the release process description, and remove stale Mission Control references.
-
 ### CB-050: CI hardening
 **Priority**: Medium
 **Description**: Make `Swift CI` and `Prowl QA` required status checks on `main`, add `timeout-minutes` to every job, pin third-party actions to commit SHAs, add a PR template and issue templates modeled on sentwise, and add the portable `claude-pr-description.yml` workflow.

@@ -1439,7 +1439,7 @@ struct AppConfiguration: Codable {
 
 ```swift
 final class CredentialManager: @unchecked Sendable {
-    private let keychain = Keychain(service: "com.dockerbar")
+    private let keychain = Keychain(service: "com.containerbar")
 
     func storeTLSCertificate(_ cert: Data, for hostId: UUID) throws {
         try keychain.set(cert, key: "tls-cert-\(hostId.uuidString)")
@@ -1489,12 +1489,11 @@ brew install sparkle    # For sign_update, generate_appcast
 ### Build Commands
 
 ```bash
-# Development build (single architecture)
+# Development build (Apple Silicon / arm64)
 swift build
 
-# Release build (universal binary)
-swift build -c release --arch arm64
-swift build -c release --arch x86_64
+# Optimized local build (development only)
+swift build -c release
 
 # Run tests
 swift test
@@ -1505,6 +1504,8 @@ swiftformat .
 # Lint
 swiftlint
 ```
+
+> **Note:** ContainerBar is Apple Silicon (arm64) only — there is no Intel or universal build. The commands above are for local development. Distributable releases are produced by `./scripts/build-release.sh` (an `xcodebuild` path), **not** `swift build -c release`; see `docs/RELEASING.md` and the Release Configuration table in `CLAUDE.md`.
 
 ## 9.2 Project Structure
 
@@ -1596,7 +1597,7 @@ open "ContainerBar.app"
 ```bash
 MARKETING_VERSION=1.0.0
 BUILD_NUMBER=1
-BUNDLE_ID=com.yourcompany.dockerbar
+BUNDLE_ID=com.yourcompany.containerbar
 ```
 
 ---
@@ -1747,10 +1748,10 @@ All sensitive credentials are stored in macOS Keychain:
 
 | Credential Type | Keychain Service | Keychain Account |
 |-----------------|------------------|------------------|
-| TLS Certificate | com.dockerbar | tls-cert-{hostId} |
-| TLS Private Key | com.dockerbar | tls-key-{hostId} |
-| TLS CA Bundle | com.dockerbar | tls-ca-{hostId} |
-| SSH Private Key | com.dockerbar | ssh-key-{hostId} |
+| TLS Certificate | com.containerbar | tls-cert-{hostId} |
+| TLS Private Key | com.containerbar | tls-key-{hostId} |
+| TLS CA Bundle | com.containerbar | tls-ca-{hostId} |
+| SSH Private Key | com.containerbar | ssh-key-{hostId} |
 
 **Never Stored**:
 - Passwords in UserDefaults
@@ -2055,7 +2056,7 @@ A lightweight macOS menu bar application for Docker container monitoring.
 ### Homebrew
 
 ```bash
-brew install --cask dockerbar
+brew install --cask containerbar
 ```
 
 ### Manual

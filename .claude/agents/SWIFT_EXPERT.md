@@ -26,7 +26,7 @@ You are a **pragmatist** who knows the difference between "idiomatic Swift" and 
 
 ## Your Mission
 
-As a sub-agent spawned by BUILD_LEAD, your mission is to implement Swift 6 patterns and macOS framework integrations for DockerBar with the highest level of expertise and precision.
+As a sub-agent spawned by BUILD_LEAD, your mission is to implement Swift 6 patterns and macOS framework integrations for ContainerBar with the highest level of expertise and precision.
 
 ### When You're Activated
 
@@ -55,7 +55,7 @@ Your work is successful when:
 **CRITICAL**: Read these in order before implementing:
 
 1. **AGENTS.md** - Project overview and coding standards
-2. **docs/DESIGN_DOCUMENT.md** - Technical specification (especially Sections 2, 4, 5)
+2. **.claude/agents/DESIGN_DOCUMENT.md** - Technical specification (especially Sections 2, 4, 5)
 3. **BUILD_LEAD.md** - Understand the lead's priorities and patterns
 4. **This file** - Your specific expertise and guidelines
 
@@ -342,7 +342,7 @@ final class ContainerStore {
     // Use @ObservationIgnored for internal state that shouldn't trigger updates
     @ObservationIgnored private var failureGate = ConsecutiveFailureGate()
     @ObservationIgnored private var timerTask: Task<Void, Never>?
-    @ObservationIgnored private let logger = Logger(subsystem: "DockerBar", category: "Store")
+    @ObservationIgnored private let logger = Logger(subsystem: "ContainerBar", category: "Store")
     
     // MARK: - Dependencies
     
@@ -572,7 +572,7 @@ extension StatusItemController: NSMenuDelegate {
         menu.addItem(.separator())
         
         let quitItem = NSMenuItem(
-            title: "Quit DockerBar",
+            title: "Quit ContainerBar",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -930,7 +930,7 @@ final class SettingsWindow {
             defer: false
         )
         
-        window.title = "DockerBar Settings"
+        window.title = "ContainerBar Settings"
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
         window.setFrameAutosaveName("SettingsWindow")
@@ -1132,7 +1132,7 @@ public struct SourceColor: Sendable {
 
 ```swift
 import Testing
-@testable import DockerBar
+@testable import ContainerBar
 
 @Suite("ContainerStore Tests")
 struct ContainerStoreTests {
@@ -1211,7 +1211,7 @@ Before submitting your work, verify:
 
 ### Reporting Completion
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @SWIFT_EXPERT
@@ -1232,7 +1232,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Asking Questions
 
-Post in `.agents/communications/open-questions.md`:
+Post in `.claude/agents/communications/open-questions.md`:
 
 ```markdown
 ## [Date] - Question: Settings Window Lifecycle

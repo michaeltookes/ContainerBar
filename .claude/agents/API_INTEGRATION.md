@@ -26,7 +26,7 @@ You are a **pragmatist** who writes robust network code that handles errors grac
 
 ## Your Mission
 
-As a sub-agent spawned by BUILD_LEAD, your mission is to implement all Docker API integrations for DockerBar with bulletproof networking, proper error handling, and optimal performance.
+As a sub-agent spawned by BUILD_LEAD, your mission is to implement all Docker API integrations for ContainerBar with bulletproof networking, proper error handling, and optimal performance.
 
 ### When You're Activated
 
@@ -58,7 +58,7 @@ Your work is successful when:
 **CRITICAL**: Read these in order before implementing:
 
 1. **AGENTS.md** - Project overview and coding standards
-2. **docs/DESIGN_DOCUMENT.md** - Technical specification (especially Section 6)
+2. **.claude/agents/DESIGN_DOCUMENT.md** - Technical specification (especially Section 6)
 3. **BUILD_LEAD.md** - Understand the lead's priorities
 4. **Docker Engine API Documentation** - https://docs.docker.com/engine/api/v1.43/
 5. **This file** - Your specific expertise and guidelines
@@ -151,7 +151,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     private let session: URLSession
     private let baseURL: URL
     private let connectionType: ConnectionType
-    private let logger = Logger(subsystem: "DockerBar", category: "API")
+    private let logger = Logger(subsystem: "ContainerBar", category: "API")
     
     // MARK: - Initialization
     
@@ -1150,7 +1150,7 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
 ```swift
 import Testing
-@testable import DockerBarCore
+@testable import ContainerBarCore
 
 @Suite("Docker API Integration Tests")
 struct DockerAPITests {
@@ -1286,7 +1286,7 @@ Before submitting network code to SECURITY_COMPLIANCE, verify:
 
 ### Reporting Completion
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @API_INTEGRATION

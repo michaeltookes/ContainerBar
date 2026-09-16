@@ -86,8 +86,9 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 
 ### Prerequisites
 
-- Xcode 15.0+ (for Swift 6.0)
+- Xcode 16.0+ (for Swift 6.0)
 - Swift 6.0+
+- An Apple Silicon (arm64) Mac — ContainerBar is not built or shipped for Intel
 
 ### Building
 
@@ -95,12 +96,14 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 # Development build
 swift build
 
-# Release build
+# Optimized local build
 swift build -c release
 
 # Run tests
 swift test
 ```
+
+> **Note:** `swift build -c release` produces a local optimized build for development only. Distributable releases are built through `./scripts/build-release.sh` (an `xcodebuild` path), **not** `swift build` — the SwiftPM release build baked in a build-machine resource path that crashed Settings on other Macs. See **[docs/RELEASING.md](docs/RELEASING.md)** for the full release process. The app is Apple Silicon (arm64) only; there is no Intel or universal build.
 
 ### Project Structure
 
