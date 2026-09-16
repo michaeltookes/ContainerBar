@@ -216,8 +216,7 @@ final class TLSConnection: @unchecked Sendable {
                 })
             }
 
-            let responseData = try await receiveHTTPResponse(conn: conn)
-            return try parseTLSHTTPResponse(responseData)
+            return try await receiveHTTPResponse(conn: conn)
         }
     }
 

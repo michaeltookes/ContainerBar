@@ -1,7 +1,6 @@
 import Foundation
 
 enum HTTPResponseParser {
-    static let headerSeparator = Data("\r\n\r\n".utf8)
     private static let lineSeparator = Data("\r\n".utf8)
 
     static func parseStatusAndHeaders(_ headerString: String) throws -> (Int, [String: String]) {

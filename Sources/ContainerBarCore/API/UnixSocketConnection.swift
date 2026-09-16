@@ -180,8 +180,7 @@ final class UnixSocketConnection: @unchecked Sendable {
                 })
             }
 
-            let responseData = try await receiveHTTPResponse(conn: conn)
-            return try parseTLSHTTPResponse(responseData)
+            return try await receiveHTTPResponse(conn: conn)
         }
     }
 }

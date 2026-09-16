@@ -15,10 +15,6 @@ manual owner action because required-check enforcement lives in GitHub
 repository settings rather than committed workflow files. Keep this item open
 until the owner verifies the rule is active against `main`.
 
-### CB-055: Make Docker HTTP response parsing unit-testable independent of live transports
-**Priority**: Medium
-**Description**: Filed from the CB-047 coverage audit. The HTTP framing/parse layer is the least-covered logic in `ContainerBarCore` because it is welded to the live-socket receive loops: `TLSHTTPReceive.swift` (6.4% line), `TLSHTTPParsing.swift` (9.1%), `DockerAPIClientImpl+ResponseHandling.swift` (0%), and `HTTPResponseParser.swift` (39%) can only be exercised today by standing up a real `NWConnection`. Extract the pure parse steps — status-line/header parsing, `Content-Length` vs chunked body assembly, and the multi-read buffering that stitches partial reads — into functions that take a `Data`/byte-buffer sequence and return a parsed `HTTPResponse`, with the socket receive loop as a thin caller that feeds bytes in. Then unit-test malformed status lines, split headers across reads, chunked bodies delivered in fragments, truncated bodies, and oversized responses against in-memory byte streams. Distinct from CB-053 (which consolidates the *connection lifecycle* and renames the TLS-prefixed shared helpers): this item is specifically about decoupling *parsing* from *transport* so it can be tested without a socket. Prefer this extraction over contorting a test around a fake `NWConnection`. Coordinate ordering with CB-053 since both touch the receive/parse files.
-
 ## Low Priority
 
 ### CB-051: Universal binary or explicit Intel decision
