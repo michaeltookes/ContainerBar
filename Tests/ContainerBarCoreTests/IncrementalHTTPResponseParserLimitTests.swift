@@ -168,7 +168,7 @@ struct IncrementalHTTPResponseParserLimitTests {
 
     @Test("Content-Length over the production cap is rejected as invalidResponse")
     func contentLengthOverProductionCapRejected() {
-        // 128 MiB + 1, rejected by parseTLSContentLength without allocating.
+        // 128 MiB + 1, rejected by parseContentLength without allocating.
         let oversize = defaultMaxHTTPBodySize + 1
         let raw = "HTTP/1.1 200 OK\r\nContent-Length: \(oversize)\r\n\r\n"
         let error = captureError([Data(raw.utf8)])

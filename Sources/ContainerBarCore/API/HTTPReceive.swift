@@ -8,8 +8,8 @@ import Network
 /// parsing. A clean connection close is mapped to the parser's `finish()`,
 /// which yields a buffered response or the matching truncation error.
 ///
-/// Shared by both the Unix-socket and TLS transports despite the `TLS`-prefixed
-/// helper names in this layer.
+/// Shared by both the Unix-socket and TLS transports; the helpers here are
+/// transport-neutral.
 func receiveHTTPResponse(conn: NWConnection) async throws -> HTTPResponse {
     var parser = IncrementalHTTPResponseParser()
 
@@ -39,14 +39,14 @@ func receiveChunk(conn: NWConnection, length: Int) async throws -> Data {
     }
 }
 
-func validateTLSHTTPFraming(_ headers: [String: String]) throws {
+func validateHTTPFraming(_ headers: [String: String]) throws {
     if headers["content-length"] != nil,
        headers["transfer-encoding"]?.lowercased() == "chunked" {
         throw DockerAPIError.invalidResponse
     }
 }
 
-func parseTLSContentLength(_ value: String, maxBodySize: Int = defaultMaxHTTPBodySize) throws -> Int {
+func parseContentLength(_ value: String, maxBodySize: Int = defaultMaxHTTPBodySize) throws -> Int {
     guard !value.isEmpty,
           value.allSatisfy({ $0.isNumber }),
           let contentLength = Int(value),

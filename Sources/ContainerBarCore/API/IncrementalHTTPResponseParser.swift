@@ -19,8 +19,8 @@ let defaultMaxHTTPBodySize = 128 * 1024 * 1024
 /// ambiguous `Content-Length` + `Transfer-Encoding: chunked` rejection.
 ///
 /// Behavior note: for a chunked body the parser detects the frame boundary and
-/// then decodes the complete raw bytes via `decodeTLSChunkedBody`, which is the
-/// same decoder the previous socket-driven path used. This intentionally
+/// then decodes the complete raw bytes via `HTTPResponseParser.decodeChunkedBody`,
+/// which is the same decoder the previous socket-driven path used. This intentionally
 /// preserves that path's observable behavior (including rejecting chunk
 /// extensions and non-empty trailers as `invalidResponse`).
 struct IncrementalHTTPResponseParser {
@@ -85,7 +85,7 @@ struct IncrementalHTTPResponseParser {
         case .chunked:
             guard let bodyEnd = try scanChunkedBodyEnd(available) else { return nil }
             let rawChunked = Data(available[..<bodyEnd])
-            let decoded = try decodeTLSChunkedBody(rawChunked)
+            let decoded = try HTTPResponseParser.decodeChunkedBody(rawChunked)
             return HTTPResponse(statusCode: statusCode, headers: headers, body: decoded)
         }
     }
@@ -123,14 +123,14 @@ struct IncrementalHTTPResponseParser {
         }
 
         let (code, parsedHeaders) = try HTTPResponseParser.parseStatusAndHeaders(headerString)
-        try validateTLSHTTPFraming(parsedHeaders)
+        try validateHTTPFraming(parsedHeaders)
 
         statusCode = code
         headers = parsedHeaders
         bodyStart = headerRange.upperBound
 
         if let contentLength = parsedHeaders["content-length"] {
-            framing = .contentLength(try parseTLSContentLength(contentLength, maxBodySize: maxBodySize))
+            framing = .contentLength(try parseContentLength(contentLength, maxBodySize: maxBodySize))
         } else if parsedHeaders["transfer-encoding"]?.lowercased() == "chunked" {
             framing = .chunked
         } else {

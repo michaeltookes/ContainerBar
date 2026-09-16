@@ -127,7 +127,7 @@ struct DockerAPITests {
         let malformed = Data("5\r\nhello".utf8)
 
         do {
-            _ = try decodeTLSChunkedBody(malformed)
+            _ = try HTTPResponseParser.decodeChunkedBody(malformed)
             Issue.record("Expected malformed chunked payload to throw")
         } catch let error as DockerAPIError {
             if case .invalidResponse = error {
@@ -142,12 +142,12 @@ struct DockerAPITests {
 
     @Test("TLS content length parser rejects malformed or oversized values")
     func tlsContentLengthParserRejectsInvalidValues() throws {
-        #expect(try parseTLSContentLength("0") == 0)
-        #expect(try parseTLSContentLength("42") == 42)
+        #expect(try parseContentLength("0") == 0)
+        #expect(try parseContentLength("42") == 42)
 
         for invalidValue in ["", "-1", "1.5", "abc", "134217729", "999999999999999999999999"] {
             do {
-                _ = try parseTLSContentLength(invalidValue)
+                _ = try parseContentLength(invalidValue)
                 Issue.record("Expected invalid Content-Length value to throw: \(invalidValue)")
             } catch let error as DockerAPIError {
                 if case .invalidResponse = error {
@@ -161,7 +161,7 @@ struct DockerAPITests {
     @Test("TLS framing rejects content length with chunked transfer encoding")
     func tlsFramingRejectsAmbiguousLengthAndChunkedHeaders() throws {
         do {
-            try validateTLSHTTPFraming([
+            try validateHTTPFraming([
                 "content-length": "5",
                 "transfer-encoding": "chunked"
             ])
