@@ -46,14 +46,6 @@ func validateTLSHTTPFraming(_ headers: [String: String]) throws {
     }
 }
 
-func parseStrictTLSHeaders(_ headerString: String) throws -> [String: String] {
-    do {
-        return try HTTPResponseParser.parseStatusAndHeaders(headerString).1
-    } catch {
-        throw DockerAPIError.invalidResponse
-    }
-}
-
 func parseTLSContentLength(_ value: String) throws -> Int {
     guard !value.isEmpty,
           value.allSatisfy({ $0.isNumber }),
