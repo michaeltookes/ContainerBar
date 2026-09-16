@@ -43,6 +43,11 @@ struct IncrementalHTTPResponseParser {
     private var bodyStart: Data.Index?
     private var framing: BodyFraming?
 
+    /// Chunked-body scan state carried across `parse()` calls so each new
+    /// fragment only re-examines bytes after the last complete chunk frame.
+    private var chunkCursor: Data.Index?
+    private var chunkDecodedTotal = 0
+
     /// - Parameters:
     ///   - maxHeaderSize: Header-block byte cap. Defaults to the production limit.
     ///   - maxBodySize: Assembled-body byte cap. Defaults to the production limit.
@@ -138,10 +143,11 @@ struct IncrementalHTTPResponseParser {
     /// Scans a chunked body for its terminating boundary, returning the index in
     /// `data` just past the final empty trailer line, or `nil` when more bytes
     /// are needed. Mirrors the strict framing the socket path used (hex chunk
-    /// sizes, 64KB chunk-metadata cap, 128MB assembled-body cap).
-    private func scanChunkedBodyEnd(_ data: Data) throws -> Data.Index? {
-        var cursor = data.startIndex
-        var decodedTotal = 0
+    /// sizes, 64KB chunk-metadata cap, 128MB assembled-body cap). Resumes from
+    /// the last complete frame so repeated calls stay linear in the body size.
+    private mutating func scanChunkedBodyEnd(_ data: Data) throws -> Data.Index? {
+        var cursor = chunkCursor ?? data.startIndex
+        var decodedTotal = chunkDecodedTotal
 
         while true {
             guard let sizeLineEnd = data.range(of: Self.lineSeparator, in: cursor..<data.endIndex) else {
@@ -173,6 +179,8 @@ struct IncrementalHTTPResponseParser {
             }
 
             cursor = frameEnd
+            chunkCursor = cursor
+            chunkDecodedTotal = decodedTotal
         }
     }
 
