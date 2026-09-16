@@ -12,8 +12,9 @@ Before reviewing non-trivial work, read:
 
 1. `AGENTS.md` - project rules, quality gates, and current state
 2. `CLAUDE.md` - project snapshot and release workflow
-3. `.claude/agents/DESIGN_DOCUMENT.md` - architecture and technical intent
-4. The changed files and their nearest tests/docs
+3. `.claude/agents/PROJECT_ORCHESTRATION.md` - orchestration conventions
+4. `.claude/agents/DESIGN_DOCUMENT.md` - architecture and technical intent
+5. The changed files and their nearest tests/docs
 
 ## Review Priorities
 

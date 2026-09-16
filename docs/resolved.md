@@ -16,9 +16,13 @@ legacy communication-directory references in agent docs to
 troubleshooting examples to use the app's actual preferences domain from
 `Distribution/Info.plist`.
 
-**Third review follow-up**: A final PR #46 review pass restored the missing
+**Third review follow-up**: A PR #46 review pass restored the missing
 `.claude/agents/REVIEW_AGENT.md` role file referenced by the orchestration docs,
 so the code-quality reviewer role now has a concrete local instruction source.
+
+**Additional review follow-up**: The restored review-agent role now includes
+`.claude/agents/PROJECT_ORCHESTRATION.md` in required reading so reviewers see
+the orchestration conventions before inspecting changed files.
 
 ## ~~CB-048: Release hygiene and distribution checks~~
 **Resolved**: 2026-09-15 (branch release-hygiene)
