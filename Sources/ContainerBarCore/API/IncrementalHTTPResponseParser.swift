@@ -46,6 +46,8 @@ struct IncrementalHTTPResponseParser {
     /// Chunked-body scan state carried across `parse()` calls so each new
     /// fragment only re-examines bytes after the last complete chunk frame.
     private var chunkCursor: Data.Index?
+    private var chunkTrailerStart: Data.Index?
+    private var chunkTrailerCursor: Data.Index?
     private var chunkDecodedTotal = 0
 
     /// - Parameters:
@@ -144,8 +146,12 @@ struct IncrementalHTTPResponseParser {
     /// `data` just past the final empty trailer line, or `nil` when more bytes
     /// are needed. Mirrors the strict framing the socket path used (hex chunk
     /// sizes, 64KB chunk-metadata cap, 128MB assembled-body cap). Resumes from
-    /// the last complete frame so repeated calls stay linear in the body size.
+    /// the last complete frame or trailer line so repeated calls stay linear.
     private mutating func scanChunkedBodyEnd(_ data: Data) throws -> Data.Index? {
+        if chunkTrailerCursor != nil {
+            return try scanChunkedTrailers(in: data)
+        }
+
         var cursor = chunkCursor ?? data.startIndex
         var decodedTotal = chunkDecodedTotal
 
@@ -159,7 +165,9 @@ struct IncrementalHTTPResponseParser {
             cursor = sizeLineEnd.upperBound
 
             if chunkSize == 0 {
-                return try scanChunkedTrailers(from: cursor, in: data)
+                chunkTrailerStart = cursor
+                chunkTrailerCursor = cursor
+                return try scanChunkedTrailers(in: data)
             }
 
             let need = chunkSize + Self.lineSeparator.count
@@ -184,16 +192,20 @@ struct IncrementalHTTPResponseParser {
         }
     }
 
-    private func scanChunkedTrailers(from start: Data.Index, in data: Data) throws -> Data.Index? {
-        var cursor = start
+    private mutating func scanChunkedTrailers(in data: Data) throws -> Data.Index? {
+        var cursor = chunkTrailerCursor ?? data.startIndex
         while true {
             guard let lineEnd = data.range(of: Self.lineSeparator, in: cursor..<data.endIndex) else {
-                try enforceChunkMetadataLimit(from: cursor, to: data.endIndex, in: data)
+                try enforceChunkMetadataLimit(from: chunkTrailerStart ?? cursor, to: data.endIndex, in: data)
+                chunkTrailerCursor = cursor
                 return nil
             }
 
+            try enforceChunkMetadataLimit(from: chunkTrailerStart ?? cursor, to: lineEnd.upperBound, in: data)
+
             let isEmptyLine = lineEnd.lowerBound == cursor
             cursor = lineEnd.upperBound
+            chunkTrailerCursor = cursor
             if isEmptyLine {
                 return cursor
             }

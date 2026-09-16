@@ -124,6 +124,15 @@ struct IncrementalHTTPResponseParserLimitTests {
         #expect(isInvalidResponse(error))
     }
 
+    @Test("Chunked trailer metadata over the cap raises the metadata-limit error")
+    func chunkedTrailerMetadataOverLimit() {
+        var parser = IncrementalHTTPResponseParser(maxHeaderSize: 80)
+        let trailers = String(repeating: "X: y\r\n", count: 16)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\(trailers)"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isConnectionFailed(error, containing: "HTTP chunk metadata exceeded"))
+    }
+
     // MARK: - Size limits
 
     @Test("Header block over the cap raises the header-limit error")
