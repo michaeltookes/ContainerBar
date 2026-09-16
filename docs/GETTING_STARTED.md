@@ -43,10 +43,11 @@ The cask declares `depends_on arch: :arm64`, so Homebrew will refuse to install 
 
 ### Direct download
 
-1. Download the latest `ContainerBar.dmg` (or `ContainerBar.zip`) from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases)
-2. Open the DMG file and drag ContainerBar to your Applications folder
-3. Launch ContainerBar from Applications
-4. The ContainerBar icon will appear in your menu bar
+1. Download the latest `ContainerBar.dmg` or `ContainerBar.zip` from the [Releases page](https://github.com/michaeltookes/ContainerBar/releases)
+2. If you downloaded the DMG, open it and drag ContainerBar to your Applications folder
+3. If you downloaded the ZIP, open it and move `ContainerBar.app` to your Applications folder
+4. Launch ContainerBar from Applications
+5. The ContainerBar icon will appear in your menu bar
 
 ---
 
