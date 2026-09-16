@@ -15,4 +15,4 @@ What you'd like to happen.
 Any alternative approaches you've thought about.
 
 **Additional context**
-Anything else — this may map to an item in [`docs/backlog.md`](../../docs/backlog.md) (CB-NNN).
+Anything else — this may map to an item in [`docs/backlog.md`](https://github.com/michaeltookes/ContainerBar/blob/main/docs/backlog.md) (CB-NNN).

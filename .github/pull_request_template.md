@@ -13,7 +13,7 @@
 
 ## Testing
 
-<!-- Testing runs on the Mac mini, not the dev Mac. How did you verify this? -->
+<!-- How did you verify this? -->
 - [ ] `swift build` succeeds
 - [ ] `swift test` passes
 - [ ] `swiftlint lint --quiet` is clean
