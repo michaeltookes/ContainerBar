@@ -35,7 +35,8 @@ to check.
 `scripts/notarize.sh` notarizes the zip, then handles the DMG:
 
 - `--dmg` — always build, sign, notarize, and staple the DMG (no prompt).
-- `--no-dmg` — skip the DMG.
+- `--no-dmg` — skip the DMG and remove any existing `dist/ContainerBar.dmg`
+  or temporary DMG so a stale artifact cannot be uploaded later.
 - default — an interactive terminal still gets the legacy y/n prompt; a
   **non-interactive** run (`/release-prep`, CI) builds and notarizes the DMG by
   default. This closes the 2.0.4 snag where a headless run shipped an

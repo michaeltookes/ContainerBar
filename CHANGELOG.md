@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clean-machine smoke launch now preserves the remote distributed artifact and
   exits nonzero when a console GUI launch is still required from an SSH-only
   session, and passes the Settings launch flag through LaunchServices
+- Notarization now removes stale final and temporary DMGs when DMG creation is
+  explicitly skipped
 
 ## [2.0.4] - 2026-09-12
 

@@ -67,6 +67,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
 ZIP_FILE="$OUTPUT_DIR/$APP_NAME.zip"
+DMG_FILE="$OUTPUT_DIR/$APP_NAME.dmg"
+TEMP_DMG="$OUTPUT_DIR/temp_$APP_NAME.dmg"
 
 # Colors for output
 RED='\033[0;31m'
@@ -197,9 +199,6 @@ create_final_zip() {
 create_dmg() {
     echo_step "Creating DMG..."
 
-    DMG_FILE="$OUTPUT_DIR/$APP_NAME.dmg"
-    TEMP_DMG="$OUTPUT_DIR/temp_$APP_NAME.dmg"
-
     # Remove old DMG
     rm -f "$DMG_FILE" "$TEMP_DMG"
 
@@ -228,6 +227,25 @@ create_dmg() {
     echo "  ✓ Created: $DMG_FILE"
 }
 
+# Remove DMGs when the operator explicitly skips DMG notarization so stale
+# pre-notarized artifacts cannot be summarized or uploaded afterward.
+remove_skipped_dmg_artifacts() {
+    local removed=0
+    if [ -f "$DMG_FILE" ]; then
+        echo_warning "Removing existing DMG because DMG creation was skipped: $DMG_FILE"
+        rm -f "$DMG_FILE"
+        removed=1
+    fi
+    if [ -f "$TEMP_DMG" ]; then
+        echo_warning "Removing temporary DMG because DMG creation was skipped: $TEMP_DMG"
+        rm -f "$TEMP_DMG"
+        removed=1
+    fi
+    if [ "$removed" -eq 0 ]; then
+        echo_info "No existing DMG artifacts to remove."
+    fi
+}
+
 # Print summary
 summary() {
     echo ""
@@ -240,8 +258,8 @@ summary() {
     echo "Output files:"
     echo "  App Bundle: $APP_BUNDLE"
     echo "  Zip File:   $ZIP_FILE"
-    if [ -f "$OUTPUT_DIR/$APP_NAME.dmg" ]; then
-        echo "  DMG File:   $OUTPUT_DIR/$APP_NAME.dmg"
+    if [ -f "$DMG_FILE" ]; then
+        echo "  DMG File:   $DMG_FILE"
     fi
     echo ""
     echo "Users can now download and run the app without Gatekeeper warnings."
@@ -266,6 +284,7 @@ main() {
         create_dmg
     else
         echo_info "Skipping DMG creation."
+        remove_skipped_dmg_artifacts
     fi
 
     summary
