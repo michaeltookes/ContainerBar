@@ -1286,7 +1286,7 @@ Before submitting network code to SECURITY_COMPLIANCE, verify:
 
 ### Reporting Completion
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @API_INTEGRATION

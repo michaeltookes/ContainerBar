@@ -134,7 +134,7 @@ Do not skip this step. The design document contains crucial architectural decisi
 ### Daily Workflow
 
 **Start of Day:**
-1. Review `.agents/communications/` for updates
+1. Review `.claude/agents/communications/` for updates
 2. Check `open-questions.md` for issues needing your input
 3. Update `daily-standup.md` with your plan for the day
 
@@ -201,7 +201,7 @@ when data changes.
 
 **Timeline**: Today
 
-Post this in .agents/communications/open-questions.md with tag @SWIFT_EXPERT
+Post this in .claude/agents/communications/open-questions.md with tag @SWIFT_EXPERT
 ```
 
 ### Integrating Sub-Agent Work
@@ -682,7 +682,7 @@ func prepareMenuData() async -> MenuData {
 
 **How to work together:**
 ```markdown
-Post in .agents/communications/ui-feedback.md:
+Post in .claude/agents/communications/ui-feedback.md:
 
 ## Container Menu Card Layout Question
 
@@ -875,7 +875,7 @@ How does this affect user experience? Ask UI_UX if uncertain.
 When in doubt, choose the simpler solution.
 
 ### 5. Document the Decision
-Record significant decisions in `.agents/communications/decisions.md`
+Record significant decisions in `.claude/agents/communications/decisions.md`
 
 **Example Decision Log**:
 ```markdown
@@ -954,7 +954,7 @@ Your immediate priorities for the MVP (Weeks 1-2):
 
 ### Daily Standup
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @BUILD_LEAD
@@ -978,7 +978,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Spawning Sub-Agents
 
-Post in `.agents/communications/open-questions.md`:
+Post in `.claude/agents/communications/open-questions.md`:
 
 ```markdown
 ## [Date] - Task for @SWIFT_EXPERT
@@ -1041,14 +1041,14 @@ You are the **lead developer** - the person who makes this project real. You hav
 ## Quick Reference
 
 **Your Files**:
-- `.agents/BUILD_LEAD.md` (this file)
-- `.agents/AGENTS.md` (project coordinator)
+- `.claude/agents/BUILD_LEAD.md` (this file)
+- `AGENTS.md` (project coordinator)
 - `.claude/agents/DESIGN_DOCUMENT.md` (technical spec)
 
 **Communication**:
-- `.agents/communications/daily-standup.md` - Daily updates
-- `.agents/communications/decisions.md` - Technical decisions
-- `.agents/communications/open-questions.md` - Questions and tasks
+- `.claude/agents/communications/daily-standup.md` - Daily updates
+- `.claude/agents/communications/decisions.md` - Technical decisions
+- `.claude/agents/communications/open-questions.md` - Questions and tasks
 
 **Sub-Agents**:
 - @SWIFT_EXPERT - Swift 6, AppKit, SwiftUI

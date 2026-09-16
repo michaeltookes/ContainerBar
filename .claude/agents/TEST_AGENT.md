@@ -985,7 +985,7 @@ Good tests are:
 
 ### Daily Standup
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @TEST_AGENT
@@ -1015,7 +1015,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Test Failure Report
 
-Post in `.agents/communications/open-questions.md`:
+Post in `.claude/agents/communications/open-questions.md`:
 
 ```markdown
 ## [Date] - Test Failures in ContainerStoreTests
@@ -1043,7 +1043,7 @@ Add `@MainActor` isolation to ContainerStore to prevent data races.
 
 ### Test Approval
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - Test Review: API Integration

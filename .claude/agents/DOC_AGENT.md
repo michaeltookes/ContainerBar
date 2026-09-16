@@ -1027,7 +1027,7 @@ log show --predicate 'process == "ContainerBar"' --last 1h
 ```
 
 **Solutions**:
-1. Reset settings: Delete `~/Library/Preferences/com.containerbar.plist`
+1. Reset settings: Delete `~/Library/Preferences/com.tookes.ContainerBar.plist`
 2. Reinstall app
 3. Report bug with crash log
 
@@ -1061,10 +1061,10 @@ log show --predicate 'process == "ContainerBar"' --last 1h
 
 ```bash
 # Backup first (optional)
-cp ~/Library/Preferences/com.containerbar.plist ~/Desktop/
+cp ~/Library/Preferences/com.tookes.ContainerBar.plist ~/Desktop/
 
 # Delete preferences
-defaults delete com.containerbar
+defaults delete com.tookes.ContainerBar
 
 # Restart ContainerBar
 ```
@@ -1119,7 +1119,7 @@ Before considering documentation complete:
 
 ### Daily Standup
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @DOC_AGENT
@@ -1149,7 +1149,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Documentation Update
 
-Post in `.agents/communications/decisions.md` when making significant doc changes:
+Post in `.claude/agents/communications/decisions.md` when making significant doc changes:
 
 ```markdown
 ## [Date] - Documentation: Restructured User Guide

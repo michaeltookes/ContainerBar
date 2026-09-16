@@ -1211,7 +1211,7 @@ Before submitting your work, verify:
 
 ### Reporting Completion
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @SWIFT_EXPERT
@@ -1232,7 +1232,7 @@ Post in `.agents/communications/daily-standup.md`:
 
 ### Asking Questions
 
-Post in `.agents/communications/open-questions.md`:
+Post in `.claude/agents/communications/open-questions.md`:
 
 ```markdown
 ## [Date] - Question: Settings Window Lifecycle

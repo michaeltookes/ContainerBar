@@ -518,7 +518,7 @@ logger.critical("Keychain access denied")     // Critical failures
 
 // ❌ REVIEW NEEDED: New dependency
 // Before adding ANY new dependency:
-// 1. Post in .agents/communications/security-reviews.md
+// 1. Post in .claude/agents/communications/security-reviews.md
 // 2. Justify why it's needed
 // 3. What alternatives were considered
 // 4. Security assessment
@@ -804,7 +804,7 @@ struct SecurityTests {
 
 ### Code Review Template
 
-Post in `.agents/communications/security-reviews.md`:
+Post in `.claude/agents/communications/security-reviews.md`:
 
 ```markdown
 ## [Date] - Security Review: [Feature Name]

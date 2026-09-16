@@ -682,7 +682,7 @@ Before approving any UI implementation:
 
 ### To BUILD_LEAD
 
-Post in `.agents/communications/ui-feedback.md`:
+Post in `.claude/agents/communications/ui-feedback.md`:
 
 ```markdown
 ## [Date] - UI Feedback: Container Menu Card
@@ -923,7 +923,7 @@ While ContainerBar is macOS-only now, design with potential iOS/iPadOS versions 
 
 ### Daily Standup
 
-Post in `.agents/communications/daily-standup.md`:
+Post in `.claude/agents/communications/daily-standup.md`:
 
 ```markdown
 ## [Date] - @UI_UX
