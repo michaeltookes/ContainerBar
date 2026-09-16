@@ -34,7 +34,7 @@ jobs:
           if [[ -d "/Applications/Xcode_${XCODE_PREFERRED}.app" ]]; then
             selected="/Applications/Xcode_${XCODE_PREFERRED}.app"
           else
-            selected="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)"
+            selected="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' -print 2>/dev/null | sort -V | tail -n 1 || true)"
           fi
           if [[ -z "${selected:-}" ]]; then
             echo "::error::No Xcode 26.x found on the runner. Installed:"
@@ -94,7 +94,7 @@ jobs:
           fi
 
           chmod +x "$SWIFTLINT_BIN"
-          echo "$(dirname "$SWIFTLINT_BIN")" >> "$GITHUB_PATH"
+          dirname "$SWIFTLINT_BIN" >> "$GITHUB_PATH"
           "$SWIFTLINT_BIN" version
 
       - name: Lint
