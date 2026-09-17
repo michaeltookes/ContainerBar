@@ -4,23 +4,24 @@ import Testing
 @testable import ContainerBarCore
 
 /// Covers `MetricsRateTracker.update`, which derives KB/s rates from the delta
-/// between successive snapshots.
-///
-/// `update` reads the wall clock (`Date()`) internally and exposes no seam for
-/// injecting time, so the exact `elapsed` divisor is unknowable from a test.
-/// Rather than refactor the production store (out of scope for this branch),
-/// the rate assertions here are deliberately time-independent:
-///   - counts (how many rate points were appended) are exact;
-///   - a counter reset and a zero delta both produce an exact 0.0 rate;
-///   - a positive delta is checked for finiteness / positivity and for the
-///     proportionality between the four rates, which all share one `elapsed`
-///     and one 1024 divisor within a single call — so their ratios equal the
-///     ratios of their byte deltas regardless of the actual elapsed time.
-/// The `elapsed > 0` guard cannot be exercised without a time seam (two calls
-/// can never be forced onto the same `Date()`); it is left to code review.
+/// between successive snapshots. The tracker takes an injectable clock, so
+/// every test drives elapsed time explicitly and asserts exact rates.
 @Suite("MetricsRateTracker")
 @MainActor
 struct MetricsRateTrackerTests {
+
+    /// Manually advanced clock handed to the tracker.
+    @MainActor
+    private final class StepClock {
+        private(set) var current = Date(timeIntervalSince1970: 1_000_000)
+        func now() -> Date { current }
+        func advance(by seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
+    }
+
+    private func makeTracker() -> (MetricsRateTracker, StepClock) {
+        let clock = StepClock()
+        return (MetricsRateTracker(now: { clock.now() }), clock)
+    }
 
     /// Builds a `ContainerStats` with explicit cumulative counters; the shared
     /// `.mock` does not expose the network/block byte fields this suite drives.
@@ -55,7 +56,7 @@ struct MetricsRateTrackerTests {
 
     @Test("First call establishes a baseline: cpu/memory recorded, no rates yet")
     func firstCallEstablishesBaseline() {
-        let tracker = MetricsRateTracker()
+        let (tracker, _) = makeTracker()
         var history = AggregatedMetricsHistory()
 
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 100)])
@@ -70,57 +71,51 @@ struct MetricsRateTrackerTests {
         #expect(history.diskWriteRate.values.isEmpty)
     }
 
-    @Test("A second call with positive deltas appends proportional, finite rates")
-    func secondCallAppendsProportionalRates() throws {
-        let tracker = MetricsRateTracker()
+    @Test("A second call after two seconds appends exact KB/s rates")
+    func secondCallAppendsExactRates() {
+        let (tracker, clock) = makeTracker()
         var history = AggregatedMetricsHistory()
 
-        // Baseline.
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats()])
-        // Deltas chosen with known ratios: rx=4096, tx=2048, read=1024, write=8192.
+        clock.advance(by: 2)
         tracker.update(
             history: &history,
             snapshot: snapshot,
             stats: ["c1": stats(rx: 4096, tx: 2048, read: 1024, write: 8192)]
         )
 
+        // bytes / 2 s / 1024 -> KB/s, all exactly representable.
         #expect(history.networkRxRate.values.count == 1)
-        #expect(history.networkTxRate.values.count == 1)
-        #expect(history.diskReadRate.values.count == 1)
-        #expect(history.diskWriteRate.values.count == 1)
+        #expect(history.networkRxRate.latest == 2.0)
+        #expect(history.networkTxRate.latest == 1.0)
+        #expect(history.diskReadRate.latest == 0.5)
+        #expect(history.diskWriteRate.latest == 4.0)
+    }
 
-        let rx = try #require(history.networkRxRate.latest)
-        let tx = try #require(history.networkTxRate.latest)
-        let read = try #require(history.diskReadRate.latest)
-        let write = try #require(history.diskWriteRate.latest)
+    @Test("A zero elapsed interval appends no rates and does not divide")
+    func zeroElapsedSkipsRates() {
+        let (tracker, _) = makeTracker()
+        var history = AggregatedMetricsHistory()
 
-        // All rates are finite and strictly positive given positive deltas and
-        // a positive elapsed interval (no divide-by-zero / NaN / Inf leaked).
-        for rate in [rx, tx, read, write] {
-            #expect(rate.isFinite)
-            #expect(rate > 0)
-        }
+        tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 100)])
+        // Clock not advanced: same timestamp as the baseline.
+        tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 5_000)])
 
-        // The four rates share one elapsed divisor within this call, so their
-        // ratios equal their byte-delta ratios. rx = 2*tx, read = tx/2,
-        // write = 4*tx. Assert against tx to stay time-independent.
-        let tolerance = tx * 1e-9
-        #expect(abs(rx - 2 * tx) <= tolerance)
-        #expect(abs(read - tx / 2) <= tolerance)
-        #expect(abs(write - 4 * tx) <= tolerance)
+        #expect(history.cpu.values.count == 2)
+        #expect(history.networkRxRate.values.isEmpty)
     }
 
     @Test("A counter reset (current < previous) saturates to a 0 rate, never negative")
     func counterResetSaturatesToZero() {
-        let tracker = MetricsRateTracker()
+        let (tracker, clock) = makeTracker()
         var history = AggregatedMetricsHistory()
 
-        // Baseline with high counters.
         tracker.update(
             history: &history,
             snapshot: snapshot,
             stats: ["c1": stats(rx: 10_000, tx: 10_000, read: 10_000, write: 10_000)]
         )
+        clock.advance(by: 1)
         // Counters drop below the baseline (e.g. container restart).
         tracker.update(
             history: &history,
@@ -136,10 +131,11 @@ struct MetricsRateTrackerTests {
 
     @Test("Unchanged counters yield a 0 rate")
     func zeroDeltaYieldsZeroRate() {
-        let tracker = MetricsRateTracker()
+        let (tracker, clock) = makeTracker()
         var history = AggregatedMetricsHistory()
 
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 500, tx: 500)])
+        clock.advance(by: 1)
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 500, tx: 500)])
 
         #expect(history.networkRxRate.latest == 0)
@@ -148,14 +144,16 @@ struct MetricsRateTrackerTests {
 
     @Test("reset() clears the baseline so the next call appends no rates")
     func resetClearsBaseline() {
-        let tracker = MetricsRateTracker()
+        let (tracker, clock) = makeTracker()
         var history = AggregatedMetricsHistory()
 
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 100)])
+        clock.advance(by: 1)
         tracker.update(history: &history, snapshot: snapshot, stats: ["c1": stats(rx: 200)])
         #expect(history.networkRxRate.values.count == 1)
 
         tracker.reset()
+        clock.advance(by: 1)
 
         // After reset there is no previous timestamp again, so the next call is
         // treated as a fresh baseline and appends no new rate point.
@@ -163,32 +161,24 @@ struct MetricsRateTrackerTests {
         #expect(history.networkRxRate.values.count == 1)
     }
 
-    @Test("Rates aggregate across every container in the snapshot")
-    func ratesSumAcrossContainers() throws {
-        let tracker = MetricsRateTracker()
+    @Test("Rates sum across every container in the snapshot")
+    func ratesSumAcrossContainers() {
+        let (tracker, clock) = makeTracker()
         var history = AggregatedMetricsHistory()
 
         tracker.update(
             history: &history,
             snapshot: snapshot,
-            stats: [
-                "a": stats(rx: 0, id: "a"),
-                "b": stats(rx: 0, id: "b")
-            ]
+            stats: ["a": stats(rx: 0, id: "a"), "b": stats(rx: 0, id: "b")]
         )
-        // Only container "a" moves; "b" stays flat. The tracker sums counters
-        // across containers, so a positive total delta still produces a rate.
+        clock.advance(by: 1)
+        // Both move; the tracker sums counters across containers: 2048 + 1024.
         tracker.update(
             history: &history,
             snapshot: snapshot,
-            stats: [
-                "a": stats(rx: 3000, id: "a"),
-                "b": stats(rx: 0, id: "b")
-            ]
+            stats: ["a": stats(rx: 2048, id: "a"), "b": stats(rx: 1024, id: "b")]
         )
 
-        let rx = try #require(history.networkRxRate.latest)
-        #expect(rx > 0)
-        #expect(rx.isFinite)
+        #expect(history.networkRxRate.latest == 3.0)
     }
 }
