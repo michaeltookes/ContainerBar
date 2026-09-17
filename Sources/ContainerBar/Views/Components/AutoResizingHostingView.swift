@@ -1,15 +1,23 @@
 import AppKit
 import SwiftUI
 
-/// NSHostingView subclass that automatically resizes its frame when
-/// SwiftUI content changes, and notifies the enclosing NSMenu so the
-/// menu item height updates to match.
+/// NSHostingView subclass whose height follows its SwiftUI content.
+///
+/// `sizingOptions = [.intrinsicContentSize]` makes AppKit keep
+/// `intrinsicContentSize` in step with the content's ideal size and
+/// invalidate layout when it changes. The frame is still written here rather
+/// than left to Auto Layout: a menu item view is sized from its frame, and its
+/// autoresizing-mask constraints pin that frame at required priority, so
+/// intrinsic-size constraints alone could never change the height.
 final class AutoResizingHostingView<Content: View>: NSHostingView<Content> {
+    private static var minHeight: CGFloat { 300 }
+
     private let maxHeight: CGFloat
 
     init(rootView: Content, maxHeight: CGFloat) {
         self.maxHeight = maxHeight
         super.init(rootView: rootView)
+        sizingOptions = [.intrinsicContentSize]
     }
 
     @available(*, unavailable)
@@ -25,8 +33,9 @@ final class AutoResizingHostingView<Content: View>: NSHostingView<Content> {
     override func layout() {
         super.layout()
 
-        let ideal = fittingSize.height
-        let clamped = min(max(ideal, 300), maxHeight)
+        let intrinsic = intrinsicContentSize.height
+        let ideal = intrinsic == NSView.noIntrinsicMetric ? fittingSize.height : intrinsic
+        let clamped = min(max(ideal, Self.minHeight), maxHeight)
 
         guard abs(frame.size.height - clamped) > 1 else { return }
         frame.size.height = clamped
