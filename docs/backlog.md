@@ -25,10 +25,6 @@ until the owner verifies the rule is active against `main`.
 **Priority**: Low
 **Description**: Deferred from the Feb 2026 audit (see CB-030 in resolved). Once Prowl hunts exist, add labels and focus order checks to the menu, settings, and host panel so hunts can drive the UI by accessibility identifiers rather than text.
 
-### CB-054: Adopt NSHostingView.sizingOptions in AutoResizingHostingView
-**Priority**: Low
-**Description**: Carried over from the CB-044 audit note and reaffirmed in CB-046. `AutoResizingHostingView` (`Sources/ContainerBar/Views/Components/AutoResizingHostingView.swift`) hand-rolls menu-item sizing via `layout()` + `menu.update()`; modern `NSHostingView.sizingOptions` (`.intrinsicContentSize`) can drive this natively. Works today and is covered by the Prowl `settings-window` guard, so this is a deliberate rework rather than a bug fix: change it behind the existing Prowl hunts and verify menu/popover sizing is unchanged before merging.
-
 ### CB-056: SwiftUI view-testing harness for the Dashboard and Settings view layer
 **Priority**: Low
 **Description**: Filed from the CB-047 coverage audit. The entire `Sources/ContainerBar/Views/**` tree sits at 0% line coverage (dozens of files: `DashboardMenuView`, `ContainerCardView`, `HostPanelView`, `ConnectionSettingsPane`, `SectionsSettingsPane`, `AddHostSheet`, `LogViewerWindow`, the metric gauges/bars, etc.), which is what drags the app target to 8.3% line coverage overall even though the logic layer (`Stores/`, 82% line) is well covered. There is no way to assert on view bodies today. Decide on and wire up a view-testing approach — ViewInspector for structural/state assertions, or snapshot testing for render regressions — starting with the pure presentation helpers (`ConnectionStatusPresentation`, `MetricsRateTracker`, `ContainerGroupView` grouping logic) that already have testable inputs, then the Settings panes. This is an infrastructure decision, not a matter of writing more assertions against the current untestable views; the Prowl hunts (CB-042) cover end-to-end launch smoke but not per-view logic. Pair with CB-052 (accessibility) since both touch the view layer.
