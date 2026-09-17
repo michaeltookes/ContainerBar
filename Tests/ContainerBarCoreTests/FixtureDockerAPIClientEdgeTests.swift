@@ -47,6 +47,16 @@ struct FixtureDockerAPIClientEdgeTests {
         #expect(!all.contains { $0.names.first == "/web" })
     }
 
+    @Test("An empty id matches nothing on reads or mutations")
+    func emptyIdMatchesNothing() async throws {
+        let client = FixtureDockerAPIClient()
+        await expectNotFound("getContainer with empty id") { _ = try await client.getContainer(id: "") }
+        await expectNotFound("stopContainer with empty id") {
+            try await client.stopContainer(id: "", timeout: nil)
+        }
+        #expect(try await client.getContainer(id: "web").state == .running)
+    }
+
     // MARK: - Unknown-id error paths
 
     @Test("Every operation throws notFound for an unknown id")

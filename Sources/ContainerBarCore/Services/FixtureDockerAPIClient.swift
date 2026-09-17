@@ -89,8 +89,11 @@ public actor FixtureDockerAPIClient: DockerAPIClient {
 
     /// Single id-resolution rule shared by every read and mutation path:
     /// match on exact id, id prefix, or name (`"/" + id`). First match wins.
+    /// An empty id matches nothing; otherwise it would prefix-match every
+    /// container and a mutation would silently hit the first one.
     private func findIndex(_ id: String) -> Int? {
-        containers.firstIndex { $0.id == id || $0.id.hasPrefix(id) || $0.names.contains("/" + id) }
+        guard !id.isEmpty else { return nil }
+        return containers.firstIndex { $0.id == id || $0.id.hasPrefix(id) || $0.names.contains("/" + id) }
     }
 
     private func find(_ id: String) -> DockerContainer? {
