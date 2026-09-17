@@ -46,7 +46,7 @@ public actor FixtureDockerAPIClient: DockerAPIClient {
     }
 
     public func removeContainer(id: String, force: Bool, volumes: Bool) async throws {
-        guard let index = containers.firstIndex(where: { $0.id == id || $0.names.contains("/" + id) }) else {
+        guard let index = findIndex(id) else {
             throw DockerAPIError.notFound("container \(id)")
         }
         if containers[index].state.isActive && !force {
@@ -87,12 +87,21 @@ public actor FixtureDockerAPIClient: DockerAPIClient {
 
     // MARK: - Helpers
 
+    /// Single id-resolution rule shared by every read and mutation path:
+    /// match on exact id, id prefix, or name (`"/" + id`). First match wins.
+    /// An empty id matches nothing; otherwise it would prefix-match every
+    /// container and a mutation would silently hit the first one.
+    private func findIndex(_ id: String) -> Int? {
+        guard !id.isEmpty else { return nil }
+        return containers.firstIndex { $0.id == id || $0.id.hasPrefix(id) || $0.names.contains("/" + id) }
+    }
+
     private func find(_ id: String) -> DockerContainer? {
-        containers.first { $0.id == id || $0.id.hasPrefix(id) || $0.names.contains("/" + id) }
+        findIndex(id).map { containers[$0] }
     }
 
     private func transition(_ id: String, to state: ContainerState, status: String) throws {
-        guard let index = containers.firstIndex(where: { $0.id == id || $0.names.contains("/" + id) }) else {
+        guard let index = findIndex(id) else {
             throw DockerAPIError.notFound("container \(id)")
         }
         let old = containers[index]
