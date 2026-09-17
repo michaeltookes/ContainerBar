@@ -27,4 +27,22 @@ struct UnixSocketConnectionTests {
             failed: failedConnection
         ))
     }
+
+    @Test("Start-error mapping surfaces socketNotFound only for ENOENT")
+    func mapStartErrorSurfacesSocketNotFoundForENOENT() {
+        let path = "/var/run/docker.sock"
+
+        let missing = UnixSocketConnection.mapStartError(.posix(.ENOENT), socketPath: path)
+        guard case .socketNotFound(let mappedPath) = missing else {
+            Issue.record("Expected .socketNotFound, got \(missing)")
+            return
+        }
+        #expect(mappedPath == path)
+
+        let refused = UnixSocketConnection.mapStartError(.posix(.ECONNREFUSED), socketPath: path)
+        guard case .connectionFailed = refused else {
+            Issue.record("Expected .connectionFailed for a non-ENOENT POSIX error, got \(refused)")
+            return
+        }
+    }
 }

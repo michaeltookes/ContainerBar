@@ -5,20 +5,12 @@ import Security
 
 /// Handles HTTP communication over TCP+TLS connections to remote Docker daemons
 ///
-/// Uses Network.framework NWConnection for TLS-secured TCP connections.
-/// Synchronization: `lock` protects `connection` state across connect/disconnect/send.
+/// Uses Network.framework NWConnection for TLS-secured TCP connections. The
+/// connect/disconnect/send lifecycle lives in the shared `NWConnectionTransport`;
+/// this type supplies the TLS-specific endpoint, error taxonomy, and logging.
 final class TLSConnection: @unchecked Sendable {
 
-    private let host: String
-    private let port: UInt16
-    private let tlsOptions: NWProtocolTLS.Options
-    private let logger = Logger(label: "com.containerbar.tls")
-    private let lock = NSLock()
-    private let ioGate = AsyncSerialGate()
-
-    private var connection: NWConnection?
-    private var _isConnected: Bool = false
-    private var _isConnecting: Bool = false
+    private let transport: NWConnectionTransport
 
     /// Creates a TLS connection to a remote Docker daemon
     /// - Parameters:
@@ -28,12 +20,57 @@ final class TLSConnection: @unchecked Sendable {
     ///   - clientCertPath: Path to client certificate (PEM)
     ///   - clientKeyPath: Path to client private key (PEM)
     init(host: String, port: Int = 2376, caCertPath: String?, clientCertPath: String?, clientKeyPath: String?) throws {
-        self.host = host
         guard let validatedPort = UInt16(exactly: port) else {
             throw DockerAPIError.invalidConfiguration("TLS port must be between 0 and 65535")
         }
-        self.port = validatedPort
 
+        let tlsOptions = try Self.makeTLSOptions(
+            caCertPath: caCertPath,
+            clientCertPath: clientCertPath,
+            clientKeyPath: clientKeyPath
+        )
+
+        let logger = Logger(label: "com.containerbar.tls")
+
+        self.transport = NWConnectionTransport(config: .init(
+            resolvedHost: host,
+            // TLS disconnect waits on `ioGate` (see NWConnectionTransport.disconnect).
+            disconnectWaitsForGate: true,
+            makeConnection: {
+                let nwHost = NWEndpoint.Host(host)
+                let nwPort = NWEndpoint.Port(rawValue: validatedPort)!
+                let params = NWParameters(tls: tlsOptions, tcp: .init())
+                return NWConnection(host: nwHost, port: nwPort, using: params)
+            },
+            mapStateFailure: { error in
+                DockerAPIError.tlsConnectionFailed(error.localizedDescription)
+            },
+            adoptionFailureError: {
+                DockerAPIError.tlsConnectionFailed("Connection adoption failed")
+            },
+            mapSendFailure: { error in
+                DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)")
+            },
+            logConnectionEstablished: {
+                logger.info("TLS connection established to \(host):\(validatedPort)")
+            },
+            // TLS unconditionally cleans up the current connection on failure.
+            shouldCleanupFailedConnection: nil
+        ))
+    }
+
+    deinit {
+        disconnectForTeardown()
+    }
+
+    /// Builds the TLS options, configuring the client identity and CA anchor
+    /// when provided. Throws `invalidConfiguration` for a half-specified
+    /// client identity or an unusable client certificate.
+    private static func makeTLSOptions(
+        caCertPath: String?,
+        clientCertPath: String?,
+        clientKeyPath: String?
+    ) throws -> NWProtocolTLS.Options {
         let tlsOptions = NWProtocolTLS.Options()
 
         if (clientCertPath == nil) != (clientKeyPath == nil) {
@@ -70,154 +107,33 @@ final class TLSConnection: @unchecked Sendable {
             )
         }
 
-        self.tlsOptions = tlsOptions
-    }
-
-    deinit {
-        disconnectForTeardown()
+        return tlsOptions
     }
 
     // MARK: - Connection Management
 
     func isConnectedState() async throws -> Bool {
-        try await ioGate.withExclusiveAccess {
-            lock.withLock { _isConnected }
-        }
+        try await transport.isConnectedState()
     }
 
     /// Establish the TLS connection
     func connect() async throws {
-        try await ioGate.withExclusiveAccess {
-            try await connectLocked()
-        }
+        try await transport.connect()
     }
 
     /// Close the TLS connection
     func disconnect() async throws {
-        try await ioGate.withExclusiveAccess {
-            disconnectImmediately()
-        }
+        try await transport.disconnect()
     }
 
     func disconnectForTeardown() {
-        disconnectImmediately()
-    }
-
-    private func connectLocked() async throws {
-        enum ConnectAction {
-            case start(NWConnection)
-            case wait
-            case ready
-        }
-
-        while true {
-            let action = lock.withLock { () -> ConnectAction in
-                if _isConnected {
-                    return .ready
-                }
-
-                if _isConnecting {
-                    return .wait
-                }
-
-                let nwHost = NWEndpoint.Host(host)
-                let nwPort = NWEndpoint.Port(rawValue: port)!
-                let params = NWParameters(tls: tlsOptions, tcp: .init())
-                let conn = NWConnection(host: nwHost, port: nwPort, using: params)
-                connection = conn
-                _isConnecting = true
-                return .start(conn)
-            }
-
-            switch action {
-            case .ready:
-                return
-            case .wait:
-                try await Task.sleep(for: .milliseconds(50))
-            case .start(let conn):
-                do {
-                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                        conn.stateUpdateHandler = { state in
-                            switch state {
-                            case .ready:
-                                conn.stateUpdateHandler = nil
-                                continuation.resume()
-                            case .failed(let error):
-                                conn.stateUpdateHandler = nil
-                                continuation.resume(throwing: DockerAPIError.tlsConnectionFailed(error.localizedDescription))
-                            case .cancelled:
-                                conn.stateUpdateHandler = nil
-                                continuation.resume(throwing: DockerAPIError.connectionFailed)
-                            default:
-                                break
-                            }
-                        }
-                        conn.start(queue: DispatchQueue.global(qos: .userInitiated))
-                    }
-
-                    let shouldMarkConnected = lock.withLock {
-                        guard let currentConnection = connection, currentConnection === conn else {
-                            return false
-                        }
-
-                        _isConnected = true
-                        _isConnecting = false
-                        return true
-                    }
-
-                    guard shouldMarkConnected else {
-                        conn.cancel()
-                        throw DockerAPIError.tlsConnectionFailed("Connection adoption failed")
-                    }
-
-                    logger.info("TLS connection established to \(host):\(port)")
-                    return
-                } catch {
-                    lock.withLock {
-                        connection?.cancel()
-                        connection = nil
-                        _isConnected = false
-                        _isConnecting = false
-                    }
-                    throw error
-                }
-            }
-        }
-    }
-
-    private func disconnectImmediately() {
-        lock.withLock {
-            connection?.cancel()
-            connection = nil
-            _isConnected = false
-            _isConnecting = false
-        }
+        transport.disconnectForTeardown()
     }
 
     // MARK: - HTTP Operations
 
     /// Send an HTTP request and receive the response
     func sendRequest(_ request: HTTPRequest) async throws -> HTTPResponse {
-        try await ioGate.withExclusiveAccess {
-            let conn: NWConnection? = lock.withLock { connection }
-            guard let conn else {
-                throw DockerAPIError.connectionFailed
-            }
-
-            let requestData = try request.toHTTPData(resolvedHost: host)
-
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                conn.send(content: requestData, completion: .contentProcessed { error in
-                    if let error {
-                        continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Send failed: \(error.localizedDescription)"))
-                    } else {
-                        continuation.resume()
-                    }
-                })
-            }
-
-            return try await receiveHTTPResponse(conn: conn)
-        }
+        try await transport.sendRequest(request)
     }
-
 }
