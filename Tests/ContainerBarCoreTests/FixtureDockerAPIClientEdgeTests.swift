@@ -25,8 +25,8 @@ struct FixtureDockerAPIClientEdgeTests {
         #expect(statsByPrefix.containerId == "a1f0c9e2b3d4")
     }
 
-    @Test("Lifecycle mutations resolve by full id or name but NOT by short prefix")
-    func mutationsDoNotResolveByPrefix() async throws {
+    @Test("Lifecycle mutations resolve by full id, name, and short prefix like reads")
+    func mutationsResolveByPrefixLikeReads() async throws {
         let client = FixtureDockerAPIClient()
         // By name works.
         try await client.stopContainer(id: "web", timeout: nil)
@@ -36,13 +36,15 @@ struct FixtureDockerAPIClientEdgeTests {
         try await client.startContainer(id: "a1f0c9e2b3d4")
         #expect(try await client.getContainer(id: "web").state == .running)
 
-        // By short prefix, mutation throws notFound even though reads accept it.
-        // (Documented asymmetry: transition()/removeContainer() match only
-        // exact id or name, while find() also matches a prefix.)
-        await expectNotFound("stop by short id prefix") {
-            try await client.stopContainer(id: "a1f0", timeout: nil)
-        }
-        #expect(try await client.getContainer(id: "web").state == .running)
+        // By short prefix now resolves for mutations too, matching the read path:
+        // one shared resolver matches exact id, id prefix, or name.
+        try await client.stopContainer(id: "a1f0", timeout: nil)
+        #expect(try await client.getContainer(id: "web").state == .exited)
+
+        // removeContainer also resolves by short prefix under the same rule.
+        try await client.removeContainer(id: "a1f0", force: true, volumes: false)
+        let all = try await client.listContainers(all: true)
+        #expect(!all.contains { $0.names.first == "/web" })
     }
 
     // MARK: - Unknown-id error paths
