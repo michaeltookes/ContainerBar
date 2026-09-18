@@ -144,11 +144,20 @@ struct ContainerListSection: View {
     // MARK: - Grouping Logic (using custom sections)
 
     private var groupedAndUngroupedContainers: ([ContainerGroup], [DockerContainer]) {
-        groupContainersByCustomSections(containers)
+        Self.groupContainers(containers, into: settings.sections)
     }
+}
 
-    private func groupContainersByCustomSections(_ containers: [DockerContainer]) -> ([ContainerGroup], [DockerContainer]) {
-        let customSections = settings.sections.sorted { $0.sortOrder < $1.sortOrder }
+extension ContainerListSection {
+    /// Pure grouping transform, extracted from the view so it can be unit tested
+    /// with explicit inputs. Behavior must match the previous private
+    /// implementation exactly: section order (by `sortOrder`), first-match
+    /// membership, and the sorted ungrouped remainder.
+    static func groupContainers(
+        _ containers: [DockerContainer],
+        into sections: [ContainerSection]
+    ) -> ([ContainerGroup], [DockerContainer]) {
+        let customSections = sections.sorted { $0.sortOrder < $1.sortOrder }
 
         var groups: [ContainerGroup] = []
         var assignedContainerIds: Set<String> = []
@@ -185,7 +194,7 @@ struct ContainerListSection: View {
         return (groups, ungrouped)
     }
 
-    private func sortContainers(_ containers: [DockerContainer]) -> [DockerContainer] {
+    static func sortContainers(_ containers: [DockerContainer]) -> [DockerContainer] {
         containers.sorted { lhs, rhs in
             // Running containers first, then by name
             if lhs.state == .running && rhs.state != .running { return true }

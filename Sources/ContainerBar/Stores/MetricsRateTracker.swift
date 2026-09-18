@@ -10,13 +10,20 @@ final class MetricsRateTracker {
     private var previousBlockRead: UInt64 = 0
     private var previousBlockWrite: UInt64 = 0
     private var previousTimestamp: Date?
+    private let now: () -> Date
+
+    /// - Parameter now: Clock used to measure the interval between snapshots.
+    ///   Defaults to the wall clock; tests inject a controllable one.
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
 
     func update(
         history: inout AggregatedMetricsHistory,
         snapshot: ContainerMetricsSnapshot,
         stats: [String: ContainerStats]
     ) {
-        let now = Date()
+        let now = now()
 
         history.cpu.append(snapshot.totalCPUPercent)
         history.memory.append(snapshot.memoryUsagePercent)
