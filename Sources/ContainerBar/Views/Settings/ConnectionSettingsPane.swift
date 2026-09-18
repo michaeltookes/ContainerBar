@@ -60,7 +60,7 @@ struct ConnectionSettingsPane: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(selectedHostId == nil || settings.hosts.count <= 1)
-                .accessibilityLabel("Remove Host")
+                .accessibilityLabel("Remove host")
                 .accessibilityIdentifier("removeSelectedHost")
 
                 Spacer()
@@ -154,7 +154,7 @@ struct HostDetailsView: View {
             Section {
                 LabeledContent("Name") {
                     Text(host.name)
-                        .accessibilityIdentifier("host-" + host.name.lowercased().replacingOccurrences(of: " ", with: "-"))
+                        .accessibilityIdentifier("host-" + host.name.accessibilitySlug)
                 }
 
                 LabeledContent("Runtime") {

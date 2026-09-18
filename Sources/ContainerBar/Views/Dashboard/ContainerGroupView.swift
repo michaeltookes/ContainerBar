@@ -24,12 +24,6 @@ struct ContainerGroupView: View {
 
     @State private var isExpanded = true
 
-    private var groupSlug: String {
-        group.name
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Group header
@@ -67,7 +61,7 @@ struct ContainerGroupView: View {
                     ? "Collapse \(group.name) group"
                     : "Expand \(group.name) group"
             )
-            .accessibilityIdentifier("containerGroup-\(groupSlug)")
+            .accessibilityIdentifier("containerGroup-\(group.name.accessibilitySlug)")
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
 

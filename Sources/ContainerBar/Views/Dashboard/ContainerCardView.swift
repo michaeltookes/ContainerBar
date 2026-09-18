@@ -122,9 +122,7 @@ struct ContainerCardView: View {
     }
 
     private var cardAccessibilityIdentifier: String {
-        "containerCard-" + container.displayName
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
+        "containerCard-" + container.displayName.accessibilitySlug
             .replacingOccurrences(of: "/", with: "-")
     }
 
