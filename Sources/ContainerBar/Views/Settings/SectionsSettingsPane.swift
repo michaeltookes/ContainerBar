@@ -130,7 +130,7 @@ struct SectionRow: View {
                 .help("Edit section")
                 .focused($focusedAction, equals: .edit)
                 .accessibilityLabel("Edit section \(section.name)")
-                .accessibilityIdentifier("editSection-\(section.name.accessibilitySlug)")
+                .accessibilityIdentifier(section.name.accessibilityIdentifier(prefix: "editSection", identity: section.id))
 
                 Button {
                     onDelete()
@@ -142,7 +142,7 @@ struct SectionRow: View {
                 .help("Delete section")
                 .focused($focusedAction, equals: .delete)
                 .accessibilityLabel("Delete section \(section.name)")
-                .accessibilityIdentifier("deleteSection-\(section.name.accessibilitySlug)")
+                .accessibilityIdentifier(section.name.accessibilityIdentifier(prefix: "deleteSection", identity: section.id))
             }
             .opacity(actionsAreVisible ? 1 : 0)
             .animation(.easeOut(duration: 0.15), value: actionsAreVisible)

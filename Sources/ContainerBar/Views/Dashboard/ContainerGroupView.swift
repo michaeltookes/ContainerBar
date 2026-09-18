@@ -61,7 +61,7 @@ struct ContainerGroupView: View {
                     ? "Collapse \(group.name) group, \(groupCountAccessibilityValue)"
                     : "Expand \(group.name) group, \(groupCountAccessibilityValue)"
             )
-            .accessibilityIdentifier("containerGroup-\(group.name.accessibilitySlug)")
+            .accessibilityIdentifier(group.name.accessibilityIdentifier(prefix: "containerGroup", identity: group.id))
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
 

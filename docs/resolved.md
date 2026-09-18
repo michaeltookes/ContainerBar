@@ -343,4 +343,42 @@ The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of
 
 ## ~~CB-052: Accessibility pass for VoiceOver and keyboard-only use~~
 **Resolved**: 2026-09-17 (branch accessibility-pass)
-**Description**: Labeled the icon-only interactive controls across `Sources/ContainerBar/Views/**` that previously announced nothing to VoiceOver, using the `DashboardHeaderView` house style (a human `accessibilityLabel` plus, on meaningful targets, a stable camelCase/slugged `accessibilityIdentifier`); state-dependent controls carry state-aware labels and `.isSelected` traits, and purely decorative glyphs are hidden with `.accessibilityHidden(true)`. Views touched: **QuickActionBar** (Refresh/Hosts/Logs/Settings, ids `actionBar-*`; Hosts/Logs labels reflect open/closed state), **HostPickerView** (`hostPill-<slug>`, "Switch to host <name>", `.isSelected`), **HostPanelView** (close-panel, add-remote-host, Cancel/Save form buttons, and each host row with label+value+`.isSelected`+`hostPanelRow-<slug>`; decorative connection/checkmark icons hidden), **ContainerGroupView** (state-aware "Expand/Collapse <name> group" + `containerGroup-<slug>`), **ContainerCardView** (the one unlabeled control of the five — the decorative chevron — hidden), **ActionErrorBanner** ("Dismiss error" + `dismissActionError`), **SearchBarView** and **ContainerDetailPopover** (decorative glyphs hidden), **ConnectionSettingsPane** ("Remove Host"/`removeSelectedHost`, Test Connection label+`testConnection`, decorative status glyphs hidden), **SectionsSettingsPane** (edit/delete row buttons, editor close, remove-rule button), and **LogViewerWindow** ("Refresh logs"/`refreshLogs`, decorative error glyph hidden). Changes are a11y modifiers only — no behavior, layout, or logic changed. **Prowl hunts:** `settings-add-host-sheet.yml` was switched to click Cancel by `id=cancelAddHost` (the identifier already declared on the SwiftUI Cancel button in `AddHostSheet`); `settings-window-tabs.yml` and the Connections-tab click were **left on `label=`** because the Settings tabs are native `NSToolbarItem`s with no reliably addressable AX identifier — the guardrails permit `label=` on click steps, and rewriting those to `id=` would risk breaking a passing gate hunt. **Piece 3 (keyboard focus order):** no changes made — reading the view tree, no container's tab order was obviously illogical, so no speculative `.accessibilitySortPriority` was added. Validated on the Lucius Mac mini (Xcode 26.6 / Swift 6.3.3; CI Swift 6.2 authoritative): `swift build` clean, 229/229 tests pass (unchanged — a11y modifiers add no tests), `swiftlint` exits 0 with no new warnings. **VoiceOver spoken announcements and keyboard focus order were NOT verified headlessly** — the Mac mini gives compile/unit-test/lint only, and GUI/VoiceOver/keyboard behavior cannot be exercised over SSH (TCC). The id-driven Prowl navigation is checked by the settings/menu hunts on the PR gate; the real accessibility check is a manual VoiceOver + keyboard-only pass by the owner.
+**Description**: Labeled the icon-only interactive controls across
+`Sources/ContainerBar/Views/**` that previously announced nothing to VoiceOver,
+using the `DashboardHeaderView` house style (a human `accessibilityLabel` plus,
+on meaningful targets, a stable camelCase/slugged `accessibilityIdentifier`);
+state-dependent controls carry state-aware labels and `.isSelected` traits, and
+purely decorative glyphs are hidden with `.accessibilityHidden(true)`. Views
+touched: **QuickActionBar** (Refresh/Hosts/Logs/Settings, ids `actionBar-*`;
+Hosts/Logs labels reflect open/closed state), **HostPickerView**
+(`hostPill-<slug>-<host-uuid>`, "Switch to host <name>", `.isSelected`),
+**HostPanelView** (close-panel, add-remote-host, Cancel/Save form buttons, and
+each host row with label+value+`.isSelected`+`hostPanelRow-<slug>-<host-uuid>`;
+decorative connection/checkmark icons hidden), **ContainerGroupView**
+(state-aware "Expand/Collapse <name> group, <running>/<total> running" +
+`containerGroup-<slug>-<section-uuid>`), **ContainerCardView** (the one
+unlabeled control of the five — the decorative chevron — hidden),
+**ActionErrorBanner** ("Dismiss error" + `dismissActionError`),
+**SearchBarView** and **ContainerDetailPopover** (decorative glyphs hidden),
+**ConnectionSettingsPane** ("Remove Host"/`removeSelectedHost`, Test Connection
+label+`testConnection`, decorative status glyphs hidden),
+**SectionsSettingsPane** (edit/delete row buttons with section UUID identity,
+editor close, remove-rule button), and **LogViewerWindow** ("Refresh logs"/
+`refreshLogs`, decorative error glyph hidden). Changes are a11y modifiers only
+— no behavior, layout, or logic changed. **Prowl hunts:**
+`settings-add-host-sheet.yml` keeps the Add Host sheet Cancel clicks on
+`label="Cancel"` because SwiftUI sheet action buttons expose labels more
+reliably than identifiers; the `cancelAddHost` identifier remains declared for
+manual inspection but is not claimed as PR-gate coverage. Settings toolbar tabs
+also remain on `label=` because they are native `NSToolbarItem`s with no
+reliably addressable AX identifier. **Piece 3 (keyboard focus order):** no
+changes made — reading the view tree, no container's tab order was obviously
+illogical, so no speculative `.accessibilitySortPriority` was added. Validated
+on the Lucius Mac mini (Xcode 26.6 / Swift 6.3.3; CI Swift 6.2 authoritative):
+`swift build` clean, 229/229 tests pass (unchanged — a11y modifiers add no
+tests), `swiftlint` exits 0 with no new warnings. **VoiceOver spoken
+announcements and keyboard focus order were NOT verified headlessly** — the Mac
+mini gives compile/unit-test/lint only, and GUI/VoiceOver/keyboard behavior
+cannot be exercised over SSH (TCC). The Prowl navigation checks the documented
+ID selectors plus the documented label-based exceptions; the real accessibility
+check is a manual VoiceOver + keyboard-only pass by the owner.

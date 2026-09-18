@@ -154,7 +154,7 @@ struct HostDetailsView: View {
             Section {
                 LabeledContent("Name") {
                     Text(host.name)
-                        .accessibilityIdentifier("host-" + host.name.accessibilitySlug)
+                        .accessibilityIdentifier(host.name.accessibilityIdentifier(prefix: "host", identity: host.id))
                 }
 
                 LabeledContent("Runtime") {

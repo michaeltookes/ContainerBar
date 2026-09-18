@@ -279,7 +279,7 @@ struct HostListRowView: View {
         .accessibilityLabel("Select host \(host.name)")
         .accessibilityValue(hostDescription)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier("hostPanelRow-\(host.name.accessibilitySlug)")
+        .accessibilityIdentifier(host.name.accessibilityIdentifier(prefix: "hostPanelRow", identity: host.id))
         .onHover { hovering in
             isHovered = hovering
         }

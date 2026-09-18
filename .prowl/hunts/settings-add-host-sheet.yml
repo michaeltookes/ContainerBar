@@ -21,7 +21,7 @@ steps:
       selector: label="Connections"
 
   - waitForSelector:
-      selector: id=hostRow-fixture-docker
+      selector: id=hostRow-fixture-docker-f1a7e000-0000-4000-8000-000000000001
       timeout: 10000
 
   - click:

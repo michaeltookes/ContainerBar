@@ -35,7 +35,7 @@ steps:
   # Hunt mode seeds exactly one host, named "Fixture Docker". Assertions must
   # use id= selectors; label= is only accepted on click steps.
   - assert:
-      visible: id=hostRow-fixture-docker
+      visible: id=hostRow-fixture-docker-f1a7e000-0000-4000-8000-000000000001
 
   - click:
       selector: label="About"

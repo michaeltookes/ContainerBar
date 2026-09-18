@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ContainerBar
 @testable import ContainerBarCore
@@ -11,6 +12,20 @@ struct ContainerBarTests {
         // Basic smoke test - more comprehensive tests will be added
         // once we have the actual Docker API client
         #expect(true, "ContainerBar app module compiles and links successfully")
+    }
+
+    @Test("Accessibility identifiers include readable slugs and stable identities")
+    func accessibilityIdentifiersIncludeSlugAndIdentity() throws {
+        let id = try #require(UUID(uuidString: "F1A7E000-0000-4000-8000-000000000001"))
+
+        #expect(
+            "Fixture Docker".accessibilityIdentifier(prefix: "hostRow", identity: id) ==
+                "hostRow-fixture-docker-f1a7e000-0000-4000-8000-000000000001"
+        )
+        #expect(
+            "Prod".accessibilityIdentifier(prefix: "containerGroup", identity: "ABCDEF") ==
+                "containerGroup-prod-abcdef"
+        )
     }
 
     @Test("Connection status shows connecting before the first refresh completes")
@@ -109,4 +124,3 @@ struct ContainerBarTests {
         #expect(presentation.detail == nil)
     }
 }
-
