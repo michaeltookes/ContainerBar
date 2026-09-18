@@ -12,6 +12,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.15.0"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", from: "3.1.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.10.0"),
+        // Test-only: structural inspection of SwiftUI view bodies (see docs/resolved.md CB-060).
+        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.10.3"),
     ],
     targets: [
         .executableTarget(
@@ -36,7 +38,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ContainerBarTests",
-            dependencies: ["ContainerBar", "ContainerBarCore"]
+            dependencies: ["ContainerBar", "ContainerBarCore", "ViewInspector"]
         ),
         .testTarget(
             name: "ContainerBarCoreTests",
