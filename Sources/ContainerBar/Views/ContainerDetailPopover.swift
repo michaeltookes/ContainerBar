@@ -74,6 +74,7 @@ struct ContainerDetailPopover: View {
                         Image(systemName: "arrow.right")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
                     }
                     Text("\(port.privatePort)/\(port.type)")
                         .foregroundStyle(port.publicPort != nil ? .primary : .secondary)

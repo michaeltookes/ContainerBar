@@ -36,6 +36,8 @@ struct HostPanelView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close host panel")
+                .accessibilityIdentifier("closeHostPanel")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -94,6 +96,8 @@ struct HostPanelView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add remote host")
+            .accessibilityIdentifier("addRemoteHost")
         }
         .padding(.vertical, 4)
     }
@@ -155,6 +159,7 @@ struct HostPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("hostPanelCancel")
 
                 Spacer()
 
@@ -164,6 +169,7 @@ struct HostPanelView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(!isNewHostValid)
+                .accessibilityIdentifier("hostPanelSave")
             }
 
             if let validationError {
@@ -239,6 +245,7 @@ struct HostListRowView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                     .frame(width: 20)
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(host.name)
@@ -256,6 +263,7 @@ struct HostListRowView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 16)
@@ -268,9 +276,19 @@ struct HostListRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Select host \(host.name)")
+        .accessibilityValue(hostDescription)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("hostPanelRow-\(hostSlug)")
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+
+    private var hostSlug: String {
+        host.name
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
     }
 
     private var iconName: String {

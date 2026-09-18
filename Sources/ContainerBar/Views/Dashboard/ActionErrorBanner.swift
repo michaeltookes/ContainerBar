@@ -10,6 +10,7 @@ struct ActionErrorBanner: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(.white)
+                .accessibilityHidden(true)
 
             Text(message)
                 .font(.system(size: 11))
@@ -28,6 +29,8 @@ struct ActionErrorBanner: View {
                     .foregroundStyle(.white.opacity(0.8))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss error")
+            .accessibilityIdentifier("dismissActionError")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
