@@ -32,7 +32,7 @@ steps:
       timeout: 10000
 
   - click:
-      selector: label="Cancel"
+      selector: id=cancelAddHost
 
   - click:
       selector: id=openAddHostSheet
@@ -42,7 +42,7 @@ steps:
       timeout: 10000
 
   - click:
-      selector: label="Cancel"
+      selector: id=cancelAddHost
 
   - waitForSelector:
       selector: id=settingsWindow
