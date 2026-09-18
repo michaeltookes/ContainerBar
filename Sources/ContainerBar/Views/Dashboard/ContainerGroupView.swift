@@ -58,10 +58,9 @@ struct ContainerGroupView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(
                 isExpanded
-                    ? "Collapse \(group.name) group"
-                    : "Expand \(group.name) group"
+                    ? "Collapse \(group.name) group, \(groupCountAccessibilityValue)"
+                    : "Expand \(group.name) group, \(groupCountAccessibilityValue)"
             )
-            .accessibilityValue(groupCountAccessibilityValue)
             .accessibilityIdentifier("containerGroup-\(group.name.accessibilitySlug)")
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
