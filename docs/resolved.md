@@ -1,5 +1,9 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-051: Universal binary or explicit Intel decision~~
+**Resolved**: 2026-09-18 (decision record; no code change)
+**Description**: Closed as a recorded decision rather than open work. ContainerBar ships **Apple Silicon only**: the release script produces an arm64-only binary and the Homebrew cask declares `depends_on arch: :arm64` (decision taken 2026-09-11 during the v2.0.4 release-crash follow-up, see `CLAUDE.md` Release Configuration). The item stayed in the backlog only as a reminder and carried no actionable step, so it is retired here. If Intel users ever ask, the path is known and small: build with `xcodebuild` and `ARCHS="arm64 x86_64"` from the same release script, drop the cask arch constraint, and re-run the clean-machine smoke launch on both architectures. File a new CB item at that point rather than reopening this one.
+
 ## ~~CB-059: Configure required status checks on `main`~~
 **Resolved**: 2026-09-18 (repository settings; no code change)
 **Description**: Branch protection is now active on `main` via the GitHub REST API (`PUT /repos/michaeltookes/ContainerBar/branches/main/protection`). Required status checks: **`Build & Test`**, **`SwiftLint`** (both from `swift-ci.yml`) and **`prowl-qa`** (the self-hosted Prowl QA gate on the Lucius Mac mini), with `strict: true` so a PR branch must be up to date with `main` before merging. Force pushes and branch deletion are disabled; `enforce_admins` is off so the owner keeps an override if the self-hosted runner is down; no required PR reviews. Including `prowl-qa` was a deliberate decision: on PR #53 it was the only gate that caught a broken Prowl selector that build, lint and the Claude review all passed. The trade-off is that a downed Mac mini runner blocks merges until it is restarted. Verified by reading the rule back from `GET .../branches/main/protection/required_status_checks` immediately after applying it.
