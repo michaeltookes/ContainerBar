@@ -94,6 +94,12 @@ struct SectionRow: View {
     let onDelete: () -> Void
 
     @State private var isHovered = false
+    @FocusState private var focusedAction: SectionAction?
+
+    private enum SectionAction: Hashable {
+        case edit
+        case delete
+    }
 
     var body: some View {
         HStack {
@@ -114,36 +120,42 @@ struct SectionRow: View {
 
             Spacer()
 
-            if isHovered {
-                HStack(spacing: 8) {
-                    Button {
-                        onEdit()
-                    } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Edit section")
-                    .accessibilityLabel("Edit section \(section.name)")
-                    .accessibilityIdentifier("editSection-\(section.name.accessibilitySlug)")
-
-                    Button {
-                        onDelete()
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.red)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Delete section")
-                    .accessibilityLabel("Delete section \(section.name)")
-                    .accessibilityIdentifier("deleteSection-\(section.name.accessibilitySlug)")
+            HStack(spacing: 8) {
+                Button {
+                    onEdit()
+                } label: {
+                    Image(systemName: "pencil")
                 }
+                .buttonStyle(.borderless)
+                .help("Edit section")
+                .focused($focusedAction, equals: .edit)
+                .accessibilityLabel("Edit section \(section.name)")
+                .accessibilityIdentifier("editSection-\(section.name.accessibilitySlug)")
+
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.borderless)
+                .help("Delete section")
+                .focused($focusedAction, equals: .delete)
+                .accessibilityLabel("Delete section \(section.name)")
+                .accessibilityIdentifier("deleteSection-\(section.name.accessibilitySlug)")
             }
+            .opacity(actionsAreVisible ? 1 : 0)
+            .animation(.easeOut(duration: 0.15), value: actionsAreVisible)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+
+    private var actionsAreVisible: Bool {
+        isHovered || focusedAction != nil
     }
 }
 

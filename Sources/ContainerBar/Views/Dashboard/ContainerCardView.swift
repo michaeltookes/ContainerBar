@@ -9,6 +9,7 @@ struct ContainerCardView: View {
 
     @State private var isHovered = false
     @State private var showDetailPopover = false
+    @FocusState private var isQuickActionFocused: Bool
 
     var body: some View {
         HStack(spacing: 10) {
@@ -86,15 +87,18 @@ struct ContainerCardView: View {
             }
 
             // Quick action button (visible on hover) or chevron
-            if isHovered {
-                quickActionButton
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            } else {
+            ZStack {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
+                    .opacity(quickActionIsVisible ? 0 : 1)
                     .accessibilityHidden(true)
+
+                quickActionButton
+                    .opacity(quickActionIsVisible ? 1 : 0)
+                    .animation(.easeOut(duration: 0.15), value: quickActionIsVisible)
             }
+            .frame(width: 24, height: 24)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -119,6 +123,10 @@ struct ContainerCardView: View {
             ContainerDetailPopover(container: container, stats: stats)
         }
         .accessibilityIdentifier(cardAccessibilityIdentifier)
+    }
+
+    private var quickActionIsVisible: Bool {
+        isHovered || isQuickActionFocused
     }
 
     private var cardAccessibilityIdentifier: String {
@@ -178,6 +186,7 @@ struct ContainerCardView: View {
             }
             .buttonStyle(.plain)
             .help("Stop container")
+            .focused($isQuickActionFocused)
             .accessibilityLabel("Stop container \(container.displayName)")
 
         case .paused:
@@ -215,6 +224,7 @@ struct ContainerCardView: View {
             }
             .buttonStyle(.plain)
             .help("Start container")
+            .focused($isQuickActionFocused)
             .accessibilityLabel("Start container \(container.displayName)")
         }
     }

@@ -61,6 +61,7 @@ struct ContainerGroupView: View {
                     ? "Collapse \(group.name) group"
                     : "Expand \(group.name) group"
             )
+            .accessibilityValue(groupCountAccessibilityValue)
             .accessibilityIdentifier("containerGroup-\(group.name.accessibilitySlug)")
             .padding(.vertical, 8)
             .padding(.horizontal, 4)
@@ -80,6 +81,11 @@ struct ContainerGroupView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+    }
+
+    private var groupCountAccessibilityValue: String {
+        let containerLabel = group.totalCount == 1 ? "container" : "containers"
+        return "\(group.runningCount) of \(group.totalCount) \(containerLabel) running"
     }
 }
 

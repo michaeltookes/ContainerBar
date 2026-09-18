@@ -64,11 +64,15 @@ struct AddHostSheet: View {
 
             VStack(spacing: 8) {
                 HStack {
-                    Button("Cancel") {
+                    Button {
                         validationError = nil
                         dismiss()
+                    } label: {
+                        Text("Cancel")
+                            .accessibilityIdentifier("cancelAddHostLabel")
                     }
                     .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Cancel")
                     .accessibilityIdentifier("cancelAddHost")
 
                     Spacer()
