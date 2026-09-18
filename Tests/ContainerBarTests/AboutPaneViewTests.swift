@@ -7,8 +7,10 @@ import ViewInspector
 ///
 /// `AboutPane` takes no environment and holds no mutable state, so these tests
 /// assert the structure the body promises: the version line carries its
-/// accessibility identifier and the real bundle version string, both external
-/// links render, and the update action is present. Kept `@MainActor` for
+/// accessibility identifier and is formatted from `Bundle.main` (under
+/// `swift test` that is the test runner's bundle, so the view's fallback
+/// values are what get exercised), both external links render, and the update
+/// action is present. Kept `@MainActor` for
 /// consistency with the rest of the settings-pane view suite.
 @MainActor
 @Suite("AboutPane view body")
@@ -25,8 +27,8 @@ struct AboutPaneViewTests {
         let versionText = try pane.find(viewWithAccessibilityIdentifier: "aboutVersion").text().string()
         #expect(versionText.hasPrefix("Version "))
 
-        // The label interpolates the live bundle version and build number; assert
-        // it reflects those rather than a hardcoded string.
+        // The label interpolates `Bundle.main`'s version and build number with the
+        // same fallbacks the view uses; assert the format, not a hardcoded string.
         let expectedVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let expectedBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         #expect(versionText == "Version \(expectedVersion) (\(expectedBuild))")

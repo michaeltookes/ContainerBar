@@ -10,10 +10,11 @@ import ViewInspector
 /// connection type, …) with no external injection point. ViewInspector can read
 /// and assert the *initial* rendered state without hosting, but mutating that
 /// `@State` from a test — typing into a field, switching the connection-type
-/// picker — requires `ViewHosting`, which needs a live AppKit window server and
-/// is therefore not available on the headless CI/QA runners this project builds
-/// on. Adding an inspection hook to the view was disallowed for this branch
-/// (only accessibility-identifier additions were permitted), so:
+/// picker — requires `ViewHosting` plus an inspection hook on the view, and
+/// this project validates `swift test` over SSH on the QA Mac mini where no
+/// window server is available. Adding an inspection hook to the view was
+/// disallowed for this branch (only accessibility-identifier additions were
+/// permitted), so:
 ///
 ///   - The *disabled* direction of "Save is disabled until the form is valid" is
 ///     asserted here from the empty initial state (the SSH default requires a
