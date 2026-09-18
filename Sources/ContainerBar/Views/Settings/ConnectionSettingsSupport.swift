@@ -20,7 +20,7 @@ struct HostRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(host.name)
-                        .accessibilityIdentifier("hostRow-" + host.name.lowercased().replacingOccurrences(of: " ", with: "-"))
+                        .accessibilityIdentifier(host.name.accessibilityIdentifier(prefix: "hostRow", identity: host.id))
                         .lineLimit(1)
 
                     Text(host.runtime.displayName)

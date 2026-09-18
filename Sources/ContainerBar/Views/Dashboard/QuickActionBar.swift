@@ -14,6 +14,8 @@ struct QuickActionBar: View {
             ActionBarButton(
                 title: "Refresh",
                 icon: "arrow.clockwise",
+                accessibilityLabel: "Refresh containers",
+                accessibilityIdentifier: "actionBar-refresh",
                 action: onRefresh
             )
             .frame(maxWidth: .infinity)
@@ -25,6 +27,8 @@ struct QuickActionBar: View {
                 title: "Hosts",
                 icon: "server.rack",
                 isActive: isHostsActive,
+                accessibilityLabel: isHostsActive ? "Hide hosts panel" : "Show hosts panel",
+                accessibilityIdentifier: "actionBar-hosts",
                 action: onHosts
             )
             .frame(maxWidth: .infinity)
@@ -36,6 +40,8 @@ struct QuickActionBar: View {
                 title: "Logs",
                 icon: "doc.text",
                 isActive: isLogsActive,
+                accessibilityLabel: isLogsActive ? "Hide logs panel" : "Show logs panel",
+                accessibilityIdentifier: "actionBar-logs",
                 action: onLogs
             )
             .frame(maxWidth: .infinity)
@@ -46,6 +52,8 @@ struct QuickActionBar: View {
             ActionBarButton(
                 title: "Settings",
                 icon: "gear",
+                accessibilityLabel: "Open settings",
+                accessibilityIdentifier: "actionBar-settings",
                 action: onSettings
             )
             .frame(maxWidth: .infinity)
@@ -60,6 +68,10 @@ struct ActionBarButton: View {
     let title: String
     let icon: String
     var isActive: Bool = false
+    /// Human phrase announced by VoiceOver; falls back to the visible title.
+    var accessibilityLabel: String = ""
+    /// Stable identifier for UI automation (Prowl hunts); independent of the label.
+    var accessibilityIdentifier: String = ""
     let action: () -> Void
 
     @State private var isHovered = false
@@ -82,6 +94,8 @@ struct ActionBarButton: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel.isEmpty ? title : accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.1)) {
                 isHovered = hovering

@@ -61,6 +61,9 @@ private struct HostPillButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? .primary : .secondary)
+        .accessibilityLabel("Switch to host \(host.name)")
+        .accessibilityIdentifier(host.name.accessibilityIdentifier(prefix: "hostPill", identity: host.id))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var runtimeColor: Color {

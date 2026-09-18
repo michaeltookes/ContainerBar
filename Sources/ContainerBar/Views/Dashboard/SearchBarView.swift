@@ -11,6 +11,7 @@ struct SearchBarView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             TextField("Search containers...", text: $searchText)
                 .textFieldStyle(.plain)

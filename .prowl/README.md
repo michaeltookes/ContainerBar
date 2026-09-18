@@ -63,9 +63,11 @@ window. Do not upload screenshots without a dedicated QA login on the runner.
 - `id=<axIdentifier>` — accessibility identifier; the header buttons expose
   `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`; the settings
   window exposes `settingsWindow`; pane contents expose
-  `refreshIntervalPicker`, `sectionsIntro`, `hostRow-<name-slug>` in the host
-  list (for example `hostRow-fixture-docker`), `openAddHostSheet`,
-  `addHostSheet`, `cancelAddHost`, `host-<name-slug>` in the host detail form,
+  `refreshIntervalPicker`, `sectionsIntro`,
+  `hostRow-<name-slug>-<host-uuid>` in the host list (for example
+  `hostRow-fixture-docker-f1a7e000-0000-4000-8000-000000000001`),
+  `openAddHostSheet`, `addHostSheet`, `cancelAddHost`,
+  `host-<name-slug>-<host-uuid>` in the host detail form,
   `containerCard-<name-slug>` in the dashboard, and `aboutVersion`
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every
