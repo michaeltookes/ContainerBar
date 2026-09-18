@@ -4,17 +4,6 @@ Prioritized list of planned features, improvements, and technical debt for Conta
 
 Item ids are stable `CB-NNN` numbers and are never reused. Completed items move to [`docs/resolved.md`](resolved.md).
 
-## Medium Priority
-
-### CB-059: Configure required status checks on `main`
-**Priority**: Medium
-**Description**: Follow-up from CB-050 / PR #47. Configure GitHub branch
-protection or a repository ruleset for `main` so the Swift CI jobs (`Build &
-Test` and `SwiftLint`) and `Prowl QA` must pass before merge. This remains a
-manual owner action because required-check enforcement lives in GitHub
-repository settings rather than committed workflow files. Keep this item open
-until the owner verifies the rule is active against `main`.
-
 ## Low Priority
 
 ### CB-051: Universal binary or explicit Intel decision
