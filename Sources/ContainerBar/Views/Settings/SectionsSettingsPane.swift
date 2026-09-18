@@ -95,6 +95,12 @@ struct SectionRow: View {
 
     @State private var isHovered = false
 
+    private var sectionSlug: String {
+        section.name
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -123,6 +129,8 @@ struct SectionRow: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Edit section")
+                    .accessibilityLabel("Edit section \(section.name)")
+                    .accessibilityIdentifier("editSection-\(sectionSlug)")
 
                     Button {
                         onDelete()
@@ -132,6 +140,8 @@ struct SectionRow: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Delete section")
+                    .accessibilityLabel("Delete section \(section.name)")
+                    .accessibilityIdentifier("deleteSection-\(sectionSlug)")
                 }
             }
         }
@@ -187,6 +197,8 @@ struct SectionEditorSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+                .accessibilityIdentifier("closeSectionEditor")
             }
             .padding()
 
@@ -294,6 +306,7 @@ struct MatchRuleRow: View {
                     .foregroundStyle(.red)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove matching rule")
         }
     }
 }

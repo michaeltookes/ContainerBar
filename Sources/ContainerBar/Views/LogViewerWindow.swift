@@ -82,6 +82,8 @@ struct LogViewerView: View {
             .buttonStyle(.bordered)
             .disabled(isLoading)
             .keyboardShortcut("r", modifiers: .command)
+            .accessibilityLabel(isLoading ? "Loading logs" : "Refresh logs")
+            .accessibilityIdentifier("refreshLogs")
         }
     }
 
@@ -115,6 +117,7 @@ struct LogViewerView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 32))
                 .foregroundStyle(.red)
+                .accessibilityHidden(true)
             Text("Failed to load logs")
                 .font(.headline)
             Text(message)

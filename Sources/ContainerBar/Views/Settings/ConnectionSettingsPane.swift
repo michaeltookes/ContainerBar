@@ -60,6 +60,8 @@ struct ConnectionSettingsPane: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(selectedHostId == nil || settings.hosts.count <= 1)
+                .accessibilityLabel("Remove Host")
+                .accessibilityIdentifier("removeSelectedHost")
 
                 Spacer()
             }
@@ -208,6 +210,8 @@ struct HostDetailsView: View {
                         }
                     }
                     .disabled(isTestingConnection)
+                    .accessibilityLabel(isTestingConnection ? "Testing connection" : "Test connection")
+                    .accessibilityIdentifier("testConnection")
 
                     if let result = testResult {
                         testResultView(result)
@@ -222,6 +226,7 @@ struct HostDetailsView: View {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
+                            .accessibilityHidden(true)
                         Text("Currently Active")
                             .foregroundStyle(.secondary)
                     }
@@ -240,6 +245,7 @@ struct HostDetailsView: View {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
+                    .accessibilityHidden(true)
                 Text("Connected")
                     .foregroundStyle(.green)
             }
@@ -247,6 +253,7 @@ struct HostDetailsView: View {
             HStack(spacing: 4) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
+                    .accessibilityHidden(true)
                 Text(message)
                     .foregroundStyle(.red)
                     .lineLimit(2)
