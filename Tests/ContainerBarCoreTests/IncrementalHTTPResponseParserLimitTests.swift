@@ -174,4 +174,62 @@ struct IncrementalHTTPResponseParserLimitTests {
         let error = captureError([Data(raw.utf8)])
         #expect(isInvalidResponse(error))
     }
+
+    // MARK: - Chunk-size overflow / declared-size body cap (CB-063)
+
+    @Test("Chunk-size line at Int.max is rejected without trapping")
+    func chunkSizeAtIntMaxRejectedNoTrap() {
+        // `7fffffffffffffff` == Int.max. Before the fix, `chunkSize + lineSeparator.count`
+        // overflowed Int and trapped (crashing the process). It must now be rejected
+        // by the declared-size body-budget guard as a thrown DockerAPIError instead.
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 1024)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n7fffffffffffffff\r\n"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isConnectionFailed(error, containing: "HTTP response body exceeded"))
+    }
+
+    @Test("Chunk-size line above Int.max is rejected as invalidResponse")
+    func chunkSizeAboveIntMaxRejected() {
+        // `ffffffffffffffff` exceeds UInt64(Int.max); caught by the existing guard
+        // in scanChunkSize before it ever reaches the body-budget check.
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 1024)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\n"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isInvalidResponse(error))
+    }
+
+    @Test("Single oversized chunk is rejected on the size line, before its payload is buffered")
+    func oversizedChunkRejectedBeforeBuffering() {
+        // maxBodySize 1024; the chunk declares 0x2000 == 8192 bytes. Feed only the
+        // size line plus a few payload bytes — far fewer than the declared size.
+        // The cap must fire on the declared size, not on the buffered bytes, so the
+        // parse throws without ever seeing the full 8192-byte payload.
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 1024)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2000\r\nabc"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isConnectionFailed(error, containing: "HTTP response body exceeded"))
+    }
+
+    @Test("Cumulative in-budget chunks are rejected at the chunk that crosses the cap")
+    func cumulativeChunksOverCapRejected() {
+        // maxBodySize 12. Three 5-byte chunks: 5 + 5 = 10 (ok), the third crosses 12.
+        // Guards the `remaining = maxBodySize - decodedTotal` subtraction and the
+        // loop invariant that decodedTotal never exceeds maxBodySize.
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 12)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+            + "5\r\nhello\r\n5\r\nworld\r\n5\r\nagain\r\n0\r\n\r\n"
+        let error = captureError([Data(raw.utf8)], parser: &parser)
+        #expect(isConnectionFailed(error, containing: "HTTP response body exceeded"))
+    }
+
+    @Test("Normal multi-chunk body under the cap still decodes to the assembled bytes")
+    func multiChunkUnderCapStillDecodes() throws {
+        var parser = IncrementalHTTPResponseParser(maxBodySize: 1024)
+        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+            + "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n"
+        parser.append(Data(raw.utf8))
+        let response = try parser.parse()
+        #expect(response?.statusCode == 200)
+        #expect(response?.body == Data("hello world".utf8))
+    }
 }
