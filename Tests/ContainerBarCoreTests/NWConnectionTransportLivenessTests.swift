@@ -51,6 +51,9 @@ struct NWConnectionTransportLivenessTests {
         }
         let elapsed = Date().timeIntervalSince(start)
         #expect(elapsed < 4.0, "request should time out near the 0.2s deadline, took \(elapsed)s")
+        // The deadline cancelled the connection, so the transport must not
+        // still claim to be connected — the next request should reconnect.
+        #expect(try await transport.isConnectedState() == false)
     }
 
     // MARK: - Test 2: connect fast-fail (proves .waiting handling + connect bound)

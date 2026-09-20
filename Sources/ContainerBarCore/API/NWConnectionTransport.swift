@@ -269,18 +269,25 @@ final class NWConnectionTransport: @unchecked Sendable {
             // forever behind `ioGate`; on expiry the deadline cancels `conn`,
             // which fails the pending send/receive callback, and throws
             // `DockerAPIError.networkTimeout`.
-            return try await withDeadline(seconds: self.config.requestTimeout, connection: conn) {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    conn.send(content: requestData, completion: .contentProcessed { error in
-                        if let error {
-                            continuation.resume(throwing: mapSendFailure(error))
-                        } else {
-                            continuation.resume()
-                        }
-                    })
-                }
+            do {
+                return try await withDeadline(seconds: self.config.requestTimeout, connection: conn) {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        conn.send(content: requestData, completion: .contentProcessed { error in
+                            if let error {
+                                continuation.resume(throwing: mapSendFailure(error))
+                            } else {
+                                continuation.resume()
+                            }
+                        })
+                    }
 
-                return try await receiveHTTPResponse(conn: conn)
+                    return try await receiveHTTPResponse(conn: conn)
+                }
+            } catch DockerAPIError.networkTimeout {
+                // The deadline cancelled `conn`; drop it now so the next request
+                // reconnects instead of failing once on a dead connection.
+                self.cleanUpFailedConnection(conn)
+                throw DockerAPIError.networkTimeout
             }
         }
     }
