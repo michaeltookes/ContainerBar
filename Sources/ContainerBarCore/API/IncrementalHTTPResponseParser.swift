@@ -170,6 +170,18 @@ struct IncrementalHTTPResponseParser {
                 return try scanChunkedTrailers(in: data)
             }
 
+            // Enforce the body cap against the DECLARED chunk size before buffering
+            // its payload. `decodedTotal <= maxBodySize` holds by loop invariant, so
+            // `remaining` is non-negative. Rejecting oversized declarations here both
+            // stops an over-cap chunk from accumulating in the buffer and keeps the
+            // `need = chunkSize + lineSeparator.count` addition below far from
+            // Int.max — a chunk-size line of `7fffffffffffffff` is rejected here
+            // instead of overflowing (and trapping) when `need` is computed.
+            let remaining = maxBodySize - decodedTotal
+            guard chunkSize <= remaining else {
+                throw DockerAPIError.tlsConnectionFailed("HTTP response body exceeded \(maxBodySize) bytes")
+            }
+
             let need = chunkSize + Self.lineSeparator.count
             guard data.distance(from: cursor, to: data.endIndex) >= need else {
                 return nil
