@@ -32,6 +32,8 @@ final class TLSConnection: @unchecked Sendable {
 
         let logger = Logger(label: "com.containerbar.tls")
 
+        let connectTimeout = Self.connectTimeout
+
         self.transport = NWConnectionTransport(config: .init(
             resolvedHost: host,
             // TLS disconnect waits on `ioGate` (see NWConnectionTransport.disconnect).
@@ -39,7 +41,12 @@ final class TLSConnection: @unchecked Sendable {
             makeConnection: {
                 let nwHost = NWEndpoint.Host(host)
                 let nwPort = NWEndpoint.Port(rawValue: validatedPort)!
-                let params = NWParameters(tls: tlsOptions, tcp: .init())
+                // OS-level TCP connect timeout: defense-in-depth behind the
+                // app-level deadline so even the kernel forces a bounded
+                // `.failed`/`.waiting` transition instead of retrying forever.
+                let tcpOptions = NWProtocolTCP.Options()
+                tcpOptions.connectionTimeout = Int(connectTimeout)
+                let params = NWParameters(tls: tlsOptions, tcp: tcpOptions)
                 return NWConnection(host: nwHost, port: nwPort, using: params)
             },
             mapStateFailure: { error in
@@ -55,9 +62,21 @@ final class TLSConnection: @unchecked Sendable {
                 logger.info("TLS connection established to \(host):\(validatedPort)")
             },
             // TLS unconditionally cleans up the current connection on failure.
-            shouldCleanupFailedConnection: nil
+            shouldCleanupFailedConnection: nil,
+            connectTimeout: connectTimeout,
+            requestTimeout: Self.requestTimeout
         ))
     }
+
+    /// App-level connect deadline; also drives the OS-level TCP
+    /// `connectionTimeout`. Handshaking to a remote TLS daemon over a LAN/VPN
+    /// can be slow, so 15 s is generous while still failing a wrong port or a
+    /// sleeping host well before it wedges the polling refresh loop.
+    private static let connectTimeout: TimeInterval = 15
+    /// App-level request deadline: comfortably above a normal Docker
+    /// list/inspect round-trip while still bounding a daemon that accepts the
+    /// connection and then never replies.
+    private static let requestTimeout: TimeInterval = 30
 
     deinit {
         disconnectForTeardown()
