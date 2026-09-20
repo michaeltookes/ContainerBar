@@ -288,6 +288,15 @@ final class NWConnectionTransport: @unchecked Sendable {
                 // reconnects instead of failing once on a dead connection.
                 self.cleanUpFailedConnection(conn)
                 throw DockerAPIError.networkTimeout
+            } catch is CancellationError {
+                self.cleanUpFailedConnection(conn)
+                throw CancellationError()
+            } catch {
+                if Task.isCancelled {
+                    self.cleanUpFailedConnection(conn)
+                    throw CancellationError()
+                }
+                throw error
             }
         }
     }

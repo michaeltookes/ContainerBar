@@ -17,6 +17,9 @@ import Network
 ///   surfaces its own `DockerAPIError`, not a timeout);
 /// - if the sleep wins, `connection.cancel()` unblocks the pending continuation
 ///   and the helper throws `DockerAPIError.networkTimeout`.
+/// - if the caller cancels the parent task, `connection.cancel()` runs before
+///   the task group unwinds so the pending Network continuation cannot wedge the
+///   group.
 ///
 /// Structured concurrency guarantees the group awaits the now-cancelled
 /// `operation` child before returning, and `connection.cancel()` guarantees that
@@ -26,28 +29,47 @@ func withDeadline<T: Sendable>(
     connection: NWConnection,
     operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
-    try await withThrowingTaskGroup(of: DeadlineOutcome<T>.self) { group in
-        group.addTask {
-            .completed(try await operation())
-        }
-        group.addTask {
-            try await Task.sleep(for: .seconds(seconds))
-            return .timedOut
-        }
-        defer { group.cancelAll() }
+    let canceller = DeadlineConnectionCanceller(connection: connection)
 
-        while let outcome = try await group.next() {
-            switch outcome {
-            case .completed(let value):
-                return value
-            case .timedOut:
-                connection.cancel()
-                throw DockerAPIError.networkTimeout
+    return try await withTaskCancellationHandler {
+        try await withThrowingTaskGroup(of: DeadlineOutcome<T>.self) { group in
+            group.addTask {
+                .completed(try await operation())
             }
-        }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                return .timedOut
+            }
+            defer { group.cancelAll() }
 
-        // The group always yields at least one outcome before finishing.
-        throw DockerAPIError.networkTimeout
+            do {
+                while let outcome = try await group.next() {
+                    if Task.isCancelled {
+                        canceller.cancel()
+                        throw CancellationError()
+                    }
+
+                    switch outcome {
+                    case .completed(let value):
+                        return value
+                    case .timedOut:
+                        canceller.cancel()
+                        throw DockerAPIError.networkTimeout
+                    }
+                }
+            } catch {
+                if error is CancellationError || Task.isCancelled {
+                    canceller.cancel()
+                    throw CancellationError()
+                }
+                throw error
+            }
+
+            // The group always yields at least one outcome before finishing.
+            throw DockerAPIError.networkTimeout
+        }
+    } onCancel: {
+        canceller.cancel()
     }
 }
 
@@ -55,4 +77,12 @@ func withDeadline<T: Sendable>(
 private enum DeadlineOutcome<T: Sendable>: Sendable {
     case completed(T)
     case timedOut
+}
+
+private struct DeadlineConnectionCanceller: @unchecked Sendable {
+    let connection: NWConnection
+
+    func cancel() {
+        connection.cancel()
+    }
 }

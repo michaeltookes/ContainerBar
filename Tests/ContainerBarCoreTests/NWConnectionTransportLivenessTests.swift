@@ -11,8 +11,9 @@ import Testing
 /// machinery `TLSConnection`/`UnixSocketConnection` wrap, minus TLS/Unix
 /// specifics) is pointed at the listener with injected tiny timeouts so the
 /// deadline fires in milliseconds. Every awaited transport call is additionally
-/// wrapped in `withTestTimeout` so a regression that reintroduces the hang fails
-/// the test instead of hanging the whole `swift test` run.
+/// wrapped in `withTestTimeout` with an explicit transport teardown so a
+/// regression that reintroduces the hang fails the test instead of hanging the
+/// whole `swift test` run.
 @Suite("NWConnectionTransport Liveness Tests")
 struct NWConnectionTransportLivenessTests {
 
@@ -32,11 +33,13 @@ struct NWConnectionTransportLivenessTests {
         )
         defer { transport.disconnectForTeardown() }
 
-        try await withTestTimeout(5.0) { try await transport.connect() }
+        try await Self.awaitTransport(transport) {
+            try await transport.connect()
+        }
 
         let start = Date()
         do {
-            _ = try await withTestTimeout(5.0) {
+            _ = try await Self.awaitTransport(transport) {
                 try await transport.sendRequest(HTTPRequest(method: "GET", path: "/_ping"))
             }
             Issue.record("Expected a networkTimeout but sendRequest returned a response")
@@ -56,7 +59,52 @@ struct NWConnectionTransportLivenessTests {
         #expect(try await transport.isConnectedState() == false)
     }
 
-    // MARK: - Test 2: connect fast-fail (proves .waiting handling + connect bound)
+    // MARK: - Test 2: parent cancellation cancels the underlying NWConnection
+
+    @Test("Cancelling a pending request tears down the connection")
+    func cancellingPendingRequestTearsDownConnection() async throws {
+        let server = try InProcessTCPServer(behavior: .blackHole)
+        let port = try await server.start()
+        defer { server.stop() }
+
+        let transport = Self.makeTCPTransport(
+            host: "127.0.0.1",
+            port: port,
+            connectTimeout: 2.0,
+            requestTimeout: 30.0
+        )
+        defer { transport.disconnectForTeardown() }
+
+        try await Self.awaitTransport(transport) {
+            try await transport.connect()
+        }
+
+        let requestTask = Task {
+            try await transport.sendRequest(HTTPRequest(method: "GET", path: "/_ping"))
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        requestTask.cancel()
+
+        do {
+            _ = try await withTestTimeout(
+                5.0,
+                onTimeout: {
+                    requestTask.cancel()
+                    transport.disconnectForTeardown()
+                },
+                operation: {
+                    try await requestTask.value
+                }
+            )
+            Issue.record("Expected cancellation to propagate from sendRequest")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        #expect(try await transport.isConnectedState() == false)
+    }
+
+    // MARK: - Test 3: connect fast-fail (proves .waiting handling + connect bound)
 
     @Test("Connect to a refused endpoint fails fast instead of hanging")
     func connectToRefusedPortFailsFast() async throws {
@@ -80,7 +128,9 @@ struct NWConnectionTransportLivenessTests {
 
         let start = Date()
         do {
-            try await withTestTimeout(5.0) { try await transport.connect() }
+            try await Self.awaitTransport(transport) {
+                try await transport.connect()
+            }
             Issue.record("Expected connect to fail against a port with no listener")
         } catch is DockerAPIError {
             // Any DockerAPIError is acceptable: the `.waiting` handler maps the
@@ -93,7 +143,7 @@ struct NWConnectionTransportLivenessTests {
         #expect(elapsed < 4.0, "connect should fail promptly (not hang), took \(elapsed)s")
     }
 
-    // MARK: - Test 3: happy path (deadline does not fire on a fast response)
+    // MARK: - Test 4: happy path (deadline does not fire on a fast response)
 
     @Test("Healthy fast response is parsed and returned without a timeout")
     func happyPathReturnsParsedResponse() async throws {
@@ -110,9 +160,11 @@ struct NWConnectionTransportLivenessTests {
         )
         defer { transport.disconnectForTeardown() }
 
-        try await withTestTimeout(5.0) { try await transport.connect() }
+        try await Self.awaitTransport(transport) {
+            try await transport.connect()
+        }
 
-        let response = try await withTestTimeout(5.0) {
+        let response = try await Self.awaitTransport(transport) {
             try await transport.sendRequest(HTTPRequest(method: "GET", path: "/_ping"))
         }
 
@@ -121,6 +173,13 @@ struct NWConnectionTransportLivenessTests {
     }
 
     // MARK: - Helpers
+
+    private static func awaitTransport<T: Sendable>(
+        _ transport: NWConnectionTransport,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withTestTimeout(5.0, onTimeout: { transport.disconnectForTeardown() }, operation: operation)
+    }
 
     /// Builds a plain-TCP `NWConnectionTransport` with injectable deadlines — the
     /// same shared machinery the two production transports wrap, with a trivial
@@ -157,7 +216,8 @@ struct NWConnectionTransportLivenessTests {
 /// test) rather than hanging the entire `swift test` run.
 private func withTestTimeout<T: Sendable>(
     _ seconds: Double,
-    _ operation: @escaping @Sendable () async throws -> T
+    onTimeout: @escaping @Sendable () -> Void = {},
+    operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await operation() }
@@ -166,10 +226,18 @@ private func withTestTimeout<T: Sendable>(
             throw TestTimeoutError()
         }
         defer { group.cancelAll() }
-        guard let result = try await group.next() else {
-            throw TestTimeoutError()
+
+        do {
+            guard let result = try await group.next() else {
+                throw TestTimeoutError()
+            }
+            return result
+        } catch {
+            if error is TestTimeoutError {
+                onTimeout()
+            }
+            throw error
         }
-        return result
     }
 }
 
