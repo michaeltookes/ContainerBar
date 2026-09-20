@@ -14,6 +14,10 @@ func receiveHTTPResponse(conn: NWConnection) async throws -> HTTPResponse {
     var parser = IncrementalHTTPResponseParser()
 
     while true {
+        // Honor Task cancellation so a cancelled parent (the request deadline
+        // cancelling `conn` is the primary unblock, but also an explicitly
+        // cancelled refresh) stops the receive loop instead of spinning.
+        try Task.checkCancellation()
         let chunk = try await receiveChunk(conn: conn, length: 8192)
 
         if chunk.isEmpty {
@@ -28,7 +32,12 @@ func receiveHTTPResponse(conn: NWConnection) async throws -> HTTPResponse {
 }
 
 func receiveChunk(conn: NWConnection, length: Int) async throws -> Data {
-    try await withCheckedThrowingContinuation { continuation in
+    // `conn.receive`'s completion handler is not Task-cancellable; a pending
+    // read is unblocked by cancelling `conn` (the request deadline does this).
+    // This top-of-call check additionally short-circuits an already-cancelled
+    // Task before starting another read.
+    try Task.checkCancellation()
+    return try await withCheckedThrowingContinuation { continuation in
         conn.receive(minimumIncompleteLength: 1, maximumLength: length) { data, _, _, error in
             if let error {
                 continuation.resume(throwing: DockerAPIError.tlsConnectionFailed("Receive failed: \(error.localizedDescription)"))
