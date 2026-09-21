@@ -174,7 +174,8 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let request = HTTPRequest(
             method: "POST",
             path: path,
-            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout)
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout),
+            disablesRequestTimeout: Self.lifecycleActionDisablesRequestTimeout(for: timeout)
         )
         let response = try await performRequest(request)
 
@@ -193,7 +194,8 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let request = HTTPRequest(
             method: "POST",
             path: path,
-            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout)
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout),
+            disablesRequestTimeout: Self.lifecycleActionDisablesRequestTimeout(for: timeout)
         )
         let response = try await performRequest(request)
 
@@ -256,5 +258,9 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             return nil
         }
         return TimeInterval(dockerTimeout) + lifecycleActionResponseGrace
+    }
+
+    static func lifecycleActionDisablesRequestTimeout(for dockerTimeout: Int?) -> Bool {
+        dockerTimeout == -1
     }
 }

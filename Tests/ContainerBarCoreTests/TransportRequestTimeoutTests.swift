@@ -14,6 +14,18 @@ struct TransportRequestTimeoutTests {
         )
 
         #expect(request.minimumRequestTimeout == 70)
+        #expect(request.disablesRequestTimeout == false)
+    }
+
+    @Test("HTTPRequest can disable the request timeout")
+    func httpRequestCanDisableRequestTimeout() {
+        let request = HTTPRequest(
+            method: "POST",
+            path: "/v1.43/containers/abc/stop?t=-1",
+            disablesRequestTimeout: true
+        )
+
+        #expect(request.disablesRequestTimeout)
     }
 
     @Test("Lifecycle actions request enough time for Docker timeout plus response grace")
@@ -24,6 +36,10 @@ struct TransportRequestTimeoutTests {
         #expect(longTimeout ?? 0 > 60)
         #expect(DockerAPIClientImpl.lifecycleActionMinimumRequestTimeout(for: nil) == nil)
         #expect(DockerAPIClientImpl.lifecycleActionMinimumRequestTimeout(for: 0) == nil)
+        #expect(DockerAPIClientImpl.lifecycleActionMinimumRequestTimeout(for: -1) == nil)
+        #expect(DockerAPIClientImpl.lifecycleActionDisablesRequestTimeout(for: -1))
+        #expect(!DockerAPIClientImpl.lifecycleActionDisablesRequestTimeout(for: nil))
+        #expect(!DockerAPIClientImpl.lifecycleActionDisablesRequestTimeout(for: 60))
     }
 
     @Test("Transport request timeout honors longer request minimum without shortening defaults")
@@ -31,15 +47,20 @@ struct TransportRequestTimeoutTests {
         #expect(NWConnectionTransport.resolvedRequestTimeout(
             defaultTimeout: 30,
             minimumRequestTimeout: nil
-        ) == 30)
+        ) == .some(30))
         #expect(NWConnectionTransport.resolvedRequestTimeout(
             defaultTimeout: 30,
             minimumRequestTimeout: 15
-        ) == 30)
+        ) == .some(30))
         #expect(NWConnectionTransport.resolvedRequestTimeout(
             defaultTimeout: 30,
             minimumRequestTimeout: 70
-        ) == 70)
+        ) == .some(70))
+        #expect(NWConnectionTransport.resolvedRequestTimeout(
+            defaultTimeout: 30,
+            minimumRequestTimeout: 70,
+            disablesRequestTimeout: true
+        ) == nil)
     }
 
     @Test("Container log requests have a larger response budget")
@@ -48,7 +69,7 @@ struct TransportRequestTimeoutTests {
         #expect(NWConnectionTransport.resolvedRequestTimeout(
             defaultTimeout: 30,
             minimumRequestTimeout: DockerAPIClientImpl.containerLogsMinimumRequestTimeout
-        ) == DockerAPIClientImpl.containerLogsMinimumRequestTimeout)
+        ) == .some(DockerAPIClientImpl.containerLogsMinimumRequestTimeout))
     }
 
     @Test("Unix socket retry policy does not replay non-idempotent sends")

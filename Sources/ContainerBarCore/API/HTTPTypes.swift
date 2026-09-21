@@ -6,6 +6,7 @@ struct HTTPRequest: Sendable {
     let headers: [String: String]
     let body: Data?
     let minimumRequestTimeout: TimeInterval?
+    let disablesRequestTimeout: Bool
     let allowsRetryAfterSend: Bool
 
     init(
@@ -14,6 +15,7 @@ struct HTTPRequest: Sendable {
         headers: [String: String] = [:],
         body: Data? = nil,
         minimumRequestTimeout: TimeInterval? = nil,
+        disablesRequestTimeout: Bool = false,
         allowsRetryAfterSend: Bool? = nil
     ) {
         self.method = method
@@ -21,6 +23,7 @@ struct HTTPRequest: Sendable {
         self.headers = headers
         self.body = body
         self.minimumRequestTimeout = minimumRequestTimeout
+        self.disablesRequestTimeout = disablesRequestTimeout
         self.allowsRetryAfterSend = allowsRetryAfterSend ?? Self.defaultAllowsRetryAfterSend(method: method)
     }
 

@@ -73,6 +73,29 @@ func withDeadline<T: Sendable>(
     }
 }
 
+/// Runs an unbounded Network.framework operation while still cancelling the
+/// underlying connection if the parent task is cancelled.
+func withConnectionCancellation<T: Sendable>(
+    connection: NWConnection,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    let canceller = DeadlineConnectionCanceller(connection: connection)
+
+    return try await withTaskCancellationHandler {
+        do {
+            return try await operation()
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                canceller.cancel()
+                throw CancellationError()
+            }
+            throw error
+        }
+    } onCancel: {
+        canceller.cancel()
+    }
+}
+
 /// Which of the two racing children finished first.
 private enum DeadlineOutcome<T: Sendable>: Sendable {
     case completed(T)
