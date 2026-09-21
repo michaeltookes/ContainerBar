@@ -6,19 +6,22 @@ struct HTTPRequest: Sendable {
     let headers: [String: String]
     let body: Data?
     let minimumRequestTimeout: TimeInterval?
+    let allowsRetryAfterSend: Bool
 
     init(
         method: String = "GET",
         path: String,
         headers: [String: String] = [:],
         body: Data? = nil,
-        minimumRequestTimeout: TimeInterval? = nil
+        minimumRequestTimeout: TimeInterval? = nil,
+        allowsRetryAfterSend: Bool? = nil
     ) {
         self.method = method
         self.path = path
         self.headers = headers
         self.body = body
         self.minimumRequestTimeout = minimumRequestTimeout
+        self.allowsRetryAfterSend = allowsRetryAfterSend ?? Self.defaultAllowsRetryAfterSend(method: method)
     }
 
     var isIdempotent: Bool {
@@ -76,7 +79,18 @@ struct HTTPRequest: Sendable {
             throw DockerAPIError.invalidConfiguration("\(name) contains an invalid line break")
         }
     }
+
+    private static func defaultAllowsRetryAfterSend(method: String) -> Bool {
+        switch method.uppercased() {
+        case "GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE":
+            return true
+        default:
+            return false
+        }
+    }
 }
+
+struct HTTPRequestNotSentError: Error, Sendable {}
 
 struct HTTPResponse: Sendable {
     let statusCode: Int

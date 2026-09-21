@@ -205,7 +205,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let path = "/\(apiVersion)/containers/\(id)?force=\(force)&v=\(volumes)"
         logger.info("Removing container \(id)")
 
-        let request = HTTPRequest(method: "DELETE", path: path)
+        let request = HTTPRequest(method: "DELETE", path: path, allowsRetryAfterSend: false)
         let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])

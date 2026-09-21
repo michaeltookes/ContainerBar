@@ -236,6 +236,9 @@ extension DockerAPIClientImpl {
         if error is CancellationError {
             return false
         }
-        return !sendWasAttempted || request.isIdempotent
+        if error is HTTPRequestNotSentError {
+            return true
+        }
+        return !sendWasAttempted || request.allowsRetryAfterSend
     }
 }

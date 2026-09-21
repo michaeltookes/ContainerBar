@@ -258,7 +258,7 @@ final class NWConnectionTransport: @unchecked Sendable {
         try await ioGate.withExclusiveAccess {
             let conn: NWConnection? = self.lock.withLock { self.connection }
             guard let conn else {
-                throw DockerAPIError.connectionFailed
+                throw HTTPRequestNotSentError()
             }
 
             let requestData = try request.toHTTPData(resolvedHost: self.config.resolvedHost)

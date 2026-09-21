@@ -57,6 +57,11 @@ struct TransportRequestTimeoutTests {
             method: "POST",
             path: "/v1.44/containers/abc/restart"
         )
+        let remove = HTTPRequest(
+            method: "DELETE",
+            path: "/v1.44/containers/abc?force=true&v=false",
+            allowsRetryAfterSend: false
+        )
         let list = HTTPRequest(
             method: "GET",
             path: "/v1.44/containers/json"
@@ -69,6 +74,16 @@ struct TransportRequestTimeoutTests {
         ))
         #expect(!DockerAPIClientImpl.shouldRetryUnixSocketRequest(
             restart,
+            after: DockerAPIError.networkTimeout,
+            sendWasAttempted: true
+        ))
+        #expect(DockerAPIClientImpl.shouldRetryUnixSocketRequest(
+            restart,
+            after: HTTPRequestNotSentError(),
+            sendWasAttempted: true
+        ))
+        #expect(!DockerAPIClientImpl.shouldRetryUnixSocketRequest(
+            remove,
             after: DockerAPIError.networkTimeout,
             sendWasAttempted: true
         ))

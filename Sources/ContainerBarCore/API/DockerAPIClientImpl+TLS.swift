@@ -12,10 +12,14 @@ extension DockerAPIClientImpl {
             return try await tls.sendRequest(request)
         } catch {
             logger.warning("TLS request failed before retry: \(error.localizedDescription)")
+            if error is HTTPRequestNotSentError {
+                try await reconnectTLSConnection()
+                return try await tls.sendRequest(request)
+            }
             guard shouldRetryTLSRequest(after: error) else {
                 throw error
             }
-            guard request.isIdempotent else {
+            guard request.allowsRetryAfterSend else {
                 throw error
             }
 
