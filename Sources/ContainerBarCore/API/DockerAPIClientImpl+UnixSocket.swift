@@ -157,8 +157,16 @@ extension DockerAPIClientImpl {
         return UnixSocketConnectionAdoption(adopted: candidate, staleConnection: nil, failure: nil)
     }
 
-    func closeConnection() async {
+    func closeConnection(ifCurrent failedConnection: UnixSocketConnection? = nil) async {
         let closing: UnixSocketConnection? = connectionLock.withLock {
+            if let failedConnection {
+                guard connection === failedConnection else {
+                    return failedConnection
+                }
+                connection = nil
+                return failedConnection
+            }
+
             let cachedConnection = connection
             connection = nil
             return cachedConnection
@@ -180,20 +188,31 @@ extension DockerAPIClientImpl {
         do {
             conn = try await getConnection()
         } catch {
-            return try await retryUnixSocketRequest(request, after: error, sendWasAttempted: false)
+            return try await retryUnixSocketRequest(
+                request,
+                after: error,
+                sendWasAttempted: false,
+                failedConnection: nil
+            )
         }
 
         do {
             return try await conn.sendRequest(request)
         } catch {
-            return try await retryUnixSocketRequest(request, after: error, sendWasAttempted: true)
+            return try await retryUnixSocketRequest(
+                request,
+                after: error,
+                sendWasAttempted: true,
+                failedConnection: conn
+            )
         }
     }
 
     func retryUnixSocketRequest(
         _ request: HTTPRequest,
         after error: Error,
-        sendWasAttempted: Bool
+        sendWasAttempted: Bool,
+        failedConnection: UnixSocketConnection?
     ) async throws -> HTTPResponse {
         if error is CancellationError || Task.isCancelled {
             throw error
@@ -201,7 +220,7 @@ extension DockerAPIClientImpl {
 
         let shouldCloseConnection = Self.shouldCloseConnectionAfterUnixSocketError(error)
         if shouldCloseConnection {
-            await closeConnection()
+            await closeConnection(ifCurrent: failedConnection)
         }
 
         guard Self.shouldRetryUnixSocketRequest(request, after: error, sendWasAttempted: sendWasAttempted) else {

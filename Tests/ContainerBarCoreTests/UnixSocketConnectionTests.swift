@@ -28,6 +28,29 @@ struct UnixSocketConnectionTests {
         ))
     }
 
+    @Test("Closing a failed wrapper preserves a cached replacement")
+    func closeFailedWrapperPreservesReplacement() async throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+        let socketURL = temporaryDirectory
+            .appendingPathComponent("containerbar-\(UUID().uuidString).sock")
+        _ = FileManager.default.createFile(atPath: socketURL.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: socketURL) }
+
+        let host = DockerHost(
+            name: "Test Socket",
+            connectionType: .unixSocket,
+            socketPath: socketURL.path
+        )
+        let client = try DockerAPIClientImpl(host: host)
+        let failed = UnixSocketConnection(socketPath: socketURL.path)
+        let replacement = UnixSocketConnection(socketPath: socketURL.path)
+        client.connection = replacement
+
+        await client.closeConnection(ifCurrent: failed)
+
+        #expect(client.connection === replacement)
+    }
+
     @Test("Start-error mapping surfaces socketNotFound only for ENOENT")
     func mapStartErrorSurfacesSocketNotFoundForENOENT() {
         let path = "/var/run/docker.sock"
