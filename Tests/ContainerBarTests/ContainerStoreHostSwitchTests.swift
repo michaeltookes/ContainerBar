@@ -80,33 +80,35 @@ struct ContainerStoreHostSwitchTests {
         #expect(store.isRefreshing == false)
     }
 
-    @Test("Force refresh cancels and restarts rather than overlapping")
-    func forceRefreshCancelsAndRestarts() async {
+    @Test("Force refresh joins the in-flight refresh instead of cancelling its transport")
+    func forceRefreshJoinsInFlightWithoutCancelling() async {
         let harness = Harness()
         harness.settings.selectedHostId = harness.hostA.id
         let store = harness.makeStore()
 
-        // First refresh parks inside host A's list call.
+        // First (same-host) refresh parks inside host A's list call.
         harness.mockA.armGate()
         let firstRefresh = Task { await store.refresh() }
         await harness.mockA.waitUntilEntered()
 
-        // Change the data the same host will return, then force a restart.
-        harness.mockA.mockContainers = [DockerContainer.mock(id: "a2", name: "alpha-2", state: .running)]
-        await store.refresh(force: true)
+        // Issue a forced refresh while the first is parked. It must join
+        // (await) the in-flight refresh rather than cancelling it: cancelling
+        // would tear down the live transport. switchHost() is the only cancel
+        // path — verified by hostSwitchMidFetchDropsStaleResult above.
+        let forced = Task { await store.refresh(force: true) }
 
-        // The forced (second) refresh applied; it did not skip while busy.
-        #expect(store.containers.map(\.id) == ["a2"])
-        #expect(store.isRefreshing == false)
-
-        // Release the superseded first refresh; its older result is discarded.
+        // Release the parked first refresh; it completes and applies its
+        // result, then the forced refresh runs one more pass on top.
         harness.mockA.proceed()
         await firstRefresh.value
+        await forced.value
 
-        #expect(store.containers.map(\.id) == ["a2"])
+        // The in-flight refresh was never cancelled (no mid-fetch teardown),
+        // and the store settles connected and idle on host A's data.
+        #expect(harness.mockA.cancelledAfterGate == false)
+        #expect(store.containers.map(\.id) == ["a1"])
+        #expect(store.isConnected == true)
         #expect(store.isRefreshing == false)
-        let listCalls = harness.mockA.calledMethods.filter { $0 == "listContainers" }.count
-        #expect(listCalls == 2)
     }
 
     // MARK: - CB-065

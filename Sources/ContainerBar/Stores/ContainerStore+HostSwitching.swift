@@ -24,10 +24,19 @@ extension ContainerStore {
     ///   refresh if there is one rather than starting a second overlapping
     ///   fetch.
     public func refresh(force: Bool = false) async {
-        if !force, let inFlight = refreshTask {
-            logger.debug("Refresh joining in-flight refresh")
+        if let inFlight = refreshTask {
+            // Join the in-flight refresh rather than cancelling it. Cancelling
+            // a same-host refresh would tear down the live transport — a
+            // cancelled `NWConnection` send runs the transport's connect-
+            // failure cleanup, forcing a fresh handshake on the next request
+            // (a full TLS handshake on TLS hosts). A non-forced caller is done
+            // once the in-flight refresh lands; a forced caller (e.g. after a
+            // container action) then starts one more so post-action state is
+            // re-fetched. `switchHost()` is the only path that cancels, because
+            // it is discarding the old fetcher anyway.
+            logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
-            return
+            if !force { return }
         }
         await startRefresh().value
     }
@@ -138,6 +147,11 @@ extension ContainerStore {
         fetcher = nil
         initializeFetcher()
         lastResolvedHost = settings.selectedHost
+        // This is the ONLY path that cancels an in-flight refresh: `startRefresh`
+        // cancels the previous task here while a refresh may still be running
+        // against the old fetcher, which is being discarded, so tearing down its
+        // transport is correct. `refresh(force:)` instead joins-then-restarts to
+        // avoid cancelling a same-host fetch.
         startRefresh()
     }
 

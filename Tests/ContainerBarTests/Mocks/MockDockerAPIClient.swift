@@ -38,8 +38,16 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     // test hold one refresh mid-fetch without brittle sleeps.
     private var _gateArmed = false
     private var _gateEntered = false
+    private var _cancelledAfterGate = false
     private var _entryContinuation: CheckedContinuation<Void, Never>?
     private var _proceedContinuation: CheckedContinuation<Void, Never>?
+
+    /// Whether the task that parked in the gate was cancelled by the time it
+    /// was released — lets a test assert a concurrent refresh joined (did not
+    /// cancel) the in-flight one.
+    var cancelledAfterGate: Bool {
+        stateLock.withLock { _cancelledAfterGate }
+    }
 
     var mockContainers: [DockerContainer] {
         get { stateLock.withLock { _mockContainers } }
@@ -131,6 +139,8 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             stateLock.withLock { _proceedContinuation = cont }
         }
+        let cancelled = Task.isCancelled
+        stateLock.withLock { _cancelledAfterGate = cancelled }
     }
 
     private func recordCall(_ method: String) {
