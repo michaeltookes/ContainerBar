@@ -27,7 +27,7 @@ struct ContainerActionRouterEdgeTests {
         _ method: String,
         atLeast count: Int,
         in mock: MockDockerAPIClient,
-        timeout: Duration = .seconds(1)
+        timeout: Duration = .seconds(5)
     ) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)

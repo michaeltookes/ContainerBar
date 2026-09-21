@@ -16,6 +16,8 @@ final class UnixSocketConnection: @unchecked Sendable {
     init(socketPath: String, resolvedHost: String = "localhost") {
         let logger = Logger(label: "com.containerbar.unixsocket")
 
+        let connectTimeout = Self.connectTimeout
+
         self.transport = NWConnectionTransport(config: .init(
             resolvedHost: resolvedHost,
             // Unix disconnect bypasses `ioGate` so it can preempt a stalled
@@ -23,7 +25,13 @@ final class UnixSocketConnection: @unchecked Sendable {
             disconnectWaitsForGate: false,
             makeConnection: {
                 let endpoint = NWEndpoint.unix(path: socketPath)
-                return NWConnection(to: endpoint, using: .tcp)
+                // OS-level TCP connect timeout: defense-in-depth behind the
+                // app-level deadline. Builds the params explicitly (rather than
+                // `.tcp`) so the timeout can be set on the TCP options.
+                let tcpOptions = NWProtocolTCP.Options()
+                tcpOptions.connectionTimeout = Int(connectTimeout)
+                let params = NWParameters(tls: nil, tcp: tcpOptions)
+                return NWConnection(to: endpoint, using: params)
             },
             mapStateFailure: { error in
                 Self.mapStartError(error, socketPath: socketPath)
@@ -39,9 +47,20 @@ final class UnixSocketConnection: @unchecked Sendable {
             },
             // Unix only cleans up when the failed connection is still current,
             // and cancels the failed connection specifically.
-            shouldCleanupFailedConnection: Self.shouldCleanupFailedConnection
+            shouldCleanupFailedConnection: Self.shouldCleanupFailedConnection,
+            connectTimeout: connectTimeout,
+            requestTimeout: Self.requestTimeout
         ))
     }
+
+    /// App-level connect deadline; also drives the OS-level TCP
+    /// `connectionTimeout`. A local Unix socket connects near-instantly, so this
+    /// mainly guards a hung/half-open socket; kept at 15 s to match the TLS
+    /// transport and stay well clear of a healthy connect.
+    private static let connectTimeout: TimeInterval = 15
+    /// App-level request deadline: bounds a daemon that accepts the connection
+    /// and then never replies. Matches the TLS transport's 30 s.
+    private static let requestTimeout: TimeInterval = 30
 
     deinit {
         disconnectForTeardown()

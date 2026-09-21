@@ -14,6 +14,8 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     let host: DockerHost
     let logger = Logger(label: "com.containerbar.api")
     let apiVersion = "v1.44"
+    private static let lifecycleActionResponseGrace: TimeInterval = 10
+    static let containerLogsReceiveInactivityTimeout: TimeInterval = 30
 
     // Connection management
     var connection: UnixSocketConnection?
@@ -169,7 +171,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         }
         logger.info("Stopping container \(id)")
 
-        let request = HTTPRequest(method: "POST", path: path)
+        let request = HTTPRequest(
+            method: "POST",
+            path: path,
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout),
+            disablesRequestTimeout: Self.lifecycleActionDisablesRequestTimeout(for: timeout)
+        )
         let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already stopped)
@@ -184,7 +191,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         }
         logger.info("Restarting container \(id)")
 
-        let request = HTTPRequest(method: "POST", path: path)
+        let request = HTTPRequest(
+            method: "POST",
+            path: path,
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout),
+            disablesRequestTimeout: Self.lifecycleActionDisablesRequestTimeout(for: timeout)
+        )
         let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
@@ -195,7 +207,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let path = "/\(apiVersion)/containers/\(id)?force=\(force)&v=\(volumes)"
         logger.info("Removing container \(id)")
 
-        let request = HTTPRequest(method: "DELETE", path: path)
+        let request = HTTPRequest(method: "DELETE", path: path, allowsRetryAfterSend: false)
         let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
@@ -212,7 +224,10 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         }
         logger.debug("Fetching logs for container \(id)")
 
-        let request = HTTPRequest(path: path)
+        let request = HTTPRequest(
+            path: path,
+            receiveInactivityTimeout: Self.containerLogsReceiveInactivityTimeout
+        )
         let response = try await performRequest(request)
         try validateResponse(response)
 
@@ -236,5 +251,16 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
         let decoder = JSONDecoder()
         return try decoder.decode(DockerSystemInfo.self, from: response.body)
+    }
+
+    static func lifecycleActionMinimumRequestTimeout(for dockerTimeout: Int?) -> TimeInterval? {
+        guard let dockerTimeout, dockerTimeout > 0 else {
+            return nil
+        }
+        return TimeInterval(dockerTimeout) + lifecycleActionResponseGrace
+    }
+
+    static func lifecycleActionDisablesRequestTimeout(for dockerTimeout: Int?) -> Bool {
+        dockerTimeout == -1
     }
 }
