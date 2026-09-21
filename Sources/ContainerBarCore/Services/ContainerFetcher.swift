@@ -56,10 +56,20 @@ public actor ContainerFetcher {
     /// - Parameters:
     ///   - includeStats: Whether to fetch stats for running containers
     ///   - all: Whether to include stopped containers
+    ///   - bypassRateLimit: When `true`, skip the rate-limit cached-result
+    ///     early return and always hit the daemon. Used by a forced refresh
+    ///     (e.g. right after a container action) so it reflects the mutation
+    ///     instead of returning the pre-action cached list. `lastFetchTime`
+    ///     semantics are otherwise unchanged.
     /// - Returns: Fetch result with containers, stats, and metrics
-    public func fetch(includeStats: Bool = true, all: Bool = true) async throws -> ContainerFetchResult {
+    public func fetch(
+        includeStats: Bool = true,
+        all: Bool = true,
+        bypassRateLimit: Bool = false
+    ) async throws -> ContainerFetchResult {
         // Rate limiting
-        if let lastTime = lastFetchTime,
+        if !bypassRateLimit,
+           let lastTime = lastFetchTime,
            Date().timeIntervalSince(lastTime) < minFetchInterval {
             if let cachedResult = lastFetchResult {
                 logger.debug("Returning cached result (rate limited)")

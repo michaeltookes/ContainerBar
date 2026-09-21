@@ -80,34 +80,41 @@ struct ContainerStoreHostSwitchTests {
         #expect(store.isRefreshing == false)
     }
 
-    @Test("Force refresh joins the in-flight refresh instead of cancelling its transport")
-    func forceRefreshJoinsInFlightWithoutCancelling() async {
+    @Test("Force refresh joins the in-flight refresh and re-fetches post-action state")
+    func forceRefreshJoinsAndReFetchesWithoutCancelling() async {
         let harness = Harness()
         harness.settings.selectedHostId = harness.hostA.id
         let store = harness.makeStore()
 
-        // First (same-host) refresh parks inside host A's list call.
+        // First (timer-style) refresh parks inside host A's list call.
         harness.mockA.armGate()
         let firstRefresh = Task { await store.refresh() }
         await harness.mockA.waitUntilEntered()
 
-        // Issue a forced refresh while the first is parked. It must join
-        // (await) the in-flight refresh rather than cancelling it: cancelling
-        // would tear down the live transport. switchHost() is the only cancel
-        // path — verified by hostSwitchMidFetchDropsStaleResult above.
+        // Simulate a container action mutating the list, then a forced refresh
+        // (as performContainerAction issues). It must join the in-flight
+        // refresh rather than cancelling it (cancelling would tear down the
+        // live transport — switchHost() is the only cancel path, verified by
+        // hostSwitchMidFetchDropsStaleResult), then re-fetch with the fetcher's
+        // rate-limit cache bypassed so the mutation is reflected instead of the
+        // cached pre-action list.
+        harness.mockA.mockContainers = [
+            DockerContainer.mock(id: "a1", name: "alpha", state: .running),
+            DockerContainer.mock(id: "a2", name: "alpha-2", state: .running)
+        ]
         let forced = Task { await store.refresh(force: true) }
 
-        // Release the parked first refresh; it completes and applies its
-        // result, then the forced refresh runs one more pass on top.
         harness.mockA.proceed()
         await firstRefresh.value
         await forced.value
 
-        // The in-flight refresh was never cancelled (no mid-fetch teardown),
-        // and the store settles connected and idle on host A's data.
+        // Not cancelled (no mid-fetch teardown); the forced refresh made a
+        // second real daemon round-trip (bypassing the 1s cache), so the
+        // changed list is applied and the store settles idle.
         #expect(harness.mockA.cancelledAfterGate == false)
-        #expect(store.containers.map(\.id) == ["a1"])
-        #expect(store.isConnected == true)
+        let listCalls = harness.mockA.calledMethods.filter { $0 == "listContainers" }.count
+        #expect(listCalls == 2)
+        #expect(store.containers.map(\.id) == ["a1", "a2"])
         #expect(store.isRefreshing == false)
     }
 

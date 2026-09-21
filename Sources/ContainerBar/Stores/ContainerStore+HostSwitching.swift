@@ -19,10 +19,13 @@ extension ContainerStore {
     // MARK: - Refresh
 
     /// Refresh container data from Docker daemon.
-    /// - Parameter force: when `true`, cancel any in-flight refresh and start a
-    ///   fresh one (cancel-and-restart). When `false`, join an in-flight
-    ///   refresh if there is one rather than starting a second overlapping
-    ///   fetch.
+    /// - Parameter force: when `true`, join an in-flight refresh (rather than
+    ///   cancelling it) and then start exactly one more refresh that bypasses
+    ///   the fetcher's rate-limit cache, so post-action state is re-fetched
+    ///   from the daemon instead of returning the pre-action cached list.
+    ///   When `false`, join an in-flight refresh if there is one rather than
+    ///   starting a second overlapping fetch. `switchHost()` is the only path
+    ///   that cancels an in-flight refresh.
     public func refresh(force: Bool = false) async {
         if let inFlight = refreshTask {
             // Join the in-flight refresh rather than cancelling it. Cancelling
@@ -31,21 +34,23 @@ extension ContainerStore {
             // failure cleanup, forcing a fresh handshake on the next request
             // (a full TLS handshake on TLS hosts). A non-forced caller is done
             // once the in-flight refresh lands; a forced caller (e.g. after a
-            // container action) then starts one more so post-action state is
-            // re-fetched. `switchHost()` is the only path that cancels, because
-            // it is discarding the old fetcher anyway.
+            // container action) then starts one more — with the rate-limit
+            // cache bypassed — so it reflects the mutation. `switchHost()` is
+            // the only path that cancels, because it discards the old fetcher.
             logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
             if !force { return }
         }
-        await startRefresh().value
+        await startRefresh(force: force).value
     }
 
     /// Begin a new refresh: supersede any in-flight one, bump the generation,
     /// and record the task so callers can join it. Runs synchronously on the
     /// main actor up to creating the task, so state writes cannot interleave.
+    /// - Parameter force: when `true`, the refresh bypasses the fetcher's
+    ///   rate-limit cache so it always hits the daemon.
     @discardableResult
-    func startRefresh() -> Task<Void, Never> {
+    func startRefresh(force: Bool = false) -> Task<Void, Never> {
         refreshGeneration &+= 1
         let generation = refreshGeneration
 
@@ -57,13 +62,13 @@ extension ContainerStore {
 
         let task = Task { [weak self] in
             guard let self else { return }
-            await self.performRefresh(generation: generation)
+            await self.performRefresh(generation: generation, force: force)
         }
         refreshTask = task
         return task
     }
 
-    private func performRefresh(generation: Int) async {
+    private func performRefresh(generation: Int, force: Bool = false) async {
         guard isCurrentRefresh(generation) else { return }
 
         connectionError = nil
@@ -85,7 +90,8 @@ extension ContainerStore {
         do {
             let result = try await fetcher.fetch(
                 includeStats: true,
-                all: settings.showStoppedContainers
+                all: settings.showStoppedContainers,
+                bypassRateLimit: force
             )
 
             // A host switch or a newer refresh may have superseded us while the
@@ -151,8 +157,10 @@ extension ContainerStore {
         // cancels the previous task here while a refresh may still be running
         // against the old fetcher, which is being discarded, so tearing down its
         // transport is correct. `refresh(force:)` instead joins-then-restarts to
-        // avoid cancelling a same-host fetch.
-        startRefresh()
+        // avoid cancelling a same-host fetch. `force: true` bypasses the (brand
+        // new) fetcher's rate-limit cache — moot on a fresh fetcher, but keeps
+        // the meaning of a forced refresh consistent.
+        startRefresh(force: true)
     }
 
     /// Clear all per-host data so the UI does not show the previous host's
