@@ -103,6 +103,15 @@ public actor ContainerFetcher {
             return result
 
         } catch {
+            // A cancellation — e.g. `switchHost()` cancelling the in-flight
+            // refresh — is not a connection failure. Propagate it without
+            // logging an error or advancing the failure gate, so it neither
+            // pushes a later genuine transient failure to the surface
+            // threshold sooner nor causes a stale cached result to be returned.
+            if error is CancellationError || Task.isCancelled {
+                throw error
+            }
+
             logger.error("Fetch failed: \(error.localizedDescription)")
 
             // Check if we should surface this error
