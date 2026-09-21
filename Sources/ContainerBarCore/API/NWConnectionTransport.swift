@@ -268,19 +268,12 @@ final class NWConnectionTransport: @unchecked Sendable {
                 minimumRequestTimeout: request.minimumRequestTimeout,
                 disablesRequestTimeout: request.disablesRequestTimeout
             )
-            let sendAndReceive: @Sendable () async throws -> HTTPResponse = {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    conn.send(content: requestData, completion: .contentProcessed { error in
-                        if let error {
-                            continuation.resume(throwing: mapSendFailure(error))
-                        } else {
-                            continuation.resume()
-                        }
-                    })
-                }
-
-                return try await receiveHTTPResponse(conn: conn)
-            }
+            let operations = makeRequestOperations(
+                connection: conn,
+                requestData: requestData,
+                request: request,
+                mapSendFailure: mapSendFailure
+            )
 
             // Bound finite requests (send + receive). A daemon that accepts the
             // connection and then never replies would hang `receiveHTTPResponse`
@@ -288,11 +281,19 @@ final class NWConnectionTransport: @unchecked Sendable {
             // which fails the pending send/receive callback, and throws
             // `DockerAPIError.networkTimeout`. Requests that intentionally wait
             // indefinitely still get cancellation cleanup via `withConnectionCancellation`.
+            //
+            // Some responses (container logs) can be large but continuously
+            // progressing. For those, keep a finite send deadline, then let
+            // `receiveHTTPResponse` enforce an inactivity deadline that resets on
+            // each received chunk instead of applying one wall-clock cap to the
+            // whole download.
             do {
-                if let requestTimeout {
-                    return try await withDeadline(seconds: requestTimeout, connection: conn, operation: sendAndReceive)
-                }
-                return try await withConnectionCancellation(connection: conn, operation: sendAndReceive)
+                return try await self.performRequestWithDeadlines(
+                    connection: conn,
+                    request: request,
+                    requestTimeout: requestTimeout,
+                    operations: operations
+                )
             } catch DockerAPIError.networkTimeout {
                 // The deadline cancelled `conn`; drop it now so the next request
                 // reconnects instead of failing once on a dead connection.
@@ -311,6 +312,29 @@ final class NWConnectionTransport: @unchecked Sendable {
         }
     }
 
+    private func performRequestWithDeadlines(
+        connection: NWConnection,
+        request: HTTPRequest,
+        requestTimeout: TimeInterval?,
+        operations: RequestOperations
+    ) async throws -> HTTPResponse {
+        if request.receiveInactivityTimeout != nil {
+            if let requestTimeout {
+                try await withDeadline(
+                    seconds: requestTimeout,
+                    connection: connection,
+                    operation: operations.sendRequestData
+                )
+            } else {
+                try await withConnectionCancellation(connection: connection, operation: operations.sendRequestData)
+            }
+            return try await operations.receiveResponse()
+        } else if let requestTimeout {
+            return try await withDeadline(seconds: requestTimeout, connection: connection, operation: operations.sendAndReceive)
+        }
+        return try await withConnectionCancellation(connection: connection, operation: operations.sendAndReceive)
+    }
+
     static func resolvedRequestTimeout(
         defaultTimeout: TimeInterval,
         minimumRequestTimeout: TimeInterval?,
@@ -324,4 +348,42 @@ final class NWConnectionTransport: @unchecked Sendable {
         }
         return max(defaultTimeout, minimumRequestTimeout)
     }
+}
+
+private struct RequestOperations {
+    let sendRequestData: @Sendable () async throws -> Void
+    let receiveResponse: @Sendable () async throws -> HTTPResponse
+    let sendAndReceive: @Sendable () async throws -> HTTPResponse
+}
+
+private func makeRequestOperations(
+    connection: NWConnection,
+    requestData: Data,
+    request: HTTPRequest,
+    mapSendFailure: @escaping @Sendable (NWError) -> DockerAPIError
+) -> RequestOperations {
+    let sendRequestData: @Sendable () async throws -> Void = {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            connection.send(content: requestData, completion: .contentProcessed { error in
+                if let error {
+                    continuation.resume(throwing: mapSendFailure(error))
+                } else {
+                    continuation.resume()
+                }
+            })
+        }
+    }
+
+    let receiveResponse: @Sendable () async throws -> HTTPResponse = {
+        try await receiveHTTPResponse(conn: connection, inactivityTimeout: request.receiveInactivityTimeout)
+    }
+
+    return RequestOperations(
+        sendRequestData: sendRequestData,
+        receiveResponse: receiveResponse,
+        sendAndReceive: {
+            try await sendRequestData()
+            return try await receiveResponse()
+        }
+    )
 }

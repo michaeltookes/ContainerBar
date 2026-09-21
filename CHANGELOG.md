@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Network transports now time out stalled connects and silent responses instead
   of leaving refreshes stuck indefinitely, then reconnect on the next request
+- Concurrent TLS retry recovery now coalesces reconnect work instead of allowing
+  queued requests to disconnect a freshly re-established connection
+- Large container log downloads now use a receive-inactivity deadline that
+  resets on progress instead of a fixed whole-download timeout
 - Container stop and restart requests now honor longer Docker action timeouts
   instead of being cut off by the default transport deadline
 - Release validation now fails for missing or stale uploaded artifacts,

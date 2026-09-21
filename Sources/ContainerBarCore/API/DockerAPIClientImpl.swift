@@ -15,7 +15,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     let logger = Logger(label: "com.containerbar.api")
     let apiVersion = "v1.44"
     private static let lifecycleActionResponseGrace: TimeInterval = 10
-    static let containerLogsMinimumRequestTimeout: TimeInterval = 120
+    static let containerLogsReceiveInactivityTimeout: TimeInterval = 30
 
     // Connection management
     var connection: UnixSocketConnection?
@@ -226,7 +226,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
         let request = HTTPRequest(
             path: path,
-            minimumRequestTimeout: Self.containerLogsMinimumRequestTimeout
+            receiveInactivityTimeout: Self.containerLogsReceiveInactivityTimeout
         )
         let response = try await performRequest(request)
         try validateResponse(response)

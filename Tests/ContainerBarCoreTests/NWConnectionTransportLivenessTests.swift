@@ -17,7 +17,7 @@ import Testing
 @Suite("NWConnectionTransport Liveness Tests")
 struct NWConnectionTransportLivenessTests {
 
-    // MARK: - Test 1: request deadline (the core CB-062 regression guard)
+    // MARK: - Request deadline (the core CB-062 regression guard)
 
     @Test("Request deadline throws networkTimeout against a silent endpoint")
     func requestDeadlineFiresOnSilentServer() async throws {
@@ -59,7 +59,85 @@ struct NWConnectionTransportLivenessTests {
         #expect(try await transport.isConnectedState() == false)
     }
 
-    // MARK: - Test 2: parent cancellation cancels the underlying NWConnection
+    @Test("Receive inactivity deadline resets while response progresses")
+    func receiveInactivityDeadlineResetsOnProgress() async throws {
+        let chunks = [
+            Data("HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\n".utf8),
+            Data("ab".utf8),
+            Data("cd".utf8),
+            Data("ef".utf8)
+        ]
+        let server = try InProcessTCPServer(behavior: .respondChunks(chunks, interval: 0.1))
+        let port = try await server.start()
+        defer { server.stop() }
+
+        let transport = Self.makeTCPTransport(
+            host: "127.0.0.1",
+            port: port,
+            connectTimeout: 2.0,
+            requestTimeout: 0.25
+        )
+        defer { transport.disconnectForTeardown() }
+
+        try await Self.awaitTransport(transport) {
+            try await transport.connect()
+        }
+
+        let response = try await Self.awaitTransport(transport) {
+            try await transport.sendRequest(HTTPRequest(
+                method: "GET",
+                path: "/containers/abc/logs",
+                receiveInactivityTimeout: 0.3
+            ))
+        }
+
+        #expect(response.statusCode == 200)
+        #expect(String(data: response.body, encoding: .utf8) == "abcdef")
+    }
+
+    @Test("Receive inactivity deadline times out idle responses")
+    func receiveInactivityDeadlineFiresOnIdleResponse() async throws {
+        let server = try InProcessTCPServer(behavior: .blackHole)
+        let port = try await server.start()
+        defer { server.stop() }
+
+        let transport = Self.makeTCPTransport(
+            host: "127.0.0.1",
+            port: port,
+            connectTimeout: 2.0,
+            requestTimeout: 5.0
+        )
+        defer { transport.disconnectForTeardown() }
+
+        try await Self.awaitTransport(transport) {
+            try await transport.connect()
+        }
+
+        let start = Date()
+        do {
+            _ = try await Self.awaitTransport(transport) {
+                try await transport.sendRequest(HTTPRequest(
+                    method: "GET",
+                    path: "/containers/abc/logs",
+                    receiveInactivityTimeout: 0.2
+                ))
+            }
+            Issue.record("Expected a receive inactivity networkTimeout but sendRequest returned a response")
+        } catch let error as DockerAPIError {
+            guard case .networkTimeout = error else {
+                Issue.record("Expected .networkTimeout, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("sendRequest did not time out within the test safety bound: \(error)")
+            return
+        }
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(elapsed < 4.0, "receive should time out near the 0.2s inactivity deadline, took \(elapsed)s")
+        #expect(try await transport.isConnectedState() == false)
+    }
+
+    // MARK: - Parent cancellation cancels the underlying NWConnection
 
     @Test("Cancelling a pending request tears down the connection")
     func cancellingPendingRequestTearsDownConnection() async throws {
@@ -104,7 +182,7 @@ struct NWConnectionTransportLivenessTests {
         #expect(try await transport.isConnectedState() == false)
     }
 
-    // MARK: - Test 3: connect fast-fail (proves .waiting handling + connect bound)
+    // MARK: - Connect fast-fail (proves .waiting handling + connect bound)
 
     @Test("Connect to a refused endpoint fails fast instead of hanging")
     func connectToRefusedPortFailsFast() async throws {
@@ -143,7 +221,7 @@ struct NWConnectionTransportLivenessTests {
         #expect(elapsed < 4.0, "connect should fail promptly (not hang), took \(elapsed)s")
     }
 
-    // MARK: - Test 4: happy path (deadline does not fire on a fast response)
+    // MARK: - Happy path (deadline does not fire on a fast response)
 
     @Test("Healthy fast response is parsed and returned without a timeout")
     func happyPathReturnsParsedResponse() async throws {
@@ -242,91 +320,3 @@ private func withTestTimeout<T: Sendable>(
 }
 
 private struct TestTimeoutError: Error {}
-
-/// Minimal in-process TCP server on loopback for hermetic transport tests.
-private final class InProcessTCPServer: @unchecked Sendable {
-    enum Behavior {
-        /// Accept the connection and start it, but never send a byte back.
-        case blackHole
-        /// Accept the connection and, on the first inbound read, send `data`.
-        case respond(Data)
-    }
-
-    private let listener: NWListener
-    private let behavior: Behavior
-    private let queue = DispatchQueue(label: "com.containerbar.test.tcpserver")
-    private let lock = NSLock()
-    private var connections: [NWConnection] = []
-
-    init(behavior: Behavior) throws {
-        self.behavior = behavior
-        self.listener = try NWListener(using: .tcp)
-    }
-
-    /// Starts the listener and resolves with its OS-assigned port once ready.
-    func start() async throws -> UInt16 {
-        listener.newConnectionHandler = { [weak self] connection in
-            self?.handle(connection)
-        }
-        return try await withCheckedThrowingContinuation { continuation in
-            listener.stateUpdateHandler = { [weak listener] state in
-                switch state {
-                case .ready:
-                    listener?.stateUpdateHandler = nil
-                    if let port = listener?.port?.rawValue {
-                        continuation.resume(returning: port)
-                    } else {
-                        continuation.resume(throwing: DockerAPIError.connectionFailed)
-                    }
-                case .failed(let error):
-                    listener?.stateUpdateHandler = nil
-                    continuation.resume(throwing: error)
-                default:
-                    break
-                }
-            }
-            listener.start(queue: queue)
-        }
-    }
-
-    func stop() {
-        lock.withLock {
-            connections.forEach { $0.cancel() }
-            connections.removeAll()
-        }
-        listener.cancel()
-    }
-
-    /// Fully tears the listener down and waits for `.cancelled`, so a port
-    /// reserved this way reliably refuses subsequent connects (no accept race).
-    func closeAndWait() async {
-        lock.withLock {
-            connections.forEach { $0.cancel() }
-            connections.removeAll()
-        }
-        await withCheckedContinuation { continuation in
-            listener.stateUpdateHandler = { [weak listener] state in
-                if case .cancelled = state {
-                    listener?.stateUpdateHandler = nil
-                    continuation.resume()
-                }
-            }
-            listener.cancel()
-        }
-    }
-
-    private func handle(_ connection: NWConnection) {
-        lock.withLock { connections.append(connection) }
-        connection.start(queue: queue)
-
-        switch behavior {
-        case .blackHole:
-            // Intentionally never send; the client's receive should hit its deadline.
-            break
-        case .respond(let data):
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { _, _, _, _ in
-                connection.send(content: data, completion: .contentProcessed { _ in })
-            }
-        }
-    }
-}

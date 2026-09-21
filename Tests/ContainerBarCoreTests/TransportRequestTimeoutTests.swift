@@ -15,6 +15,7 @@ struct TransportRequestTimeoutTests {
 
         #expect(request.minimumRequestTimeout == 70)
         #expect(request.disablesRequestTimeout == false)
+        #expect(request.receiveInactivityTimeout == nil)
     }
 
     @Test("HTTPRequest can disable the request timeout")
@@ -26,6 +27,18 @@ struct TransportRequestTimeoutTests {
         )
 
         #expect(request.disablesRequestTimeout)
+    }
+
+    @Test("HTTPRequest can carry a receive inactivity timeout")
+    func httpRequestReceiveInactivityTimeout() {
+        let request = HTTPRequest(
+            path: "/v1.43/containers/abc/logs",
+            receiveInactivityTimeout: 30
+        )
+
+        #expect(request.receiveInactivityTimeout == 30)
+        #expect(request.minimumRequestTimeout == nil)
+        #expect(request.disablesRequestTimeout == false)
     }
 
     @Test("Lifecycle actions request enough time for Docker timeout plus response grace")
@@ -63,13 +76,10 @@ struct TransportRequestTimeoutTests {
         ) == nil)
     }
 
-    @Test("Container log requests have a larger response budget")
-    func containerLogsMinimumRequestTimeout() {
-        #expect(DockerAPIClientImpl.containerLogsMinimumRequestTimeout > 30)
-        #expect(NWConnectionTransport.resolvedRequestTimeout(
-            defaultTimeout: 30,
-            minimumRequestTimeout: DockerAPIClientImpl.containerLogsMinimumRequestTimeout
-        ) == .some(DockerAPIClientImpl.containerLogsMinimumRequestTimeout))
+    @Test("Container log requests use a receive inactivity budget")
+    func containerLogsReceiveInactivityTimeout() {
+        #expect(DockerAPIClientImpl.containerLogsReceiveInactivityTimeout > 0)
+        #expect(DockerAPIClientImpl.containerLogsReceiveInactivityTimeout <= 30)
     }
 
     @Test("Unix socket retry policy does not replay non-idempotent sends")

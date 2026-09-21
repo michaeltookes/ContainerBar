@@ -13,7 +13,7 @@ extension DockerAPIClientImpl {
         } catch {
             logger.warning("TLS request failed before retry: \(error.localizedDescription)")
             if error is HTTPRequestNotSentError {
-                try await reconnectTLSConnection()
+                try await ensureTLSConnected()
                 return try await tls.sendRequest(request)
             }
             guard shouldRetryTLSRequest(after: error) else {
@@ -61,24 +61,49 @@ actor TLSConnectCoordinator {
     private var connectTaskID: UUID?
 
     func ensureConnected(_ tls: TLSConnection) async throws {
-        guard try await !tls.isConnectedState() else {
-            return
-        }
-
-        try await runConnectTask(taskID: UUID(), allowReuse: true) {
-            try await tls.connect()
-        }
+        try await ensureConnected(
+            isConnected: {
+                try await tls.isConnectedState()
+            },
+            connect: {
+                try await tls.connect()
+            }
+        )
     }
 
     func reconnect(_ tls: TLSConnection) async throws {
-        if let connectTask {
-            _ = try? await connectTask.value
-        }
-        let reconnectTaskID = UUID()
+        try await reconnect(
+            disconnect: {
+                try await tls.disconnect()
+            },
+            connect: {
+                try await tls.connect()
+            }
+        )
+    }
 
-        try await runConnectTask(taskID: reconnectTaskID, allowReuse: false) {
-            try await tls.disconnect()
-            try await tls.connect()
+    func ensureConnected(
+        isConnected: @escaping @Sendable () async throws -> Bool,
+        connect: @escaping @Sendable () async throws -> Void
+    ) async throws {
+        guard try await !isConnected() else {
+            return
+        }
+
+        try await runConnectTask(taskID: UUID(), allowReuse: true, connect)
+    }
+
+    func reconnect(
+        disconnect: @escaping @Sendable () async throws -> Void,
+        connect: @escaping @Sendable () async throws -> Void
+    ) async throws {
+        if let connectTask {
+            return try await connectTask.value
+        }
+
+        try await runConnectTask(taskID: UUID(), allowReuse: false) {
+            try await disconnect()
+            try await connect()
         }
     }
 

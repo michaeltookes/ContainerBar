@@ -10,7 +10,7 @@ import Network
 ///
 /// Shared by both the Unix-socket and TLS transports; the helpers here are
 /// transport-neutral.
-func receiveHTTPResponse(conn: NWConnection) async throws -> HTTPResponse {
+func receiveHTTPResponse(conn: NWConnection, inactivityTimeout: TimeInterval? = nil) async throws -> HTTPResponse {
     var parser = IncrementalHTTPResponseParser()
 
     while true {
@@ -18,7 +18,14 @@ func receiveHTTPResponse(conn: NWConnection) async throws -> HTTPResponse {
         // cancelling `conn` is the primary unblock, but also an explicitly
         // cancelled refresh) stops the receive loop instead of spinning.
         try Task.checkCancellation()
-        let chunk = try await receiveChunk(conn: conn, length: 8192)
+        let chunk: Data
+        if let inactivityTimeout {
+            chunk = try await withDeadline(seconds: inactivityTimeout, connection: conn) {
+                try await receiveChunk(conn: conn, length: 8192)
+            }
+        } else {
+            chunk = try await receiveChunk(conn: conn, length: 8192)
+        }
 
         if chunk.isEmpty {
             return try parser.finish()
