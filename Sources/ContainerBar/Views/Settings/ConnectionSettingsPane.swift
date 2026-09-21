@@ -4,7 +4,6 @@ import ContainerBarCore
 /// Connection settings pane for managing Docker hosts
 struct ConnectionSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(ContainerStore.self) private var containerStore
 
     private let fetcherFactory: ContainerStore.FetcherFactory
 
@@ -109,11 +108,9 @@ struct ConnectionSettingsPane: View {
     }
 
     private func setDefaultHost(_ host: DockerHost) {
+        // The store observes `settings.selectedHostId` and reinitializes the
+        // fetcher itself, so this only records the selection (CB-065).
         settings.selectedHostId = host.id
-        containerStore.reinitializeFetcher()
-        Task {
-            await containerStore.refresh(force: true)
-        }
     }
 
     private func testConnection(_ host: DockerHost) {
@@ -266,7 +263,6 @@ struct HostDetailsView: View {
 #Preview {
     ConnectionSettingsPane()
         .environment(SettingsStore())
-        .environment(ContainerStore(settings: SettingsStore()))
         .frame(width: 500, height: 400)
 }
 #endif

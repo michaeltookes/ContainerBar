@@ -28,14 +28,6 @@ extension StatusItemController {
             onQuit: {
                 NSApp.terminate(nil)
             },
-            onHostChanged: { [weak self] in
-                guard let self else { return }
-                self.logger.info("Host changed, reinitializing fetcher")
-                self.containerStore.reinitializeFetcher()
-                Task {
-                    await self.containerStore.refresh(force: true)
-                }
-            },
             onFirstAppear: onFirstAppear
         )
         .environment(containerStore)
