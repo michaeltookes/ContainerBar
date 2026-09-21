@@ -114,4 +114,20 @@ struct TransportRequestTimeoutTests {
             sendWasAttempted: true
         ))
     }
+
+    @Test("Unix socket cleanup requires a captured failed connection")
+    func unixSocketCleanupRequiresCapturedFailedConnection() {
+        #expect(DockerAPIClientImpl.shouldCloseCapturedUnixSocketConnection(
+            after: DockerAPIError.networkTimeout,
+            failedConnectionWasCaptured: true
+        ))
+        #expect(!DockerAPIClientImpl.shouldCloseCapturedUnixSocketConnection(
+            after: DockerAPIError.networkTimeout,
+            failedConnectionWasCaptured: false
+        ))
+        #expect(!DockerAPIClientImpl.shouldCloseCapturedUnixSocketConnection(
+            after: StaleUnixSocketCandidateError(),
+            failedConnectionWasCaptured: true
+        ))
+    }
 }

@@ -218,7 +218,10 @@ extension DockerAPIClientImpl {
             throw error
         }
 
-        let shouldCloseConnection = Self.shouldCloseConnectionAfterUnixSocketError(error)
+        let shouldCloseConnection = Self.shouldCloseCapturedUnixSocketConnection(
+            after: error,
+            failedConnectionWasCaptured: failedConnection != nil
+        )
         if shouldCloseConnection {
             await closeConnection(ifCurrent: failedConnection)
         }
@@ -245,6 +248,13 @@ extension DockerAPIClientImpl {
 
     static func shouldCloseConnectionAfterUnixSocketError(_ error: Error) -> Bool {
         !(error is StaleUnixSocketCandidateError)
+    }
+
+    static func shouldCloseCapturedUnixSocketConnection(
+        after error: Error,
+        failedConnectionWasCaptured: Bool
+    ) -> Bool {
+        failedConnectionWasCaptured && shouldCloseConnectionAfterUnixSocketError(error)
     }
 
     static func shouldRetryUnixSocketRequest(
