@@ -29,6 +29,18 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     private var _lastCalledMethod: String?
     private var _calledMethods: [String] = []
 
+    // MARK: - Deterministic mid-flight gate
+    //
+    // When armed, the first `listContainers` call parks until `proceed()` is
+    // called, and signals its arrival to any awaiter of `waitUntilEntered()`.
+    // The gate auto-disarms after the first entry so a subsequent refresh
+    // (e.g. a cancel-and-restart or a host switch) is not blocked. This lets a
+    // test hold one refresh mid-fetch without brittle sleeps.
+    private var _gateArmed = false
+    private var _gateEntered = false
+    private var _entryContinuation: CheckedContinuation<Void, Never>?
+    private var _proceedContinuation: CheckedContinuation<Void, Never>?
+
     var mockContainers: [DockerContainer] {
         get { stateLock.withLock { _mockContainers } }
         set { stateLock.withLock { _mockContainers = newValue } }
@@ -72,6 +84,53 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     var calledMethods: [String] {
         get { stateLock.withLock { _calledMethods } }
         set { stateLock.withLock { _calledMethods = newValue } }
+    }
+
+    /// Arm the gate so the next `listContainers` parks until `proceed()`.
+    func armGate() {
+        stateLock.withLock {
+            _gateArmed = true
+            _gateEntered = false
+        }
+    }
+
+    /// Suspend until a gated `listContainers` call has entered the gate.
+    func waitUntilEntered() async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let alreadyEntered = stateLock.withLock { () -> Bool in
+                if _gateEntered { return true }
+                _entryContinuation = cont
+                return false
+            }
+            if alreadyEntered { cont.resume() }
+        }
+    }
+
+    /// Release a parked `listContainers` call so it can complete.
+    func proceed() {
+        let cont = stateLock.withLock { () -> CheckedContinuation<Void, Never>? in
+            let waiting = _proceedContinuation
+            _proceedContinuation = nil
+            return waiting
+        }
+        cont?.resume()
+    }
+
+    private func enterGateIfArmed() async {
+        // Disarm on the first entry and capture any entry awaiter.
+        let (shouldPark, entryCont) = stateLock.withLock { () -> (Bool, CheckedContinuation<Void, Never>?) in
+            guard _gateArmed else { return (false, nil) }
+            _gateArmed = false
+            _gateEntered = true
+            let waiting = _entryContinuation
+            _entryContinuation = nil
+            return (true, waiting)
+        }
+        guard shouldPark else { return }
+        entryCont?.resume()
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            stateLock.withLock { _proceedContinuation = cont }
+        }
     }
 
     private func recordCall(_ method: String) {
@@ -118,6 +177,7 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     func listContainers(all: Bool) async throws -> [DockerContainer] {
         recordCall("listContainers")
+        await enterGateIfArmed()
         try await maybeDelayResponse()
         let snapshot = stateLock.withLock { (_shouldFail, _failureError, _mockContainers) }
         if snapshot.0 { throw snapshot.1 }
