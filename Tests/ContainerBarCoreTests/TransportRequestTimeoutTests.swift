@@ -42,6 +42,15 @@ struct TransportRequestTimeoutTests {
         ) == 70)
     }
 
+    @Test("Container log requests have a larger response budget")
+    func containerLogsMinimumRequestTimeout() {
+        #expect(DockerAPIClientImpl.containerLogsMinimumRequestTimeout > 30)
+        #expect(NWConnectionTransport.resolvedRequestTimeout(
+            defaultTimeout: 30,
+            minimumRequestTimeout: DockerAPIClientImpl.containerLogsMinimumRequestTimeout
+        ) == DockerAPIClientImpl.containerLogsMinimumRequestTimeout)
+    }
+
     @Test("Unix socket retry policy does not replay non-idempotent sends")
     func unixSocketRetryPolicyDoesNotReplayNonIdempotentSends() {
         let restart = HTTPRequest(
