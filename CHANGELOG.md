@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- Container stop and restart requests now honor longer Docker action timeouts
+  instead of being cut off by the default transport deadline
 - Release validation now fails for missing or stale uploaded artifacts,
   mismatched bundle build numbers, invalid appcast signature/length metadata,
   missing or mixed appcast arm64 hardware requirements, non-production signing

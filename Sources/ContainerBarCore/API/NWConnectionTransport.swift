@@ -263,6 +263,10 @@ final class NWConnectionTransport: @unchecked Sendable {
 
             let requestData = try request.toHTTPData(resolvedHost: self.config.resolvedHost)
             let mapSendFailure = self.config.mapSendFailure
+            let requestTimeout = Self.resolvedRequestTimeout(
+                defaultTimeout: self.config.requestTimeout,
+                minimumRequestTimeout: request.minimumRequestTimeout
+            )
 
             // Bound the whole request (send + receive). A daemon that accepts the
             // connection and then never replies would hang `receiveHTTPResponse`
@@ -270,7 +274,7 @@ final class NWConnectionTransport: @unchecked Sendable {
             // which fails the pending send/receive callback, and throws
             // `DockerAPIError.networkTimeout`.
             do {
-                return try await withDeadline(seconds: self.config.requestTimeout, connection: conn) {
+                return try await withDeadline(seconds: requestTimeout, connection: conn) {
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                         conn.send(content: requestData, completion: .contentProcessed { error in
                             if let error {
@@ -299,5 +303,15 @@ final class NWConnectionTransport: @unchecked Sendable {
                 throw error
             }
         }
+    }
+
+    static func resolvedRequestTimeout(
+        defaultTimeout: TimeInterval,
+        minimumRequestTimeout: TimeInterval?
+    ) -> TimeInterval {
+        guard let minimumRequestTimeout else {
+            return defaultTimeout
+        }
+        return max(defaultTimeout, minimumRequestTimeout)
     }
 }

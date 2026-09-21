@@ -14,6 +14,7 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
     let host: DockerHost
     let logger = Logger(label: "com.containerbar.api")
     let apiVersion = "v1.44"
+    private static let lifecycleActionResponseGrace: TimeInterval = 10
 
     // Connection management
     var connection: UnixSocketConnection?
@@ -169,7 +170,11 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         }
         logger.info("Stopping container \(id)")
 
-        let request = HTTPRequest(method: "POST", path: path)
+        let request = HTTPRequest(
+            method: "POST",
+            path: path,
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout)
+        )
         let response = try await performRequest(request)
 
         // Docker returns 204 (success) or 304 (already stopped)
@@ -184,7 +189,11 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         }
         logger.info("Restarting container \(id)")
 
-        let request = HTTPRequest(method: "POST", path: path)
+        let request = HTTPRequest(
+            method: "POST",
+            path: path,
+            minimumRequestTimeout: Self.lifecycleActionMinimumRequestTimeout(for: timeout)
+        )
         let response = try await performRequest(request)
 
         try validateResponse(response, allowedCodes: [204])
@@ -236,5 +245,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
 
         let decoder = JSONDecoder()
         return try decoder.decode(DockerSystemInfo.self, from: response.body)
+    }
+
+    static func lifecycleActionMinimumRequestTimeout(for dockerTimeout: Int?) -> TimeInterval? {
+        guard let dockerTimeout, dockerTimeout > 0 else {
+            return nil
+        }
+        return TimeInterval(dockerTimeout) + lifecycleActionResponseGrace
     }
 }

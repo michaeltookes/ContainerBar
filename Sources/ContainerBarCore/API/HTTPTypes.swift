@@ -5,12 +5,20 @@ struct HTTPRequest: Sendable {
     let path: String
     let headers: [String: String]
     let body: Data?
+    let minimumRequestTimeout: TimeInterval?
 
-    init(method: String = "GET", path: String, headers: [String: String] = [:], body: Data? = nil) {
+    init(
+        method: String = "GET",
+        path: String,
+        headers: [String: String] = [:],
+        body: Data? = nil,
+        minimumRequestTimeout: TimeInterval? = nil
+    ) {
         self.method = method
         self.path = path
         self.headers = headers
         self.body = body
+        self.minimumRequestTimeout = minimumRequestTimeout
     }
 
     var isIdempotent: Bool {
