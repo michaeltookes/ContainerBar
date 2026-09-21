@@ -140,4 +140,28 @@ struct TransportRequestTimeoutTests {
             failedConnectionWasCaptured: true
         ))
     }
+
+    @Test("SSH tunnel retry reconnect does not require a captured Unix connection")
+    func sshTunnelReconnectDoesNotRequireCapturedUnixConnection() {
+        let connectedTunnel = SSHTunnelConnection.StateSnapshot(isConnected: true, hasDied: false)
+        let disconnectedTunnel = SSHTunnelConnection.StateSnapshot(isConnected: false, hasDied: false)
+        let diedTunnel = SSHTunnelConnection.StateSnapshot(isConnected: true, hasDied: true)
+
+        #expect(!DockerAPIClientImpl.shouldReconnectSSHTunnelForUnixSocketRetry(
+            connectionType: .ssh,
+            tunnelState: connectedTunnel
+        ))
+        #expect(DockerAPIClientImpl.shouldReconnectSSHTunnelForUnixSocketRetry(
+            connectionType: .ssh,
+            tunnelState: disconnectedTunnel
+        ))
+        #expect(DockerAPIClientImpl.shouldReconnectSSHTunnelForUnixSocketRetry(
+            connectionType: .ssh,
+            tunnelState: diedTunnel
+        ))
+        #expect(!DockerAPIClientImpl.shouldReconnectSSHTunnelForUnixSocketRetry(
+            connectionType: .unixSocket,
+            tunnelState: disconnectedTunnel
+        ))
+    }
 }

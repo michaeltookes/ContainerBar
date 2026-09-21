@@ -230,9 +230,12 @@ extension DockerAPIClientImpl {
             throw error
         }
 
-        if shouldCloseConnection, host.connectionType == .ssh, let tunnel = sshTunnel {
+        if let tunnel = sshTunnel {
             let tunnelState = tunnel.snapshotState()
-            if !tunnelState.isConnected {
+            if Self.shouldReconnectSSHTunnelForUnixSocketRetry(
+                connectionType: host.connectionType,
+                tunnelState: tunnelState
+            ) {
                 logger.warning("SSH tunnel lost during request, attempting reconnect")
                 let localSocket = try await tunnel.reconnect()
                 connectionLock.withLock {
@@ -269,5 +272,15 @@ extension DockerAPIClientImpl {
             return true
         }
         return !sendWasAttempted || request.allowsRetryAfterSend
+    }
+
+    static func shouldReconnectSSHTunnelForUnixSocketRetry(
+        connectionType: ConnectionType,
+        tunnelState: SSHTunnelConnection.StateSnapshot
+    ) -> Bool {
+        guard connectionType == .ssh else {
+            return false
+        }
+        return tunnelState.hasDied || !tunnelState.isConnected
     }
 }

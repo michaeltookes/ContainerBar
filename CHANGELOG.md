@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of leaving refreshes stuck indefinitely, then reconnect on the next request
 - Concurrent TLS retry recovery now coalesces reconnect work instead of allowing
   queued requests to disconnect a freshly re-established connection
+- SSH tunnel retries now reconnect a dead tunnel even when the failed request
+  did not capture a Unix socket connection to close
 - Large container log downloads now use a receive-inactivity deadline that
   resets on progress instead of a fixed whole-download timeout
 - Container stop and restart requests now honor longer Docker action timeouts
