@@ -118,6 +118,38 @@ struct ContainerStoreHostSwitchTests {
         #expect(store.isRefreshing == false)
     }
 
+    @Test("Multiple forced refreshes coalesce after joining the same in-flight refresh")
+    func multipleForceRefreshesCoalesceAfterJoin() async {
+        let harness = Harness()
+        harness.settings.selectedHostId = harness.hostA.id
+        let store = harness.makeStore()
+
+        harness.mockA.armGate()
+        let firstRefresh = Task { await store.refresh() }
+        await harness.mockA.waitUntilEntered()
+
+        harness.mockA.mockContainers = [
+            DockerContainer.mock(id: "a1", name: "alpha", state: .running),
+            DockerContainer.mock(id: "a2", name: "alpha-2", state: .running)
+        ]
+        let forcedOne = Task { await store.refresh(force: true) }
+        let forcedTwo = Task { await store.refresh(force: true) }
+
+        await Task.yield()
+        await Task.yield()
+
+        harness.mockA.proceed()
+        await firstRefresh.value
+        await forcedOne.value
+        await forcedTwo.value
+
+        #expect(harness.mockA.cancelledAfterGate == false)
+        let listCalls = harness.mockA.calledMethods.filter { $0 == "listContainers" }.count
+        #expect(listCalls == 2)
+        #expect(store.containers.map(\.id) == ["a1", "a2"])
+        #expect(store.isRefreshing == false)
+    }
+
     // MARK: - CB-065
 
     @Test("Removing the active host reinitializes against the fallback host")

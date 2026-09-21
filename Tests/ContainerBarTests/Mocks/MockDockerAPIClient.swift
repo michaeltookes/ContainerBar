@@ -99,6 +99,9 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         stateLock.withLock {
             _gateArmed = true
             _gateEntered = false
+            _cancelledAfterGate = false
+            _entryContinuation = nil
+            _proceedContinuation = nil
         }
     }
 
@@ -135,9 +138,9 @@ final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
             return (true, waiting)
         }
         guard shouldPark else { return }
-        entryCont?.resume()
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             stateLock.withLock { _proceedContinuation = cont }
+            entryCont?.resume()
         }
         let cancelled = Task.isCancelled
         stateLock.withLock { _cancelledAfterGate = cancelled }

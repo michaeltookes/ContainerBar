@@ -28,6 +28,7 @@ extension ContainerStore {
     ///   that cancels an in-flight refresh.
     public func refresh(force: Bool = false) async {
         if let inFlight = refreshTask {
+            let joinedGeneration = refreshGeneration
             // Join the in-flight refresh rather than cancelling it. Cancelling
             // a same-host refresh would tear down the live transport — a
             // cancelled `NWConnection` send runs the transport's connect-
@@ -40,8 +41,37 @@ extension ContainerStore {
             logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
             if !force { return }
+            await runJoinedForcedRefresh(afterJoining: joinedGeneration)
+            return
         }
         await startRefresh(force: force).value
+    }
+
+    /// Start or join the single forced follow-up required after forced callers
+    /// waited for an existing refresh to complete.
+    private func runJoinedForcedRefresh(afterJoining joinedGeneration: Int) async {
+        var joinedGeneration = joinedGeneration
+
+        while true {
+            if let pending = pendingJoinedForcedRefresh,
+               pending.joinedGeneration == joinedGeneration {
+                logger.debug("Refresh joining pending forced follow-up (gen \(pending.refreshGeneration))")
+                await pending.task.value
+                return
+            }
+
+            if let inFlight = refreshTask {
+                logger.debug("Forced refresh waiting for newer in-flight refresh before follow-up")
+                joinedGeneration = refreshGeneration
+                await inFlight.value
+                continue
+            }
+
+            let task = startRefresh(force: true)
+            pendingJoinedForcedRefresh = (joinedGeneration, refreshGeneration, task)
+            await task.value
+            return
+        }
     }
 
     /// Begin a new refresh: supersede any in-flight one, bump the generation,
@@ -51,6 +81,7 @@ extension ContainerStore {
     ///   rate-limit cache so it always hits the daemon.
     @discardableResult
     func startRefresh(force: Bool = false) -> Task<Void, Never> {
+        pendingJoinedForcedRefresh = nil
         refreshGeneration &+= 1
         let generation = refreshGeneration
 

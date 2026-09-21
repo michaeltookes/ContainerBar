@@ -70,6 +70,12 @@ public final class ContainerStore {
     @ObservationIgnored
     var refreshTask: Task<Void, Never>?
 
+    /// Forced refresh started after one or more forced callers joined an
+    /// already in-flight refresh. All joined forced callers await this same
+    /// follow-up so only one cache-bypassing daemon request is made.
+    @ObservationIgnored
+    var pendingJoinedForcedRefresh: (joinedGeneration: Int, refreshGeneration: Int, task: Task<Void, Never>)?
+
     /// Monotonic stamp incremented on every refresh start and every host
     /// switch. A refresh only writes state while its stamp is still current,
     /// so a slow response from a superseded fetcher can never overwrite the
