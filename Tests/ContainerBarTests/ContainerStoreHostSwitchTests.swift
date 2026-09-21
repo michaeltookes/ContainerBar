@@ -7,10 +7,10 @@ import Testing
 ///
 /// These drive the store through the injected `FetcherFactory` so a host
 /// switch rebuilds against a different mock, and keep the auto-refresh timer
-/// and settings observation off so the tests stay deterministic — the
-/// convergence decision is exercised by calling `handleSettingsChange()`
-/// directly. Mid-flight ordering uses `MockDockerAPIClient`'s gate rather than
-/// sleeps.
+/// off so the tests stay deterministic. Most tests exercise convergence by
+/// calling `handleSettingsChange()` directly; the observer-specific regression
+/// enables settings observation explicitly. Mid-flight ordering uses
+/// `MockDockerAPIClient`'s gate rather than sleeps.
 @Suite("ContainerStore Host Switching Tests")
 @MainActor
 struct ContainerStoreHostSwitchTests {
@@ -35,7 +35,7 @@ struct ContainerStoreHostSwitchTests {
             settings.addHost(hostB)
         }
 
-        func makeStore() -> ContainerStore {
+        func makeStore(observeSettings: Bool = false) -> ContainerStore {
             ContainerStore(
                 settings: settings,
                 fetcherFactory: { [self] host in
@@ -44,9 +44,21 @@ struct ContainerStoreHostSwitchTests {
                     return ContainerFetcher(client: client, host: host ?? .local)
                 },
                 startRefreshLoop: false,
-                observeSettings: false
+                observeSettings: observeSettings
             )
         }
+    }
+
+    private static func listCallCount(on mock: MockDockerAPIClient) -> Int {
+        mock.calledMethods.filter { $0 == "listContainers" }.count
+    }
+
+    private static func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
+        for _ in 0..<100 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
     }
 
     // MARK: - CB-064
@@ -150,6 +162,29 @@ struct ContainerStoreHostSwitchTests {
         #expect(store.isRefreshing == false)
     }
 
+    @Test("Forced refresh joins an in-flight forced refresh without another follow-up")
+    func forcedRefreshJoinsInFlightForcedRefreshWithoutFollowUp() async {
+        let harness = Harness()
+        harness.settings.selectedHostId = harness.hostA.id
+        harness.mockA.responseDelay = .milliseconds(200)
+        let store = harness.makeStore()
+
+        let forcedOne = Task { await store.refresh(force: true) }
+        let forcedOneStarted = await Self.waitUntil {
+            Self.listCallCount(on: harness.mockA) == 1
+        }
+        #expect(forcedOneStarted)
+
+        let forcedTwo = Task { await store.refresh(force: true) }
+
+        await forcedOne.value
+        await forcedTwo.value
+
+        #expect(Self.listCallCount(on: harness.mockA) == 1)
+        #expect(store.containers.map(\.id) == ["a1"])
+        #expect(store.isRefreshing == false)
+    }
+
     // MARK: - CB-065
 
     @Test("Removing the active host reinitializes against the fallback host")
@@ -168,6 +203,27 @@ struct ContainerStoreHostSwitchTests {
 
         #expect(store.containers.map(\.id) == ["a1"])
         #expect(store.isConnected == true)
+    }
+
+    @Test("Settings observer handles immediate host changes after a handled change")
+    func settingsObserverHandlesImmediateHostChangeAfterHandledChange() async {
+        let harness = Harness()
+        harness.settings.selectedHostId = harness.hostA.id
+        let store = harness.makeStore(observeSettings: true)
+
+        await store.refresh()
+        let callsAfterInitialRefresh = harness.factoryCalls
+
+        harness.settings.selectedHostId = harness.hostB.id
+        #expect(harness.factoryCalls == callsAfterInitialRefresh + 1)
+
+        harness.settings.selectedHostId = harness.hostA.id
+        #expect(harness.factoryCalls == callsAfterInitialRefresh + 2)
+
+        await store.refresh()
+
+        #expect(store.containers.map(\.id) == ["a1"])
+        #expect(store.isRefreshing == false)
     }
 
     @Test("Editing the active host's config reinitializes the fetcher")

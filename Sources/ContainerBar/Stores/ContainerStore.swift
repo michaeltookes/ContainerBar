@@ -62,13 +62,15 @@ public final class ContainerStore {
     @ObservationIgnored
     private var timerTask: Task<Void, Never>?
 
-    @ObservationIgnored
-    var settingsObservationTask: Task<Void, Never>?
-
     /// The refresh currently in flight, if any. Held so a host switch can
     /// cancel it and so a non-forced refresh can join it (CB-064).
     @ObservationIgnored
     var refreshTask: Task<Void, Never>?
+
+    /// Whether the in-flight refresh was started with `force: true`. Forced
+    /// callers that join such a task do not need another follow-up refresh.
+    @ObservationIgnored
+    var refreshTaskBypassesRateLimit = false
 
     /// Forced refresh started after one or more forced callers joined an
     /// already in-flight refresh. All joined forced callers await this same
@@ -93,6 +95,10 @@ public final class ContainerStore {
     /// edit does not needlessly reset the auto-refresh countdown.
     @ObservationIgnored
     var lastRefreshInterval: RefreshInterval?
+
+    /// Token for the direct settings observer that drives host/timer convergence.
+    @ObservationIgnored
+    var settingsObservationToken: UUID?
 
     @ObservationIgnored
     let settings: SettingsStore
@@ -168,7 +174,6 @@ public final class ContainerStore {
 
     deinit {
         timerTask?.cancel()
-        settingsObservationTask?.cancel()
         refreshTask?.cancel()
     }
 

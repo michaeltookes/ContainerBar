@@ -20,27 +20,31 @@ extension ContainerStore {
 
     /// Refresh container data from Docker daemon.
     /// - Parameter force: when `true`, join an in-flight refresh (rather than
-    ///   cancelling it) and then start exactly one more refresh that bypasses
-    ///   the fetcher's rate-limit cache, so post-action state is re-fetched
-    ///   from the daemon instead of returning the pre-action cached list.
+    ///   cancelling it). If the joined refresh already bypasses the fetcher's
+    ///   rate-limit cache, it satisfies the caller; otherwise, joined forced
+    ///   callers share exactly one cache-bypassing follow-up so post-action
+    ///   state is re-fetched from the daemon instead of returning the
+    ///   pre-action cached list.
     ///   When `false`, join an in-flight refresh if there is one rather than
     ///   starting a second overlapping fetch. `switchHost()` is the only path
     ///   that cancels an in-flight refresh.
     public func refresh(force: Bool = false) async {
         if let inFlight = refreshTask {
             let joinedGeneration = refreshGeneration
+            let joinedRefreshBypassesRateLimit = refreshTaskBypassesRateLimit
             // Join the in-flight refresh rather than cancelling it. Cancelling
             // a same-host refresh would tear down the live transport — a
             // cancelled `NWConnection` send runs the transport's connect-
             // failure cleanup, forcing a fresh handshake on the next request
             // (a full TLS handshake on TLS hosts). A non-forced caller is done
-            // once the in-flight refresh lands; a forced caller (e.g. after a
-            // container action) then starts one more — with the rate-limit
-            // cache bypassed — so it reflects the mutation. `switchHost()` is
-            // the only path that cancels, because it discards the old fetcher.
+            // once the in-flight refresh lands. A forced caller (e.g. after a
+            // container action) is also done if it joined a forced refresh;
+            // otherwise forced joiners share one cache-bypassing follow-up so
+            // the result reflects the mutation. `switchHost()` is the only path
+            // that cancels, because it discards the old fetcher.
             logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
-            if !force { return }
+            if !force || joinedRefreshBypassesRateLimit { return }
             await runJoinedForcedRefresh(afterJoining: joinedGeneration)
             return
         }
@@ -62,8 +66,10 @@ extension ContainerStore {
 
             if let inFlight = refreshTask {
                 logger.debug("Forced refresh waiting for newer in-flight refresh before follow-up")
+                let inFlightBypassesRateLimit = refreshTaskBypassesRateLimit
                 joinedGeneration = refreshGeneration
                 await inFlight.value
+                if inFlightBypassesRateLimit { return }
                 continue
             }
 
@@ -90,6 +96,7 @@ extension ContainerStore {
         refreshTask?.cancel()
 
         isRefreshing = true
+        refreshTaskBypassesRateLimit = force
 
         let task = Task { [weak self] in
             guard let self else { return }
@@ -169,6 +176,7 @@ extension ContainerStore {
         guard isCurrentRefresh(generation) else { return }
         isRefreshing = false
         refreshTask = nil
+        refreshTaskBypassesRateLimit = false
     }
 
     // MARK: - Host Switching
@@ -210,32 +218,14 @@ extension ContainerStore {
     // MARK: - Settings Observation
 
     /// Observe the settings that affect the live connection and the refresh
-    /// timer, and converge on them. Uses the existing 100 ms
-    /// `withObservationTracking` polling pattern (CB-073 tracks replacing it);
-    /// this only extends the tracked keys.
+    /// timer, and converge on them without a polling window between changes.
     func startSettingsObservation() {
-        settingsObservationTask?.cancel()
+        if let settingsObservationToken {
+            settings.removeConnectionSettingsObserver(settingsObservationToken)
+        }
 
-        settingsObservationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { break }
-
-                withObservationTracking {
-                    // Reading `selectedHost` also reads `selectedHostId` and
-                    // the `hosts` array, so any host mutation re-fires
-                    // `onChange`; `handleSettingsChange` then decides whether
-                    // it actually changed the resolved host.
-                    _ = self.settings.refreshInterval
-                    _ = self.settings.selectedHost
-                } onChange: {
-                    Task { @MainActor [weak self] in
-                        self?.handleSettingsChange()
-                    }
-                }
-
-                // Small delay to coalesce changes
-                try? await Task.sleep(for: .milliseconds(100))
-            }
+        settingsObservationToken = settings.observeConnectionSettings { [weak self] in
+            self?.handleSettingsChange()
         }
     }
 

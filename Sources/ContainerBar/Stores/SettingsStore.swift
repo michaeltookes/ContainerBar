@@ -26,11 +26,15 @@ public final class SettingsStore {
     private let userDefaults: UserDefaults
     private let logger = Logger(label: "com.containerbar.store.settings")
 
+    @ObservationIgnored
+    private var connectionSettingsObservers: [UUID: @MainActor () -> Void] = [:]
+
     /// How often to auto-refresh container data
     public var refreshInterval: RefreshInterval {
         didSet {
             userDefaults.set(refreshInterval.rawValue, forKey: Keys.refreshInterval)
             logger.info("Refresh interval changed to \(refreshInterval.displayName)")
+            notifyConnectionSettingsChanged()
         }
     }
 
@@ -67,6 +71,7 @@ public final class SettingsStore {
             } else {
                 userDefaults.removeObject(forKey: Keys.selectedHostId)
             }
+            notifyConnectionSettingsChanged()
         }
     }
 
@@ -141,6 +146,7 @@ public final class SettingsStore {
 
         hosts.append(newHost)
         saveHosts()
+        notifyConnectionSettingsChanged()
 
         logger.info("Added host: \(host.name)")
     }
@@ -154,6 +160,7 @@ public final class SettingsStore {
 
         hosts[index] = host
         saveHosts()
+        notifyConnectionSettingsChanged()
 
         logger.info("Updated host: \(host.name)")
     }
@@ -175,6 +182,7 @@ public final class SettingsStore {
         }
 
         saveHosts()
+        notifyConnectionSettingsChanged()
 
         logger.info("Removed host: \(id)")
     }
@@ -187,6 +195,29 @@ public final class SettingsStore {
             return updated
         }
         saveHosts()
+        notifyConnectionSettingsChanged()
+    }
+
+    // MARK: - Connection Settings Observation
+
+    /// Register for synchronous connection-setting changes that affect the
+    /// live fetcher or refresh timer.
+    @discardableResult
+    func observeConnectionSettings(_ observer: @escaping @MainActor () -> Void) -> UUID {
+        let id = UUID()
+        connectionSettingsObservers[id] = observer
+        return id
+    }
+
+    func removeConnectionSettingsObserver(_ id: UUID) {
+        connectionSettingsObservers.removeValue(forKey: id)
+    }
+
+    private func notifyConnectionSettingsChanged() {
+        let observers = Array(connectionSettingsObservers.values)
+        for observer in observers {
+            observer()
+        }
     }
 
     // MARK: - Section Management
