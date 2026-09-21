@@ -41,4 +41,32 @@ struct TransportRequestTimeoutTests {
             minimumRequestTimeout: 70
         ) == 70)
     }
+
+    @Test("Unix socket retry policy does not replay non-idempotent sends")
+    func unixSocketRetryPolicyDoesNotReplayNonIdempotentSends() {
+        let restart = HTTPRequest(
+            method: "POST",
+            path: "/v1.44/containers/abc/restart"
+        )
+        let list = HTTPRequest(
+            method: "GET",
+            path: "/v1.44/containers/json"
+        )
+
+        #expect(DockerAPIClientImpl.shouldRetryUnixSocketRequest(
+            restart,
+            after: DockerAPIError.networkTimeout,
+            sendWasAttempted: false
+        ))
+        #expect(!DockerAPIClientImpl.shouldRetryUnixSocketRequest(
+            restart,
+            after: DockerAPIError.networkTimeout,
+            sendWasAttempted: true
+        ))
+        #expect(DockerAPIClientImpl.shouldRetryUnixSocketRequest(
+            list,
+            after: DockerAPIError.networkTimeout,
+            sendWasAttempted: true
+        ))
+    }
 }

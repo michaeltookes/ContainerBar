@@ -176,37 +176,66 @@ extension DockerAPIClientImpl {
 
         try await ensureSSHTunnel()
 
+        let conn: UnixSocketConnection
         do {
-            let conn = try await getConnection()
+            conn = try await getConnection()
+        } catch {
+            return try await retryUnixSocketRequest(request, after: error, sendWasAttempted: false)
+        }
+
+        do {
             return try await conn.sendRequest(request)
         } catch {
-            if error is CancellationError || Task.isCancelled {
-                throw error
-            }
+            return try await retryUnixSocketRequest(request, after: error, sendWasAttempted: true)
+        }
+    }
 
-            let shouldCloseConnection = Self.shouldCloseConnectionAfterUnixSocketError(error)
-            if shouldCloseConnection {
-                await closeConnection()
-            }
+    func retryUnixSocketRequest(
+        _ request: HTTPRequest,
+        after error: Error,
+        sendWasAttempted: Bool
+    ) async throws -> HTTPResponse {
+        if error is CancellationError || Task.isCancelled {
+            throw error
+        }
 
-            if shouldCloseConnection, host.connectionType == .ssh, let tunnel = sshTunnel {
-                let tunnelState = tunnel.snapshotState()
-                if !tunnelState.isConnected {
-                    logger.warning("SSH tunnel lost during request, attempting reconnect")
-                    let localSocket = try await tunnel.reconnect()
-                    connectionLock.withLock {
-                        effectiveSocketPath = localSocket
-                        connection = nil
-                    }
+        let shouldCloseConnection = Self.shouldCloseConnectionAfterUnixSocketError(error)
+        if shouldCloseConnection {
+            await closeConnection()
+        }
+
+        guard Self.shouldRetryUnixSocketRequest(request, after: error, sendWasAttempted: sendWasAttempted) else {
+            throw error
+        }
+
+        if shouldCloseConnection, host.connectionType == .ssh, let tunnel = sshTunnel {
+            let tunnelState = tunnel.snapshotState()
+            if !tunnelState.isConnected {
+                logger.warning("SSH tunnel lost during request, attempting reconnect")
+                let localSocket = try await tunnel.reconnect()
+                connectionLock.withLock {
+                    effectiveSocketPath = localSocket
+                    connection = nil
                 }
             }
-
-            let conn = try await getConnection()
-            return try await conn.sendRequest(request)
         }
+
+        let conn = try await getConnection()
+        return try await conn.sendRequest(request)
     }
 
     static func shouldCloseConnectionAfterUnixSocketError(_ error: Error) -> Bool {
         !(error is StaleUnixSocketCandidateError)
+    }
+
+    static func shouldRetryUnixSocketRequest(
+        _ request: HTTPRequest,
+        after error: Error,
+        sendWasAttempted: Bool
+    ) -> Bool {
+        if error is CancellationError {
+            return false
+        }
+        return !sendWasAttempted || request.isIdempotent
     }
 }
