@@ -168,4 +168,41 @@ struct ContainerStoreHostSwitchTests {
         #expect(harness.factoryCalls == callsBefore)
         #expect(store.containers.map(\.id) == ["b1"])
     }
+
+    @Test("Renaming the active host does not reinitialize the fetcher")
+    func renamingActiveHostDoesNotReinitialize() async {
+        let harness = Harness()
+        harness.settings.selectedHostId = harness.hostB.id
+        let store = harness.makeStore()
+
+        await store.refresh()
+        let callsBefore = harness.factoryCalls
+
+        // A rename changes only a cosmetic field, not the connection identity.
+        var renamedB = harness.hostB
+        renamedB.name = "Host B (renamed)"
+        harness.settings.updateHost(renamedB)
+        store.handleSettingsChange()
+
+        #expect(harness.factoryCalls == callsBefore)
+        #expect(store.containers.map(\.id) == ["b1"])
+    }
+
+    @Test("Marking another host default does not reinitialize the active host")
+    func markingAnotherHostDefaultDoesNotReinitialize() async {
+        let harness = Harness()
+        harness.settings.selectedHostId = harness.hostB.id
+        let store = harness.makeStore()
+
+        await store.refresh()
+        let callsBefore = harness.factoryCalls
+
+        // setDefaultHost rewrites `isDefault` across every host; the active
+        // host's connection identity is unchanged, so no reinit should occur.
+        harness.settings.setDefaultHost(id: harness.hostA.id)
+        store.handleSettingsChange()
+
+        #expect(harness.factoryCalls == callsBefore)
+        #expect(store.containers.map(\.id) == ["b1"])
+    }
 }

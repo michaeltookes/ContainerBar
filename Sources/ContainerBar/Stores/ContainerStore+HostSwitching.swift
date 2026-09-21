@@ -192,7 +192,12 @@ extension ContainerStore {
     /// fetcher, and only restarts the timer when the interval changed.
     func handleSettingsChange() {
         let resolvedHost = settings.selectedHost
-        if resolvedHost != lastResolvedHost {
+        // Compare the connection-identity projection, not the whole struct:
+        // `DockerHost`'s synthesized `Equatable` also covers `name`/`isDefault`,
+        // and `addHost`/`setDefaultHost` rewrite `isDefault` across every host,
+        // so whole-struct equality would tear down and reconnect the live
+        // client on a rename or a default-flag change (CB-064/CB-065 review).
+        if resolvedHost?.connectionIdentity != lastResolvedHost?.connectionIdentity {
             switchHost()
         }
 
