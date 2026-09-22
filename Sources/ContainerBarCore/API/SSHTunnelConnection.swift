@@ -280,8 +280,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
 
         // Only a deliberate disconnect() cancels the in-flight reconnect; the
-        // forceReconnect teardown (cancelConnectTask == false) must not cancel
-        // the reconnect it is itself running under.
+        // forceReconnect teardown must not cancel the reconnect it runs under.
         if cancelConnectTask {
             reconnectCoordinator.cancelInFlight()
         }
