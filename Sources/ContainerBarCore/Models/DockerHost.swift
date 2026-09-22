@@ -66,6 +66,48 @@ public struct DockerHost: Codable, Sendable, Identifiable, Equatable {
         self.remotePodmanUID = remotePodmanUID
     }
 
+    /// The subset of configuration that determines the live client
+    /// connection, excluding cosmetic fields (`name`, `isDefault`). Two hosts
+    /// with equal connection identity address the same daemon over the same
+    /// transport, so switching between them would rebuild an identical client.
+    /// Used to avoid tearing down and reconnecting on cosmetic edits — e.g. a
+    /// rename, or the `isDefault` flag that `addHost`/`setDefaultHost` rewrite
+    /// across every host when a new default is chosen.
+    public struct ConnectionIdentity: Equatable, Sendable {
+        public let id: UUID
+        public let connectionType: ConnectionType
+        public let runtime: ContainerRuntime
+        public let socketPath: String?
+        public let host: String?
+        public let port: Int?
+        public let tlsEnabled: Bool
+        public let sshUser: String?
+        public let sshPort: Int?
+        public let tlsCACert: String?
+        public let tlsClientCert: String?
+        public let tlsClientKey: String?
+        public let remotePodmanUID: Int?
+    }
+
+    /// The connection-affecting projection of this host (see `ConnectionIdentity`).
+    public var connectionIdentity: ConnectionIdentity {
+        ConnectionIdentity(
+            id: id,
+            connectionType: connectionType,
+            runtime: runtime,
+            socketPath: socketPath,
+            host: host,
+            port: port,
+            tlsEnabled: tlsEnabled,
+            sshUser: sshUser,
+            sshPort: sshPort,
+            tlsCACert: tlsCACert,
+            tlsClientCert: tlsClientCert,
+            tlsClientKey: tlsClientKey,
+            remotePodmanUID: remotePodmanUID
+        )
+    }
+
     /// Creates a default local Docker host configuration
     public static var local: DockerHost {
         DockerHost(

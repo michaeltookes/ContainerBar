@@ -9,7 +9,6 @@ struct DashboardMenuView: View {
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
     var onQuit: (() -> Void)? = nil
-    var onHostChanged: (() -> Void)? = nil
     /// Fires once SwiftUI has run the body and the view appears in the
     /// hierarchy. The host uses this to gate menu-open state mutations
     /// until after the initial render pass, replacing a fixed-delay sleep.
@@ -55,8 +54,9 @@ struct DashboardMenuView: View {
                     hosts: settings.hosts,
                     selectedHostId: settings.selectedHostId,
                     onSelectHost: { hostId in
+                        // The store observes `settings.selectedHostId` and
+                        // reinitializes the fetcher itself (CB-065).
                         settings.selectedHostId = hostId
-                        onHostChanged?()
                     }
                 )
             }
@@ -151,8 +151,9 @@ struct DashboardMenuView: View {
             if isHostPanelOpen {
                 HostPanelView(
                     onSelectHost: { hostId in
+                        // The store observes `settings.selectedHostId` and
+                        // reinitializes the fetcher itself (CB-065).
                         settings.selectedHostId = hostId
-                        onHostChanged?()
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isHostPanelOpen = false
                         }
@@ -241,8 +242,7 @@ struct DashboardMenuView: View {
     return DashboardMenuView(
         onAction: { _ in },
         onSettings: {},
-        onQuit: {},
-        onHostChanged: {}
+        onQuit: {}
     )
     .environment(store)
     .environment(settings)

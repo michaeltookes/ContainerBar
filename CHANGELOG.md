@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- Switching hosts now cancels the in-flight refresh and ignores its late
+  result, so a slow response from the previous host can no longer overwrite the
+  new host's containers, and the refresh spinner only clears when the current
+  refresh finishes
+- Removing or editing the active Docker host now reconnects the live client
+  immediately (falling back to the default host when the active one is removed),
+  instead of continuing to poll the old or deleted host until relaunch
 - Network transports now time out stalled connects and silent responses instead
   of leaving refreshes stuck indefinitely, then reconnect on the next request
 - Concurrent TLS retry recovery now coalesces reconnect work instead of allowing

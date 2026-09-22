@@ -6,13 +6,7 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## High Priority
 
-### CB-064: `ContainerStore.refresh` has no cancellation or generation fencing; host switch lets stale responses overwrite the new host
-**Priority**: High
-**Description**: Audit 2026-09-18. `refresh()` copies `fetcher` into a local before awaiting and writes `containers`/`stats`/`isConnected`/`metricsHistory` unconditionally after the `await`. `reinitializeFetcher()` clears state, forces `isRefreshing = false`, and callers then start `refresh(force: true)`, so two fetches overlap. Scenario: timer refresh in flight against a slow SSH host, user switches to Local Docker; local returns first, then the SSH response arrives and overwrites the store with the remote host's containers while the header says "Local Docker". The first refresh's `defer { isRefreshing = false }` also fires while the second is still running, so the icon flips to idle early. `performContainerAction` -> `refresh(force: true)` plus the router's `reopenMenu` -> `menuWillOpen` -> `refresh()` produces the same overlap on every start/stop/restart. Fix: hold the running refresh in a `Task` property, cancel it in `reinitializeFetcher()`, stamp each refresh with a generation counter checked after every `await` before writing state, and replace `force` with cancel-and-restart. Tests: host switch mid-fetch must not apply the stale result.
-
-### CB-065: Host lifecycle mutations bypass the store: removing or editing the active host never reinitializes the fetcher
-**Priority**: High
-**Description**: Audit 2026-09-18. Host-switch orchestration is duplicated in `StatusItemController+MenuBuilding.swift` (`onHostChanged` -> `reinitializeFetcher()` + `refresh(force:)`) and `ConnectionSettingsPane.setDefaultHost` (reinitialize, no refresh — in manual-refresh mode the store stays empty until the menu opens). `ConnectionSettingsPane.removeSelectedHost` calls `settings.removeHost(id:)`, which nulls `selectedHostId` so `selectedHost` silently falls back to the default host, but nothing reinitializes: `ContainerStore.startSettingsObservation` tracks only `settings.refreshInterval`, so the store keeps polling the deleted host's SSH tunnel while the dashboard header names the fallback host. `SettingsStore.updateHost(_:)` for the currently selected host (changed SSH user/port/socket) persists but the live client keeps the old config until a switch or relaunch. Fix: move orchestration into a single `ContainerStore.switchHost()` and have the store observe `settings.selectedHostId` and `settings.hosts` (config of the selected host), so every mutation path — menu switch, Settings default, remove, edit, hunt-mode seed — converges. Pair with CB-064 so the switch cancels in-flight work. Tests for remove-active-host and edit-active-host.
+_No open high-priority items._
 
 ## Medium Priority
 

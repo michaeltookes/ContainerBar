@@ -1,0 +1,266 @@
+import Foundation
+import ContainerBarCore
+
+// MARK: - Refresh, host switching, and settings convergence
+//
+// CB-064: `refresh` is generation-fenced and cancel-and-restart. Every refresh
+// is stamped with `refreshGeneration`; it only writes store state while its
+// stamp is still current, so a slow response from a superseded fetcher can
+// never overwrite the live host's data, and `isRefreshing` only clears when the
+// latest refresh finishes.
+//
+// CB-065: every host-lifecycle mutation (dashboard switch, Settings "set
+// active", remove, edit, hunt-mode seed) flows through the same
+// `switchHost()`, driven by a single settings observer, instead of duplicated
+// orchestration at the call sites.
+@MainActor
+extension ContainerStore {
+
+    // MARK: - Refresh
+
+    /// Refresh container data from Docker daemon.
+    /// - Parameter force: when `true`, join an in-flight refresh (rather than
+    ///   cancelling it). Joined forced callers share exactly one later
+    ///   cache-bypassing refresh, so post-action state is re-fetched from the
+    ///   daemon instead of returning data fetched before the action completed.
+    ///   When `false`, join an in-flight refresh if there is one rather than
+    ///   starting a second overlapping fetch. `switchHost()` is the only path
+    ///   that cancels an in-flight refresh.
+    public func refresh(force: Bool = false) async {
+        let forcedDemand = force ? recordForcedRefreshDemand() : nil
+
+        if let inFlight = refreshTask {
+            let satisfiedDemand = refreshTaskSatisfiesForcedDemandThrough
+            // Join the in-flight refresh rather than cancelling it. Cancelling
+            // a same-host refresh would tear down the live transport — a
+            // cancelled `NWConnection` send runs the transport's connect-
+            // failure cleanup, forcing a fresh handshake on the next request
+            // (a full TLS handshake on TLS hosts). A non-forced caller is done
+            // once the in-flight refresh lands. A forced caller (e.g. after a
+            // container action) needs a later cache-bypassing refresh even when
+            // it joined a forced refresh, because that refresh may have read
+            // container state before this caller's mutation completed.
+            // `switchHost()` is the only path that cancels, because it discards
+            // the old fetcher.
+            logger.debug("Refresh joining in-flight refresh (force: \(force))")
+            await inFlight.value
+            guard let forcedDemand else { return }
+            if satisfiedDemand >= forcedDemand { return }
+            await runForcedRefresh(satisfyingDemand: forcedDemand)
+            return
+        }
+        await startRefresh(force: force, satisfyingForcedDemandThrough: forcedDemand ?? 0).value
+    }
+
+    /// Start or join the single later forced refresh required after a forced
+    /// caller waited for a refresh that had already started.
+    private func runForcedRefresh(satisfyingDemand forcedDemand: Int) async {
+        while true {
+            if let pending = pendingJoinedForcedRefresh,
+               pending.satisfiesForcedDemandThrough >= forcedDemand {
+                logger.debug("Refresh joining pending forced follow-up (gen \(pending.refreshGeneration))")
+                await pending.task.value
+                return
+            }
+
+            if let inFlight = refreshTask {
+                logger.debug("Forced refresh waiting for newer in-flight refresh before follow-up")
+                let satisfiedDemand = refreshTaskSatisfiesForcedDemandThrough
+                await inFlight.value
+                if satisfiedDemand >= forcedDemand { return }
+                continue
+            }
+
+            let satisfiedDemand = forcedRefreshDemandGeneration
+            let task = startRefresh(force: true, satisfyingForcedDemandThrough: satisfiedDemand)
+            pendingJoinedForcedRefresh = PendingForcedRefresh(
+                refreshGeneration: refreshGeneration,
+                satisfiesForcedDemandThrough: satisfiedDemand,
+                task: task
+            )
+            await task.value
+            return
+        }
+    }
+
+    /// Begin a new refresh: supersede any in-flight one, bump the generation,
+    /// and record the task so callers can join it. Runs synchronously on the
+    /// main actor up to creating the task, so state writes cannot interleave.
+    /// - Parameter force: when `true`, the refresh bypasses the fetcher's
+    ///   rate-limit cache so it always hits the daemon.
+    @discardableResult
+    func startRefresh(
+        force: Bool = false,
+        satisfyingForcedDemandThrough satisfiedDemand: Int? = nil
+    ) -> Task<Void, Never> {
+        pendingJoinedForcedRefresh = nil
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+
+        // Cancel the superseded refresh. It will observe the generation bump
+        // and drop its result even if cancellation does not interrupt it.
+        refreshTask?.cancel()
+
+        isRefreshing = true
+        if force {
+            refreshTaskSatisfiesForcedDemandThrough = satisfiedDemand ?? forcedRefreshDemandGeneration
+        } else {
+            refreshTaskSatisfiesForcedDemandThrough = 0
+        }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performRefresh(generation: generation, force: force)
+        }
+        refreshTask = task
+        return task
+    }
+
+    private func recordForcedRefreshDemand() -> Int {
+        forcedRefreshDemandGeneration &+= 1
+        return forcedRefreshDemandGeneration
+    }
+
+    private func performRefresh(generation: Int, force: Bool = false) async {
+        guard isCurrentRefresh(generation) else { return }
+
+        connectionError = nil
+        logger.debug("Refreshing container data (gen \(generation))")
+
+        if fetcher == nil {
+            initializeFetcher()
+        }
+
+        guard isCurrentRefresh(generation) else { return }
+
+        guard let fetcher else {
+            connectionError = "Docker connection not configured"
+            isConnected = false
+            finishRefresh(generation)
+            return
+        }
+
+        do {
+            let result = try await fetcher.fetch(
+                includeStats: true,
+                all: settings.showStoppedContainers,
+                bypassRateLimit: force
+            )
+
+            // A host switch or a newer refresh may have superseded us while the
+            // fetch was in flight; if so, drop this stale response entirely.
+            guard isCurrentRefresh(generation) else {
+                logger.debug("Dropping stale refresh result (gen \(generation), now \(refreshGeneration))")
+                return
+            }
+
+            self.containers = result.containers
+            self.stats = result.stats
+            self.metricsSnapshot = result.metrics
+            self.isConnected = true
+            self.connectionError = nil
+            self.lastRefreshAt = Date()
+
+            rateTracker.update(
+                history: &metricsHistory,
+                snapshot: result.metrics,
+                stats: result.stats
+            )
+
+            logger.debug("Refresh complete: \(result.containers.count) containers")
+        } catch {
+            guard isCurrentRefresh(generation) else { return }
+            logger.error("Refresh failed: \(error.localizedDescription)")
+            self.connectionError = userFriendlyConnectionErrorMessage(for: error)
+            self.isConnected = false
+        }
+
+        finishRefresh(generation)
+    }
+
+    /// Whether `generation` is still the live refresh generation. A superseded
+    /// refresh returns `false` and must not write any store state.
+    private func isCurrentRefresh(_ generation: Int) -> Bool {
+        generation == refreshGeneration
+    }
+
+    /// Clear the in-flight markers, but only for the latest refresh. A
+    /// superseded refresh never reaches here, so `isRefreshing` stays `true`
+    /// through a cancel-and-restart until the newest refresh completes.
+    private func finishRefresh(_ generation: Int) {
+        guard isCurrentRefresh(generation) else { return }
+        isRefreshing = false
+        refreshTask = nil
+        refreshTaskSatisfiesForcedDemandThrough = 0
+    }
+
+    // MARK: - Host Switching
+
+    /// Switch the live connection to the currently selected host: cancel any
+    /// in-flight refresh (fencing its result via the generation bump inside
+    /// `startRefresh`), clear the previous host's data, rebuild the fetcher,
+    /// and start a fresh refresh. This is the single convergence point for
+    /// every host-lifecycle mutation (CB-065).
+    public func switchHost() {
+        logger.info("Switching host, reinitializing fetcher")
+        clearHostState()
+        fetcher = nil
+        initializeFetcher()
+        lastResolvedHost = settings.selectedHost
+        // This is the ONLY path that cancels an in-flight refresh: `startRefresh`
+        // cancels the previous task here while a refresh may still be running
+        // against the old fetcher, which is being discarded, so tearing down its
+        // transport is correct. `refresh(force:)` instead joins-then-restarts to
+        // avoid cancelling a same-host fetch. `force: true` bypasses the (brand
+        // new) fetcher's rate-limit cache — moot on a fresh fetcher, but keeps
+        // the meaning of a forced refresh consistent.
+        startRefresh(force: true)
+    }
+
+    /// Clear all per-host data so the UI does not show the previous host's
+    /// containers while the new host's first refresh is in flight.
+    private func clearHostState() {
+        containers = []
+        stats = [:]
+        metricsSnapshot = nil
+        metricsHistory.clearAll()
+        isConnected = false
+        connectionError = nil
+        lastRefreshAt = nil
+        rateTracker.reset()
+    }
+
+    // MARK: - Settings Observation
+
+    /// Observe the settings that affect the live connection and the refresh
+    /// timer, and converge on them without a polling window between changes.
+    func startSettingsObservation() {
+        if let settingsObservationToken {
+            settings.removeConnectionSettingsObserver(settingsObservationToken)
+        }
+
+        settingsObservationToken = settings.observeConnectionSettings { [weak self] in
+            self?.handleSettingsChange()
+        }
+    }
+
+    /// Converge the live connection and timer on the current settings. Only
+    /// switches the host when the *resolved* selected host actually changed, so
+    /// editing or removing a non-selected host does not reinitialize the
+    /// fetcher, and only restarts the timer when the interval changed.
+    func handleSettingsChange() {
+        let resolvedHost = settings.selectedHost
+        // Compare the connection-identity projection, not the whole struct:
+        // `DockerHost`'s synthesized `Equatable` also covers `name`/`isDefault`,
+        // and `addHost`/`setDefaultHost` rewrite `isDefault` across every host,
+        // so whole-struct equality would tear down and reconnect the live
+        // client on a rename or a default-flag change (CB-064/CB-065 review).
+        if resolvedHost?.connectionIdentity != lastResolvedHost?.connectionIdentity {
+            switchHost()
+        }
+
+        if settings.refreshInterval != lastRefreshInterval {
+            restartTimer()
+        }
+    }
+}

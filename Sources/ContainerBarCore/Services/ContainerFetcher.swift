@@ -56,10 +56,20 @@ public actor ContainerFetcher {
     /// - Parameters:
     ///   - includeStats: Whether to fetch stats for running containers
     ///   - all: Whether to include stopped containers
+    ///   - bypassRateLimit: When `true`, skip the rate-limit cached-result
+    ///     early return and always hit the daemon. Used by a forced refresh
+    ///     (e.g. right after a container action) so it reflects the mutation
+    ///     instead of returning the pre-action cached list. `lastFetchTime`
+    ///     semantics are otherwise unchanged.
     /// - Returns: Fetch result with containers, stats, and metrics
-    public func fetch(includeStats: Bool = true, all: Bool = true) async throws -> ContainerFetchResult {
+    public func fetch(
+        includeStats: Bool = true,
+        all: Bool = true,
+        bypassRateLimit: Bool = false
+    ) async throws -> ContainerFetchResult {
         // Rate limiting
-        if let lastTime = lastFetchTime,
+        if !bypassRateLimit,
+           let lastTime = lastFetchTime,
            Date().timeIntervalSince(lastTime) < minFetchInterval {
             if let cachedResult = lastFetchResult {
                 logger.debug("Returning cached result (rate limited)")
@@ -103,6 +113,15 @@ public actor ContainerFetcher {
             return result
 
         } catch {
+            // A cancellation — e.g. `switchHost()` cancelling the in-flight
+            // refresh — is not a connection failure. Propagate it without
+            // logging an error or advancing the failure gate, so it neither
+            // pushes a later genuine transient failure to the surface
+            // threshold sooner nor causes a stale cached result to be returned.
+            if error is CancellationError || Task.isCancelled {
+                throw error
+            }
+
             logger.error("Fetch failed: \(error.localizedDescription)")
 
             // Check if we should surface this error

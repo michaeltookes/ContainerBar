@@ -12,32 +12,32 @@ public final class ContainerStore {
     // MARK: - Container Data
 
     /// List of all Docker containers
-    public private(set) var containers: [DockerContainer] = []
+    public internal(set) var containers: [DockerContainer] = []
 
     /// Statistics for each container, keyed by container ID
-    public private(set) var stats: [String: ContainerStats] = [:]
+    public internal(set) var stats: [String: ContainerStats] = [:]
 
     /// Aggregated metrics snapshot
-    public private(set) var metricsSnapshot: ContainerMetricsSnapshot?
+    public internal(set) var metricsSnapshot: ContainerMetricsSnapshot?
 
     /// Rolling history for sparkline charts
-    public private(set) var metricsHistory: AggregatedMetricsHistory = AggregatedMetricsHistory()
+    public internal(set) var metricsHistory: AggregatedMetricsHistory = AggregatedMetricsHistory()
 
     // MARK: - Connection State
 
     /// Whether we have an active connection to Docker
-    public private(set) var isConnected: Bool = false
+    public internal(set) var isConnected: Bool = false
 
     /// Error message if connection failed
-    public private(set) var connectionError: String?
+    public internal(set) var connectionError: String?
 
     /// Timestamp of last successful refresh
-    public private(set) var lastRefreshAt: Date?
+    public internal(set) var lastRefreshAt: Date?
 
     // MARK: - Refresh State
 
     /// Whether a refresh is currently in progress
-    public private(set) var isRefreshing: Bool = false
+    public internal(set) var isRefreshing: Bool = false
 
     /// Set of container IDs currently being acted upon
     public internal(set) var actionInProgress: Set<String> = []
@@ -51,6 +51,12 @@ public final class ContainerStore {
         public let timestamp: Date = Date()
     }
 
+    struct PendingForcedRefresh {
+        let refreshGeneration: Int
+        let satisfiesForcedDemandThrough: Int
+        let task: Task<Void, Never>
+    }
+
     /// Most recent action error, displayed as a transient banner
     public internal(set) var lastActionError: ActionError?
 
@@ -62,17 +68,56 @@ public final class ContainerStore {
     @ObservationIgnored
     private var timerTask: Task<Void, Never>?
 
+    /// The refresh currently in flight, if any. Held so a host switch can
+    /// cancel it and so a non-forced refresh can join it (CB-064).
     @ObservationIgnored
-    private var settingsObservationTask: Task<Void, Never>?
+    var refreshTask: Task<Void, Never>?
+
+    /// Highest forced-refresh demand observed. A forced refresh only satisfies
+    /// demand that existed before that refresh started.
+    @ObservationIgnored
+    var forcedRefreshDemandGeneration: Int = 0
+
+    /// Highest forced-refresh demand satisfied by the in-flight refresh.
+    @ObservationIgnored
+    var refreshTaskSatisfiesForcedDemandThrough: Int = 0
+
+    /// Forced refresh started after one or more forced callers joined an
+    /// already in-flight refresh. All joined forced callers whose demand
+    /// predates this follow-up await the same cache-bypassing daemon request.
+    @ObservationIgnored
+    var pendingJoinedForcedRefresh: PendingForcedRefresh?
+
+    /// Monotonic stamp incremented on every refresh start and every host
+    /// switch. A refresh only writes state while its stamp is still current,
+    /// so a slow response from a superseded fetcher can never overwrite the
+    /// live host's data (CB-064).
+    @ObservationIgnored
+    var refreshGeneration: Int = 0
+
+    /// The selected host the live fetcher was last built for. Used by the
+    /// settings observer to converge on real host changes while ignoring
+    /// edits to other, non-selected hosts (CB-065).
+    @ObservationIgnored
+    var lastResolvedHost: DockerHost?
+
+    /// The refresh interval the timer was last (re)started for, so a host
+    /// edit does not needlessly reset the auto-refresh countdown.
+    @ObservationIgnored
+    var lastRefreshInterval: RefreshInterval?
+
+    /// Token for the direct settings observer that drives host/timer convergence.
+    @ObservationIgnored
+    var settingsObservationToken: UUID?
 
     @ObservationIgnored
-    private let settings: SettingsStore
+    let settings: SettingsStore
 
     @ObservationIgnored
     let logger = Logger(label: "com.containerbar.store.container")
 
     @ObservationIgnored
-    private let rateTracker = MetricsRateTracker()
+    let rateTracker = MetricsRateTracker()
 
     // MARK: - Initialization
 
@@ -80,7 +125,7 @@ public final class ContainerStore {
     public typealias FetcherFactory = @MainActor (DockerHost?) throws -> ContainerFetcher
 
     @ObservationIgnored
-    private let fetcherFactory: FetcherFactory
+    let fetcherFactory: FetcherFactory
 
     /// Production factory: real Unix socket, SSH, or TLS client per host.
     public static let defaultFetcherFactory: FetcherFactory = { host in
@@ -94,6 +139,8 @@ public final class ContainerStore {
         self.settings = settings
         self.fetcherFactory = fetcherFactory
         initializeFetcher()
+        lastResolvedHost = settings.selectedHost
+        lastRefreshInterval = settings.refreshInterval
         startTimer()
         startSettingsObservation()
     }
@@ -104,20 +151,45 @@ public final class ContainerStore {
         self.settings = settings
         self.fetcherFactory = ContainerStore.defaultFetcherFactory
         self.fetcher = fetcher
+        lastResolvedHost = settings.selectedHost
+        lastRefreshInterval = settings.refreshInterval
         if startRefreshLoop {
             startTimer()
+        }
+    }
+
+    /// Test-only initializer that drives the fetcher through an injected
+    /// factory (so a host switch rebuilds against a new mock) while keeping
+    /// the auto-refresh timer and settings observation opt-in, so tests stay
+    /// deterministic.
+    public init(
+        settings: SettingsStore,
+        fetcherFactory: @escaping FetcherFactory,
+        startRefreshLoop: Bool,
+        observeSettings: Bool
+    ) {
+        self.settings = settings
+        self.fetcherFactory = fetcherFactory
+        initializeFetcher()
+        lastResolvedHost = settings.selectedHost
+        lastRefreshInterval = settings.refreshInterval
+        if startRefreshLoop {
+            startTimer()
+        }
+        if observeSettings {
+            startSettingsObservation()
         }
     }
     #endif
 
     deinit {
         timerTask?.cancel()
-        settingsObservationTask?.cancel()
+        refreshTask?.cancel()
     }
 
     // MARK: - Fetcher Initialization
 
-    private func initializeFetcher() {
+    func initializeFetcher() {
         do {
             let host = settings.selectedHost
             fetcher = try fetcherFactory(host)
@@ -125,81 +197,6 @@ public final class ContainerStore {
         } catch {
             logger.error("Failed to initialize fetcher: \(error.localizedDescription)")
             connectionError = error.localizedDescription
-        }
-    }
-
-    /// Reinitialize the fetcher (e.g., when settings change)
-    public func reinitializeFetcher() {
-        // Clear existing data when switching hosts
-        containers = []
-        stats = [:]
-        metricsSnapshot = nil
-        metricsHistory.clearAll()
-        isConnected = false
-        connectionError = nil
-        lastRefreshAt = nil
-
-        rateTracker.reset()
-
-        // Reset the fetcher
-        fetcher = nil
-        initializeFetcher()
-
-        // Reset refreshing state after initialization
-        isRefreshing = false
-    }
-
-    // MARK: - Refresh
-
-    /// Refresh container data from Docker daemon
-    /// - Parameter force: If true, refresh even if already refreshing
-    public func refresh(force: Bool = false) async {
-        guard !isRefreshing || force else {
-            logger.debug("Refresh skipped - already refreshing")
-            return
-        }
-
-        isRefreshing = true
-        defer { isRefreshing = false }
-        connectionError = nil
-
-        logger.debug("Refreshing container data")
-
-        // If no fetcher, try to initialize
-        if fetcher == nil {
-            initializeFetcher()
-        }
-
-        guard let fetcher else {
-            connectionError = "Docker connection not configured"
-            isConnected = false
-            return
-        }
-
-        do {
-            let result = try await fetcher.fetch(
-                includeStats: true,
-                all: settings.showStoppedContainers
-            )
-
-            self.containers = result.containers
-            self.stats = result.stats
-            self.metricsSnapshot = result.metrics
-            self.isConnected = true
-            self.connectionError = nil
-            self.lastRefreshAt = Date()
-
-            rateTracker.update(
-                history: &metricsHistory,
-                snapshot: result.metrics,
-                stats: result.stats
-            )
-
-            logger.debug("Refresh complete: \(result.containers.count) containers")
-        } catch {
-            logger.error("Refresh failed: \(error.localizedDescription)")
-            self.connectionError = userFriendlyConnectionErrorMessage(for: error)
-            self.isConnected = false
         }
     }
 
@@ -253,29 +250,7 @@ public final class ContainerStore {
     /// Restart the refresh timer with current settings
     public func restartTimer() {
         startTimer()
-    }
-
-    // MARK: - Settings Observation
-
-    private func startSettingsObservation() {
-        settingsObservationTask?.cancel()
-
-        settingsObservationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { break }
-
-                withObservationTracking {
-                    _ = self.settings.refreshInterval
-                } onChange: {
-                    Task { @MainActor [weak self] in
-                        self?.restartTimer()
-                    }
-                }
-
-                // Small delay to coalesce changes
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-        }
+        lastRefreshInterval = settings.refreshInterval
     }
 
 }
