@@ -61,13 +61,9 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     }
 
     /// Tears down the existing tunnel and reconnects with exponential backoff.
-    ///
-    /// Concurrent callers are coalesced behind a single in-flight reconnect (see
-    /// `SSHTunnelReconnectCoordinator`), so N fanned-out requests await the same
-    /// reconnect and get the same socket path rather than each launching its own
-    /// `ssh`; the 3-attempt backoff runs inside the coalesced task (3 attempts
-    /// total, not 3N).
-    /// - Returns: The new local socket path
+    /// Concurrent callers are coalesced behind a single in-flight reconnect
+    /// (`SSHTunnelReconnectCoordinator`), so the 3-attempt backoff runs once, not
+    /// once per caller. Returns the new local socket path.
     public func reconnect() async throws -> String {
         try await reconnectCoordinator.reconnect { [weak self] in
             guard let self else {
@@ -77,8 +73,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
     }
 
-    /// The 3-attempt exponential-backoff reconnect body, run once per coalesced
-    /// reconnect.
+    /// The 3-attempt exponential-backoff reconnect body, run once per coalesce.
     private func performReconnect() async throws -> String {
         let maxRetries = 3
         let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
@@ -186,20 +181,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         let process = launch.process
         let localSocket = launch.localSocketPath
 
-        // Monitor tunnel death via terminationHandler
-        process.terminationHandler = { [weak self] terminatedProcess in
-            guard let self else { return }
-            let status = terminatedProcess.terminationStatus
-            let shouldReport = self.stateLock.withLock { () -> Bool in
-                guard self.tunnelProcess === terminatedProcess else {
-                    return false
-                }
-                self.tunnelDied = true
-                return true
-            }
-            guard shouldReport else { return }
-            self.logger.warning("SSH tunnel process terminated with status \(status)")
-        }
+        attachTerminationHandler(to: process)
 
         var adopted = false
         defer {
@@ -228,25 +210,17 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             tunnelProcess = process
             localSocketPath = localSocket
             tunnelDied = false
-            // Drain stderr now that the tunnel is adopted, so the pipe buffer
-            // can never fill and wedge ssh. Installed under the lock so a
-            // concurrent disconnect cannot race between store and install.
+            // Drain stderr post-adoption so the pipe buffer can never fill and
+            // wedge ssh; under the lock to avoid a store/install race.
             tunnelErrorHandle = errorHandle
-            SSHTunnelStderrDrain.installDrainHandler(on: errorHandle) { [logger] data in
-                let message = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if let message, !message.isEmpty {
-                    logger.debug("SSH tunnel stderr: \(message)")
-                }
-            }
+            installStderrDrain(on: errorHandle)
             return true
         }
 
         guard adoptedState else {
-            // Lost the adoption race to a newer connect/reconnect (connectTaskID
-            // changed). Surface a DockerAPIError, not a bare CancellationError, so
-            // the retry layer treats it as retryable. Genuine teardown
-            // cancellation is raised earlier by checkCancellation in waitForSocket.
+            // Lost the adoption race to a newer attempt: throw a retryable
+            // DockerAPIError, not a bare CancellationError. Real teardown
+            // cancellation comes from checkCancellation in waitForSocket.
             throw DockerAPIError.sshConnectionFailed("SSH tunnel connection was superseded by a newer attempt")
         }
 
@@ -255,8 +229,36 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         return localSocket
     }
 
+    /// Monitors tunnel death: flips `tunnelDied` when the adopted process exits.
+    private func attachTerminationHandler(to process: Process) {
+        process.terminationHandler = { [weak self] terminatedProcess in
+            guard let self else { return }
+            let status = terminatedProcess.terminationStatus
+            let shouldReport = self.stateLock.withLock { () -> Bool in
+                guard self.tunnelProcess === terminatedProcess else {
+                    return false
+                }
+                self.tunnelDied = true
+                return true
+            }
+            guard shouldReport else { return }
+            self.logger.warning("SSH tunnel process terminated with status \(status)")
+        }
+    }
+
+    /// Installs the stderr drain (log-at-debug and discard). Call under `stateLock`.
+    private func installStderrDrain(on errorHandle: FileHandle) {
+        SSHTunnelStderrDrain.installDrainHandler(on: errorHandle) { [logger] data in
+            let message = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let message, !message.isEmpty {
+                logger.debug("SSH tunnel stderr: \(message)")
+            }
+        }
+    }
+
     private func disconnectTunnelState(cancelConnectTask: Bool) {
-        let state = stateLock.withLock { () -> (Process?, String?, FileHandle?) in
+        let state = stateLock.withLock { () -> (Process?, String?) in
             let process = tunnelProcess
             let socketPath = localSocketPath
             let errorHandle = tunnelErrorHandle
@@ -265,8 +267,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             tunnelErrorHandle = nil
             tunnelDied = false
 
-            // Tear down the stderr drain handler so a reconnect never leaks a
-            // handler or fires on a closed pipe.
+            // Tear down the drain handler so a reconnect can't leak or fire stale.
             SSHTunnelStderrDrain.removeDrainHandler(from: errorHandle)
 
             if cancelConnectTask {
@@ -275,13 +276,12 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 connectTaskID = nil
             }
 
-            return (process, socketPath, errorHandle)
+            return (process, socketPath)
         }
 
         // Only a deliberate disconnect() cancels the in-flight reconnect; the
         // forceReconnect teardown (cancelConnectTask == false) must not cancel
-        // the reconnect it is itself running under. Outside stateLock to avoid
-        // nesting it with the coordinator's lock.
+        // the reconnect it is itself running under.
         if cancelConnectTask {
             reconnectCoordinator.cancelInFlight()
         }
