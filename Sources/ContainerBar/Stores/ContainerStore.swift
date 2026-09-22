@@ -53,6 +53,7 @@ public final class ContainerStore {
 
     struct PendingForcedRefresh {
         let refreshGeneration: Int
+        let satisfiesForcedDemandThrough: Int
         let task: Task<Void, Never>
     }
 
@@ -72,9 +73,14 @@ public final class ContainerStore {
     @ObservationIgnored
     var refreshTask: Task<Void, Never>?
 
-    /// Whether the in-flight refresh was started with `force: true`.
+    /// Highest forced-refresh demand observed. A forced refresh only satisfies
+    /// demand that existed before that refresh started.
     @ObservationIgnored
-    var refreshTaskBypassesRateLimit = false
+    var forcedRefreshDemandGeneration: Int = 0
+
+    /// Highest forced-refresh demand satisfied by the in-flight refresh.
+    @ObservationIgnored
+    var refreshTaskSatisfiesForcedDemandThrough: Int = 0
 
     /// Forced refresh started after one or more forced callers joined an
     /// already in-flight refresh. All joined forced callers whose demand

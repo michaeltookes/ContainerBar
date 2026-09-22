@@ -151,8 +151,10 @@ struct ContainerStoreHostSwitchTests {
         let forcedOne = Task { await store.refresh(force: true) }
         let forcedTwo = Task { await store.refresh(force: true) }
 
-        await Task.yield()
-        await Task.yield()
+        let bothForcedCallersJoined = await Self.waitUntil {
+            store.forcedRefreshDemandGeneration == 2
+        }
+        #expect(bothForcedCallersJoined)
 
         harness.mockA.proceed()
         await firstRefresh.value
@@ -186,6 +188,10 @@ struct ContainerStoreHostSwitchTests {
 
         let forcedTwo = Task { await store.refresh(force: true) }
         let forcedThree = Task { await store.refresh(force: true) }
+        let allForcedDemandsRecorded = await Self.waitUntil {
+            store.forcedRefreshDemandGeneration == 3
+        }
+        #expect(allForcedDemandsRecorded)
 
         await forcedOne.value
         await forcedTwo.value

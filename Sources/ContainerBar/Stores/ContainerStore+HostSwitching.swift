@@ -27,8 +27,10 @@ extension ContainerStore {
     ///   starting a second overlapping fetch. `switchHost()` is the only path
     ///   that cancels an in-flight refresh.
     public func refresh(force: Bool = false) async {
+        let forcedDemand = force ? recordForcedRefreshDemand() : nil
+
         if let inFlight = refreshTask {
-            let demandGeneration = refreshGeneration
+            let satisfiedDemand = refreshTaskSatisfiesForcedDemandThrough
             // Join the in-flight refresh rather than cancelling it. Cancelling
             // a same-host refresh would tear down the live transport — a
             // cancelled `NWConnection` send runs the transport's connect-
@@ -42,21 +44,20 @@ extension ContainerStore {
             // the old fetcher.
             logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
-            if !force { return }
-            await runForcedRefresh(satisfyingDemandAfter: demandGeneration)
+            guard let forcedDemand else { return }
+            if satisfiedDemand >= forcedDemand { return }
+            await runForcedRefresh(satisfyingDemand: forcedDemand)
             return
         }
-        await startRefresh(force: force).value
+        await startRefresh(force: force, satisfyingForcedDemandThrough: forcedDemand ?? 0).value
     }
 
     /// Start or join the single later forced refresh required after a forced
     /// caller waited for a refresh that had already started.
-    private func runForcedRefresh(satisfyingDemandAfter demandGeneration: Int) async {
-        var demandGeneration = demandGeneration
-
+    private func runForcedRefresh(satisfyingDemand forcedDemand: Int) async {
         while true {
             if let pending = pendingJoinedForcedRefresh,
-               pending.refreshGeneration > demandGeneration {
+               pending.satisfiesForcedDemandThrough >= forcedDemand {
                 logger.debug("Refresh joining pending forced follow-up (gen \(pending.refreshGeneration))")
                 await pending.task.value
                 return
@@ -64,17 +65,17 @@ extension ContainerStore {
 
             if let inFlight = refreshTask {
                 logger.debug("Forced refresh waiting for newer in-flight refresh before follow-up")
-                let inFlightBypassesRateLimit = refreshTaskBypassesRateLimit
-                let inFlightGeneration = refreshGeneration
+                let satisfiedDemand = refreshTaskSatisfiesForcedDemandThrough
                 await inFlight.value
-                if inFlightBypassesRateLimit, inFlightGeneration > demandGeneration { return }
-                demandGeneration = max(demandGeneration, inFlightGeneration)
+                if satisfiedDemand >= forcedDemand { return }
                 continue
             }
 
-            let task = startRefresh(force: true)
+            let satisfiedDemand = forcedRefreshDemandGeneration
+            let task = startRefresh(force: true, satisfyingForcedDemandThrough: satisfiedDemand)
             pendingJoinedForcedRefresh = PendingForcedRefresh(
                 refreshGeneration: refreshGeneration,
+                satisfiesForcedDemandThrough: satisfiedDemand,
                 task: task
             )
             await task.value
@@ -88,7 +89,10 @@ extension ContainerStore {
     /// - Parameter force: when `true`, the refresh bypasses the fetcher's
     ///   rate-limit cache so it always hits the daemon.
     @discardableResult
-    func startRefresh(force: Bool = false) -> Task<Void, Never> {
+    func startRefresh(
+        force: Bool = false,
+        satisfyingForcedDemandThrough satisfiedDemand: Int? = nil
+    ) -> Task<Void, Never> {
         pendingJoinedForcedRefresh = nil
         refreshGeneration &+= 1
         let generation = refreshGeneration
@@ -98,7 +102,11 @@ extension ContainerStore {
         refreshTask?.cancel()
 
         isRefreshing = true
-        refreshTaskBypassesRateLimit = force
+        if force {
+            refreshTaskSatisfiesForcedDemandThrough = satisfiedDemand ?? forcedRefreshDemandGeneration
+        } else {
+            refreshTaskSatisfiesForcedDemandThrough = 0
+        }
 
         let task = Task { [weak self] in
             guard let self else { return }
@@ -106,6 +114,11 @@ extension ContainerStore {
         }
         refreshTask = task
         return task
+    }
+
+    private func recordForcedRefreshDemand() -> Int {
+        forcedRefreshDemandGeneration &+= 1
+        return forcedRefreshDemandGeneration
     }
 
     private func performRefresh(generation: Int, force: Bool = false) async {
@@ -178,7 +191,7 @@ extension ContainerStore {
         guard isCurrentRefresh(generation) else { return }
         isRefreshing = false
         refreshTask = nil
-        refreshTaskBypassesRateLimit = false
+        refreshTaskSatisfiesForcedDemandThrough = 0
     }
 
     // MARK: - Host Switching
