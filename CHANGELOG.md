@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- Remote SSH Docker hosts now stay responsive over long sessions and reconnect
+  cleanly: the tunnel no longer stalls when the remote daemon is unreachable,
+  and a dropped tunnel recovers on the next refresh instead of surfacing a
+  spurious connection error
 - Switching hosts now cancels the in-flight refresh and ignores its late
   result, so a slow response from the previous host can no longer overwrite the
   new host's containers, and the refresh spinner only clears when the current
