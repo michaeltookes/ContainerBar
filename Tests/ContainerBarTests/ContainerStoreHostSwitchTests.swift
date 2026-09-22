@@ -49,8 +49,12 @@ struct ContainerStoreHostSwitchTests {
         }
     }
 
+    private static func callCount(_ method: String, on mock: MockDockerAPIClient) -> Int {
+        mock.calledMethods.filter { $0 == method }.count
+    }
+
     private static func listCallCount(on mock: MockDockerAPIClient) -> Int {
-        mock.calledMethods.filter { $0 == "listContainers" }.count
+        callCount("listContainers", on: mock)
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
@@ -162,26 +166,33 @@ struct ContainerStoreHostSwitchTests {
         #expect(store.isRefreshing == false)
     }
 
-    @Test("Forced refresh joins an in-flight forced refresh without another follow-up")
-    func forcedRefreshJoinsInFlightForcedRefreshWithoutFollowUp() async {
+    @Test("Late forced refresh joiners share one follow-up after an in-flight forced refresh")
+    func lateForcedRefreshJoinersShareFollowUpAfterInFlightForcedRefresh() async {
         let harness = Harness()
         harness.settings.selectedHostId = harness.hostA.id
         harness.mockA.responseDelay = .milliseconds(200)
         let store = harness.makeStore()
 
         let forcedOne = Task { await store.refresh(force: true) }
-        let forcedOneStarted = await Self.waitUntil {
-            Self.listCallCount(on: harness.mockA) == 1
+        let forcedOneFetchingStats = await Self.waitUntil {
+            Self.callCount("getContainerStats", on: harness.mockA) == 1
         }
-        #expect(forcedOneStarted)
+        #expect(forcedOneFetchingStats)
+
+        harness.mockA.mockContainers = [
+            DockerContainer.mock(id: "a1", name: "alpha", state: .running),
+            DockerContainer.mock(id: "a2", name: "alpha-2", state: .running)
+        ]
 
         let forcedTwo = Task { await store.refresh(force: true) }
+        let forcedThree = Task { await store.refresh(force: true) }
 
         await forcedOne.value
         await forcedTwo.value
+        await forcedThree.value
 
-        #expect(Self.listCallCount(on: harness.mockA) == 1)
-        #expect(store.containers.map(\.id) == ["a1"])
+        #expect(Self.listCallCount(on: harness.mockA) == 2)
+        #expect(store.containers.map(\.id) == ["a1", "a2"])
         #expect(store.isRefreshing == false)
     }
 

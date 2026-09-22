@@ -51,6 +51,11 @@ public final class ContainerStore {
         public let timestamp: Date = Date()
     }
 
+    struct PendingForcedRefresh {
+        let refreshGeneration: Int
+        let task: Task<Void, Never>
+    }
+
     /// Most recent action error, displayed as a transient banner
     public internal(set) var lastActionError: ActionError?
 
@@ -67,16 +72,15 @@ public final class ContainerStore {
     @ObservationIgnored
     var refreshTask: Task<Void, Never>?
 
-    /// Whether the in-flight refresh was started with `force: true`. Forced
-    /// callers that join such a task do not need another follow-up refresh.
+    /// Whether the in-flight refresh was started with `force: true`.
     @ObservationIgnored
     var refreshTaskBypassesRateLimit = false
 
     /// Forced refresh started after one or more forced callers joined an
-    /// already in-flight refresh. All joined forced callers await this same
-    /// follow-up so only one cache-bypassing daemon request is made.
+    /// already in-flight refresh. All joined forced callers whose demand
+    /// predates this follow-up await the same cache-bypassing daemon request.
     @ObservationIgnored
-    var pendingJoinedForcedRefresh: (joinedGeneration: Int, refreshGeneration: Int, task: Task<Void, Never>)?
+    var pendingJoinedForcedRefresh: PendingForcedRefresh?
 
     /// Monotonic stamp incremented on every refresh start and every host
     /// switch. A refresh only writes state while its stamp is still current,

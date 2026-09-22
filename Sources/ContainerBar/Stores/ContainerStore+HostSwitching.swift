@@ -20,45 +20,43 @@ extension ContainerStore {
 
     /// Refresh container data from Docker daemon.
     /// - Parameter force: when `true`, join an in-flight refresh (rather than
-    ///   cancelling it). If the joined refresh already bypasses the fetcher's
-    ///   rate-limit cache, it satisfies the caller; otherwise, joined forced
-    ///   callers share exactly one cache-bypassing follow-up so post-action
-    ///   state is re-fetched from the daemon instead of returning the
-    ///   pre-action cached list.
+    ///   cancelling it). Joined forced callers share exactly one later
+    ///   cache-bypassing refresh, so post-action state is re-fetched from the
+    ///   daemon instead of returning data fetched before the action completed.
     ///   When `false`, join an in-flight refresh if there is one rather than
     ///   starting a second overlapping fetch. `switchHost()` is the only path
     ///   that cancels an in-flight refresh.
     public func refresh(force: Bool = false) async {
         if let inFlight = refreshTask {
-            let joinedGeneration = refreshGeneration
-            let joinedRefreshBypassesRateLimit = refreshTaskBypassesRateLimit
+            let demandGeneration = refreshGeneration
             // Join the in-flight refresh rather than cancelling it. Cancelling
             // a same-host refresh would tear down the live transport — a
             // cancelled `NWConnection` send runs the transport's connect-
             // failure cleanup, forcing a fresh handshake on the next request
             // (a full TLS handshake on TLS hosts). A non-forced caller is done
             // once the in-flight refresh lands. A forced caller (e.g. after a
-            // container action) is also done if it joined a forced refresh;
-            // otherwise forced joiners share one cache-bypassing follow-up so
-            // the result reflects the mutation. `switchHost()` is the only path
-            // that cancels, because it discards the old fetcher.
+            // container action) needs a later cache-bypassing refresh even when
+            // it joined a forced refresh, because that refresh may have read
+            // container state before this caller's mutation completed.
+            // `switchHost()` is the only path that cancels, because it discards
+            // the old fetcher.
             logger.debug("Refresh joining in-flight refresh (force: \(force))")
             await inFlight.value
-            if !force || joinedRefreshBypassesRateLimit { return }
-            await runJoinedForcedRefresh(afterJoining: joinedGeneration)
+            if !force { return }
+            await runForcedRefresh(satisfyingDemandAfter: demandGeneration)
             return
         }
         await startRefresh(force: force).value
     }
 
-    /// Start or join the single forced follow-up required after forced callers
-    /// waited for an existing refresh to complete.
-    private func runJoinedForcedRefresh(afterJoining joinedGeneration: Int) async {
-        var joinedGeneration = joinedGeneration
+    /// Start or join the single later forced refresh required after a forced
+    /// caller waited for a refresh that had already started.
+    private func runForcedRefresh(satisfyingDemandAfter demandGeneration: Int) async {
+        var demandGeneration = demandGeneration
 
         while true {
             if let pending = pendingJoinedForcedRefresh,
-               pending.joinedGeneration == joinedGeneration {
+               pending.refreshGeneration > demandGeneration {
                 logger.debug("Refresh joining pending forced follow-up (gen \(pending.refreshGeneration))")
                 await pending.task.value
                 return
@@ -67,14 +65,18 @@ extension ContainerStore {
             if let inFlight = refreshTask {
                 logger.debug("Forced refresh waiting for newer in-flight refresh before follow-up")
                 let inFlightBypassesRateLimit = refreshTaskBypassesRateLimit
-                joinedGeneration = refreshGeneration
+                let inFlightGeneration = refreshGeneration
                 await inFlight.value
-                if inFlightBypassesRateLimit { return }
+                if inFlightBypassesRateLimit, inFlightGeneration > demandGeneration { return }
+                demandGeneration = max(demandGeneration, inFlightGeneration)
                 continue
             }
 
             let task = startRefresh(force: true)
-            pendingJoinedForcedRefresh = (joinedGeneration, refreshGeneration, task)
+            pendingJoinedForcedRefresh = PendingForcedRefresh(
+                refreshGeneration: refreshGeneration,
+                task: task
+            )
             await task.value
             return
         }
