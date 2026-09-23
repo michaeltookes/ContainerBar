@@ -20,6 +20,8 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     /// concurrent fetches genuinely overlap and the peak-concurrency
     /// instrumentation below is observable.
     private var _responseDelay: Duration?
+    private var _statsCallCount = 0
+    private var _holdStatsResponses = false
     /// Number of `getContainerStats` calls currently in flight.
     private var _currentConcurrentStatsFetches = 0
     /// High-water mark of concurrent `getContainerStats` calls seen so far.
@@ -47,6 +49,10 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     public var callCount: Int {
         stateLock.withLock { _callCount }
+    }
+
+    public var statsCallCount: Int {
+        stateLock.withLock { _statsCallCount }
     }
 
     public var lastCalledMethod: String? {
@@ -115,6 +121,28 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         }
     }
 
+    public func holdStatsResponses() {
+        stateLock.withLock { _holdStatsResponses = true }
+    }
+
+    public func releaseStatsResponses() {
+        stateLock.withLock { _holdStatsResponses = false }
+    }
+
+    public func waitForStatsCalls(
+        atLeast expectedCount: Int,
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while ContinuousClock.now < deadline {
+            if statsCallCount >= expectedCount {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return statsCallCount >= expectedCount
+    }
+
     private func recordCall(_ method: String) {
         stateLock.withLock {
             _callCount += 1
@@ -180,6 +208,7 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     /// one lock so the peak reflects true concurrent overlap.
     private func beginStatsFetch() -> Duration? {
         stateLock.withLock {
+            _statsCallCount += 1
             _currentConcurrentStatsFetches += 1
             _peakConcurrentStatsFetches = max(_peakConcurrentStatsFetches, _currentConcurrentStatsFetches)
             return _responseDelay
@@ -190,10 +219,17 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         stateLock.withLock { _currentConcurrentStatsFetches -= 1 }
     }
 
+    private func waitForHeldStatsResponseRelease() async throws {
+        while stateLock.withLock({ _holdStatsResponses }) {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
     public func getContainerStats(id: String) async throws -> ContainerStats {
         recordCall("getContainerStats")
         let delay = beginStatsFetch()
         defer { endStatsFetch() }
+        try await waitForHeldStatsResponseRelease()
         if let delay {
             try await Task.sleep(for: delay)
         }

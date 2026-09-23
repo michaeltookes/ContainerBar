@@ -62,26 +62,34 @@ struct ContainerFetcherCancellationTests {
         }
         mock.setMockContainers(containers)
         mock.setMockStats(stats)
-        // Hold each stats call open so the primed wave is still in flight when
-        // we cancel; refill only happens after a call completes, so it cannot
-        // run before we cancel.
-        mock.responseDelay = .milliseconds(200)
+        // Hold stats calls open so the primed wave is still in flight when we
+        // cancel. Refill only happens after a call completes, so it cannot run
+        // before the cancellation even if the test runner is descheduled.
+        mock.holdStatsResponses()
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
         let task = Task { try await fetcher.fetch(includeStats: true, all: true) }
 
-        // Wait until the first wave has entered the client: 1 listContainers +
-        // maxConcurrentStatsFetches getContainerStats calls recorded.
-        let firstWaveCalls = 1 + ContainerFetcher.maxConcurrentStatsFetches
-        while mock.callCount < firstWaveCalls {
-            try await Task.sleep(for: .milliseconds(5))
+        // Wait until the first wave of stats calls has entered the client. The
+        // bounded barrier fails the test promptly if a limiter regression means
+        // the expected wave is never scheduled.
+        let firstWaveStatsCalls = ContainerFetcher.maxConcurrentStatsFetches
+        guard await mock.waitForStatsCalls(atLeast: firstWaveStatsCalls) else {
+            task.cancel()
+            mock.releaseStatsResponses()
+            _ = try? await task.value
+            Issue.record("Timed out waiting for the first stats-fetch wave")
+            return
         }
 
         task.cancel()
+        mock.releaseStatsResponses()
         _ = try? await task.value
 
         // No more than the primed wave was ever issued — the refill loop stopped
         // rather than firing all 25 doomed requests.
+        let firstWaveCalls = 1 + firstWaveStatsCalls
+        #expect(mock.statsCallCount <= firstWaveStatsCalls)
         #expect(mock.callCount <= firstWaveCalls)
     }
 }
