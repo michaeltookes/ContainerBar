@@ -16,6 +16,15 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     private var _callCount = 0
     private var _lastCalledMethod: String?
 
+    /// Optional per-call delay, applied inside `getContainerStats` so
+    /// concurrent fetches genuinely overlap and the peak-concurrency
+    /// instrumentation below is observable.
+    private var _responseDelay: Duration?
+    /// Number of `getContainerStats` calls currently in flight.
+    private var _currentConcurrentStatsFetches = 0
+    /// High-water mark of concurrent `getContainerStats` calls seen so far.
+    private var _peakConcurrentStatsFetches = 0
+
     public var mockContainers: [DockerContainer] {
         stateLock.withLock { _mockContainers }
     }
@@ -42,6 +51,17 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     public var lastCalledMethod: String? {
         stateLock.withLock { _lastCalledMethod }
+    }
+
+    public var responseDelay: Duration? {
+        get { stateLock.withLock { _responseDelay } }
+        set { stateLock.withLock { _responseDelay = newValue } }
+    }
+
+    /// Highest number of `getContainerStats` calls that were in flight at the
+    /// same time. Used to assert the fetcher's concurrency bound.
+    public var peakConcurrentStatsFetches: Int {
+        stateLock.withLock { _peakConcurrentStatsFetches }
     }
 
     public init() {}
@@ -157,13 +177,22 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     public func getContainerStats(id: String) async throws -> ContainerStats {
         recordCall("getContainerStats")
-        let snapshot = stateLock.withLock {
-            (_shouldFail, _failureError, _mockStats[id])
+        let (shouldFail, failureError, stats, delay) = stateLock.withLock {
+            () -> (Bool, Error, ContainerStats?, Duration?) in
+            _currentConcurrentStatsFetches += 1
+            _peakConcurrentStatsFetches = max(_peakConcurrentStatsFetches, _currentConcurrentStatsFetches)
+            return (_shouldFail, _failureError, _mockStats[id], _responseDelay)
         }
-        if snapshot.0 {
-            throw snapshot.1
+        defer {
+            stateLock.withLock { _currentConcurrentStatsFetches -= 1 }
         }
-        guard let stats = snapshot.2 else {
+        if let delay {
+            try await Task.sleep(for: delay)
+        }
+        if shouldFail {
+            throw failureError
+        }
+        guard let stats else {
             throw DockerAPIError.notFound("Stats for \(id)")
         }
         return stats

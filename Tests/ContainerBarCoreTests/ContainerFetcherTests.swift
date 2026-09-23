@@ -246,7 +246,7 @@ struct ContainerFetcherTests {
         #expect(secondResult.metrics.stoppedCount == 0)
     }
 
-    @Test("Fetcher handles large container count with stats cap")
+    @Test("Fetcher fetches stats for all running containers on large hosts")
     func largeContainerCountFetch() async throws {
         let mock = MockDockerAPIClient()
 
@@ -276,7 +276,10 @@ struct ContainerFetcherTests {
         #expect(result.metrics.stoppedCount == 5)
         #expect(result.metrics.totalCount == 25)
 
-        #expect(result.stats.count <= 10)
+        // All 20 running containers get stats — no silent truncation to the
+        // first maxConcurrentStatsFetches (CB-068). The old behaviour capped
+        // this at <= 10.
+        #expect(result.stats.count == 20)
     }
 
     @Test("Metrics snapshot updates correctly when containers change")
