@@ -40,6 +40,7 @@ final class SSHTunnelReconnectCoordinator: @unchecked Sendable {
             let taskID = UUID()
             let task = Task<String, Error> { [weak self] in
                 defer { self?.clearTaskIfCurrent(taskID) }
+                try Task.checkCancellation()
                 return try await operation()
             }
 

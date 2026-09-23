@@ -56,7 +56,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     /// Establishes an SSH tunnel to the remote Docker socket
     /// - Returns: The local socket path to connect to
     public func connect() async throws -> String {
-        let task = getOrCreateConnectTask(forceReconnect: false)
+        let task = try getOrCreateConnectTask(forceReconnect: false)
         return try await task.value
     }
 
@@ -80,7 +80,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         var lastError: Error?
 
         for attempt in 0..<maxRetries {
-            let task = getOrCreateConnectTask(forceReconnect: true)
+            let task = try getOrCreateConnectTask(forceReconnect: true)
 
             do {
                 let socketPath = try await task.value
@@ -130,8 +130,10 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
     }
 
-    private func getOrCreateConnectTask(forceReconnect: Bool) -> Task<String, Error> {
-        stateLock.withLock {
+    private func getOrCreateConnectTask(forceReconnect: Bool) throws -> Task<String, Error> {
+        try stateLock.withLock {
+            try Task.checkCancellation()
+
             if !forceReconnect, let connectTask {
                 return connectTask
             }
@@ -274,15 +276,13 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 connectTask?.cancel()
                 connectTask = nil
                 connectTaskID = nil
+                // Keep coordinator cancellation under the same lock so a
+                // cancelled reconnect cannot create a fresh inner launch after
+                // disconnect has already checked `connectTask`.
+                reconnectCoordinator.cancelInFlight()
             }
 
             return (process, socketPath)
-        }
-
-        // Only a deliberate disconnect() cancels the in-flight reconnect; the
-        // forceReconnect teardown must not cancel the reconnect it runs under.
-        if cancelConnectTask {
-            reconnectCoordinator.cancelInFlight()
         }
 
         if let process = state.0, process.isRunning {

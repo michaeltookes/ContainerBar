@@ -25,7 +25,7 @@ struct SSHTunnelReconnectCoordinatorTests {
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
         let third = Task { try await coordinator.reconnect { try await probe.start() } }
         do {
-            try await withTestTimeout { await joinBarrier.waitUntilSatisfied() }
+            try await withTestTimeout { try await joinBarrier.waitUntilSatisfied() }
         } catch {
             first.cancel()
             second.cancel()
@@ -59,7 +59,7 @@ struct SSHTunnelReconnectCoordinatorTests {
         await probe.waitUntilEntered()
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
         do {
-            try await withTestTimeout { await joinBarrier.waitUntilSatisfied() }
+            try await withTestTimeout { try await joinBarrier.waitUntilSatisfied() }
         } catch {
             first.cancel()
             second.cancel()
@@ -116,7 +116,8 @@ struct SSHTunnelReconnectCoordinatorTests {
 private actor ReconnectJoinBarrier {
     private let expectedCount: Int
     private var joinedCount = 0
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var waiter: ReconnectJoinWaiter?
+    private var cancelledWaiterIDs: Set<UUID> = []
 
     init(expectedCount: Int) {
         self.expectedCount = expectedCount
@@ -127,24 +128,55 @@ private actor ReconnectJoinBarrier {
         resumeIfSatisfied()
     }
 
-    func waitUntilSatisfied() async {
+    func waitUntilSatisfied() async throws {
         if joinedCount >= expectedCount {
             return
         }
 
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.continuation = continuation
+        let waiterID = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard joinedCount < expectedCount else {
+                    continuation.resume()
+                    return
+                }
+
+                guard cancelledWaiterIDs.remove(waiterID) == nil else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
+                waiter = ReconnectJoinWaiter(id: waiterID, continuation: continuation)
+                resumeIfSatisfied()
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(id: waiterID) }
         }
     }
 
     private func resumeIfSatisfied() {
-        guard joinedCount >= expectedCount, let continuation else {
+        guard joinedCount >= expectedCount, let waiter else {
             return
         }
 
-        self.continuation = nil
-        continuation.resume()
+        self.waiter = nil
+        waiter.continuation.resume()
     }
+
+    private func cancelWaiter(id waiterID: UUID) {
+        guard let waiter, waiter.id == waiterID else {
+            cancelledWaiterIDs.insert(waiterID)
+            return
+        }
+
+        self.waiter = nil
+        waiter.continuation.resume(throwing: CancellationError())
+    }
+}
+
+private struct ReconnectJoinWaiter {
+    let id: UUID
+    let continuation: CheckedContinuation<Void, Error>
 }
 
 /// Injectable, deterministic stand-in for the "start a tunnel" operation, so the
