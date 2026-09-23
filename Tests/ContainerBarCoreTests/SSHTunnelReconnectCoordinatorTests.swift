@@ -111,6 +111,19 @@ struct SSHTunnelReconnectCoordinatorTests {
 
         #expect(await probe.startCount == 2)
     }
+
+    /// Regression guard for the timeout helper itself: if the barrier's waiter
+    /// is not cancellation-aware, this test hangs instead of throwing promptly.
+    @Test("join barrier timeout cancels its waiter")
+    func joinBarrierTimeoutCancelsWaiter() async throws {
+        let joinBarrier = ReconnectJoinBarrier(expectedCount: 1)
+
+        await #expect(throws: TestTimeoutError.self) {
+            try await withTestTimeout(.milliseconds(20)) {
+                try await joinBarrier.waitUntilSatisfied()
+            }
+        }
+    }
 }
 
 private actor ReconnectJoinBarrier {

@@ -28,6 +28,9 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     private var connectTask: Task<String, Error>?
     private var connectTaskID: UUID?
     private let reconnectCoordinator = SSHTunnelReconnectCoordinator()
+    /// Bumps on deliberate disconnects so older reconnect operations cannot
+    /// create a new inner SSH launch after teardown has already happened.
+    private var disconnectGeneration = 0
 
     /// Set to true when the tunnel process terminates unexpectedly
     private var tunnelDied = false
@@ -65,22 +68,27 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     /// (`SSHTunnelReconnectCoordinator`), so the 3-attempt backoff runs once, not
     /// once per caller. Returns the new local socket path.
     public func reconnect() async throws -> String {
-        try await reconnectCoordinator.reconnect { [weak self] in
+        let reconnectStartGeneration = stateLock.withLock { disconnectGeneration }
+        return try await reconnectCoordinator.reconnect { [weak self] in
             guard let self else {
                 throw DockerAPIError.connectionFailed
             }
-            return try await self.performReconnect()
+            return try await self.performReconnect(startedAtDisconnectGeneration: reconnectStartGeneration)
         }
     }
 
     /// The 3-attempt exponential-backoff reconnect body, run once per coalesce.
-    private func performReconnect() async throws -> String {
+    private func performReconnect(startedAtDisconnectGeneration: Int) async throws -> String {
         let maxRetries = 3
         let delays: [Duration] = [.seconds(1), .seconds(2), .seconds(4)]
         var lastError: Error?
 
         for attempt in 0..<maxRetries {
-            let task = try getOrCreateConnectTask(forceReconnect: true)
+            try Task.checkCancellation()
+            let task = try getOrCreateConnectTask(
+                forceReconnect: true,
+                reconnectStartedAtDisconnectGeneration: startedAtDisconnectGeneration
+            )
 
             do {
                 let socketPath = try await task.value
@@ -130,9 +138,13 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
     }
 
-    private func getOrCreateConnectTask(forceReconnect: Bool) throws -> Task<String, Error> {
+    private func getOrCreateConnectTask(
+        forceReconnect: Bool,
+        reconnectStartedAtDisconnectGeneration: Int? = nil
+    ) throws -> Task<String, Error> {
         try stateLock.withLock {
             try Task.checkCancellation()
+            try validateReconnectGenerationLocked(reconnectStartedAtDisconnectGeneration)
 
             if !forceReconnect, let connectTask {
                 return connectTask
@@ -148,9 +160,11 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                     self.clearConnectTaskIfCurrent(taskID)
                 }
 
+                try Task.checkCancellation()
                 if forceReconnect {
                     self.disconnectTunnelState(cancelConnectTask: false)
                 }
+                try self.validateReconnectGeneration(reconnectStartedAtDisconnectGeneration)
 
                 return try await self.startTunnel(taskID: taskID)
             }
@@ -173,13 +187,7 @@ public final class SSHTunnelConnection: @unchecked Sendable {
     }
 
     private func startTunnel(taskID: UUID) async throws -> String {
-        let launch = try SSHTunnelProcessLauncher.launch(
-            host: host,
-            user: user,
-            port: port,
-            remoteSocketPath: remoteSocketPath,
-            logger: logger
-        )
+        let launch = try launchTunnelIfCurrent(taskID: taskID)
         let process = launch.process
         let localSocket = launch.localSocketPath
 
@@ -264,6 +272,9 @@ public final class SSHTunnelConnection: @unchecked Sendable {
             let process = tunnelProcess
             let socketPath = localSocketPath
             let errorHandle = tunnelErrorHandle
+            if cancelConnectTask {
+                disconnectGeneration += 1
+            }
             tunnelProcess = nil
             localSocketPath = nil
             tunnelErrorHandle = nil
@@ -276,13 +287,13 @@ public final class SSHTunnelConnection: @unchecked Sendable {
                 connectTask?.cancel()
                 connectTask = nil
                 connectTaskID = nil
-                // Keep coordinator cancellation under the same lock so a
-                // cancelled reconnect cannot create a fresh inner launch after
-                // disconnect has already checked `connectTask`.
-                reconnectCoordinator.cancelInFlight()
             }
 
             return (process, socketPath)
+        }
+
+        if cancelConnectTask {
+            reconnectCoordinator.cancelInFlight()
         }
 
         if let process = state.0, process.isRunning {
@@ -296,4 +307,41 @@ public final class SSHTunnelConnection: @unchecked Sendable {
         }
     }
 
+}
+
+private extension SSHTunnelConnection {
+    func validateReconnectGeneration(_ expectedGeneration: Int?) throws {
+        try stateLock.withLock {
+            try validateReconnectGenerationLocked(expectedGeneration)
+        }
+    }
+
+    func validateReconnectGenerationLocked(_ expectedGeneration: Int?) throws {
+        guard let expectedGeneration else {
+            return
+        }
+
+        guard disconnectGeneration == expectedGeneration else {
+            throw CancellationError()
+        }
+    }
+
+    func launchTunnelIfCurrent(taskID: UUID) throws -> SSHTunnelLaunchResult {
+        // Keep the final task-id check and process spawn atomic with disconnect()
+        // so teardown cannot slip between "still current" and `Process.run()`.
+        try stateLock.withLock {
+            try Task.checkCancellation()
+            guard connectTaskID == taskID else {
+                throw CancellationError()
+            }
+
+            return try SSHTunnelProcessLauncher.launch(
+                host: host,
+                user: user,
+                port: port,
+                remoteSocketPath: remoteSocketPath,
+                logger: logger
+            )
+        }
+    }
 }
