@@ -68,7 +68,10 @@ struct ContainerFetcherCancellationTests {
         mock.holdStatsResponses()
 
         let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
-        let task = Task { try await fetcher.fetch(includeStats: true, all: true) }
+        let task = Task.detached(priority: .userInitiated) {
+            try await fetcher.fetch(includeStats: true, all: true)
+        }
+        await Task.yield()
 
         // Wait until the first wave of stats calls has entered the client. The
         // bounded barrier fails the test promptly if a limiter regression means
