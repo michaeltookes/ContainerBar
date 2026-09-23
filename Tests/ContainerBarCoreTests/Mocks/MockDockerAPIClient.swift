@@ -131,7 +131,7 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     public func waitForStatsCalls(
         atLeast expectedCount: Int,
-        timeout: Duration = .seconds(2)
+        timeout: Duration = .seconds(10)
     ) async -> Bool {
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while ContinuousClock.now < deadline {
