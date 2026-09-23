@@ -86,11 +86,18 @@ struct ContainerFetcherCancellationTests {
         }
 
         task.cancel()
-        mock.releaseStatsResponses()
-        _ = try? await task.value
+        guard await mock.waitForHeldStatsCancellations(atLeast: firstWaveStatsCalls) else {
+            mock.releaseStatsResponses()
+            _ = try? await task.value
+            Issue.record("Timed out waiting for the held stats-fetch wave to observe cancellation")
+            return
+        }
 
         // No more than the primed wave was ever issued — the refill loop stopped
         // rather than firing all 25 doomed requests.
+        mock.releaseStatsResponses()
+        _ = try? await task.value
+
         let firstWaveCalls = 1 + firstWaveStatsCalls
         #expect(mock.statsCallCount <= firstWaveStatsCalls)
         #expect(mock.callCount <= firstWaveCalls)
