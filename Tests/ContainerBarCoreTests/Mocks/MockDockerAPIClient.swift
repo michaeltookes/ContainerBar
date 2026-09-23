@@ -175,24 +175,35 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         return container
     }
 
-    public func getContainerStats(id: String) async throws -> ContainerStats {
-        recordCall("getContainerStats")
-        let (shouldFail, failureError, stats, delay) = stateLock.withLock {
-            () -> (Bool, Error, ContainerStats?, Duration?) in
+    /// Register a `getContainerStats` call as in flight, update the peak
+    /// high-water mark, and return the configured response delay — all under
+    /// one lock so the peak reflects true concurrent overlap.
+    private func beginStatsFetch() -> Duration? {
+        stateLock.withLock {
             _currentConcurrentStatsFetches += 1
             _peakConcurrentStatsFetches = max(_peakConcurrentStatsFetches, _currentConcurrentStatsFetches)
-            return (_shouldFail, _failureError, _mockStats[id], _responseDelay)
+            return _responseDelay
         }
-        defer {
-            stateLock.withLock { _currentConcurrentStatsFetches -= 1 }
-        }
+    }
+
+    private func endStatsFetch() {
+        stateLock.withLock { _currentConcurrentStatsFetches -= 1 }
+    }
+
+    public func getContainerStats(id: String) async throws -> ContainerStats {
+        recordCall("getContainerStats")
+        let delay = beginStatsFetch()
+        defer { endStatsFetch() }
         if let delay {
             try await Task.sleep(for: delay)
         }
-        if shouldFail {
-            throw failureError
+        let snapshot = stateLock.withLock {
+            (_shouldFail, _failureError, _mockStats[id])
         }
-        guard let stats else {
+        if snapshot.0 {
+            throw snapshot.1
+        }
+        guard let stats = snapshot.2 else {
             throw DockerAPIError.notFound("Stats for \(id)")
         }
         return stats
