@@ -25,7 +25,7 @@ struct SSHTunnelReconnectCoordinatorTests {
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
         let third = Task { try await coordinator.reconnect { try await probe.start() } }
         do {
-            try await withTestTimeout { try await joinBarrier.waitUntilSatisfied() }
+            try await waitForJoinBarrier(joinBarrier)
         } catch {
             first.cancel()
             second.cancel()
@@ -59,7 +59,7 @@ struct SSHTunnelReconnectCoordinatorTests {
         await probe.waitUntilEntered()
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
         do {
-            try await withTestTimeout { try await joinBarrier.waitUntilSatisfied() }
+            try await waitForJoinBarrier(joinBarrier)
         } catch {
             first.cancel()
             second.cancel()
@@ -119,9 +119,7 @@ struct SSHTunnelReconnectCoordinatorTests {
         let joinBarrier = ReconnectJoinBarrier(expectedCount: 1)
 
         await #expect(throws: TestTimeoutError.self) {
-            try await withTestTimeout(.milliseconds(20)) {
-                try await joinBarrier.waitUntilSatisfied()
-            }
+            try await waitForJoinBarrier(joinBarrier, timeout: .milliseconds(20))
         }
     }
 }
@@ -131,6 +129,7 @@ private actor ReconnectJoinBarrier {
     private var joinedCount = 0
     private var waiter: ReconnectJoinWaiter?
     private var cancelledWaiterIDs: Set<UUID> = []
+    private var timedOut = false
 
     init(expectedCount: Int) {
         self.expectedCount = expectedCount
@@ -142,6 +141,10 @@ private actor ReconnectJoinBarrier {
     }
 
     func waitUntilSatisfied() async throws {
+        if timedOut {
+            throw TestTimeoutError()
+        }
+
         if joinedCount >= expectedCount {
             return
         }
@@ -151,6 +154,11 @@ private actor ReconnectJoinBarrier {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 guard joinedCount < expectedCount else {
                     continuation.resume()
+                    return
+                }
+
+                guard timedOut == false else {
+                    continuation.resume(throwing: TestTimeoutError())
                     return
                 }
 
@@ -165,6 +173,16 @@ private actor ReconnectJoinBarrier {
         } onCancel: {
             Task { await self.cancelWaiter(id: waiterID) }
         }
+    }
+
+    func failPendingWaiterForTimeout() {
+        timedOut = true
+        guard let waiter else {
+            return
+        }
+
+        self.waiter = nil
+        waiter.continuation.resume(throwing: TestTimeoutError())
     }
 
     private func resumeIfSatisfied() {
@@ -190,6 +208,17 @@ private actor ReconnectJoinBarrier {
 private struct ReconnectJoinWaiter {
     let id: UUID
     let continuation: CheckedContinuation<Void, Error>
+}
+
+private func waitForJoinBarrier(
+    _ joinBarrier: ReconnectJoinBarrier,
+    timeout: Duration = .seconds(2)
+) async throws {
+    try await withTestTimeout(
+        timeout,
+        onTimeout: { await joinBarrier.failPendingWaiterForTimeout() },
+        operation: { try await joinBarrier.waitUntilSatisfied() }
+    )
 }
 
 /// Injectable, deterministic stand-in for the "start a tunnel" operation, so the
@@ -250,6 +279,7 @@ private actor ReconnectProbe {
 
 private func withTestTimeout<T: Sendable>(
     _ duration: Duration = .seconds(2),
+    onTimeout: @escaping @Sendable () async -> Void = {},
     operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
@@ -266,6 +296,9 @@ private func withTestTimeout<T: Sendable>(
             group.cancelAll()
             return value
         } catch {
+            if error is TestTimeoutError {
+                await onTimeout()
+            }
             group.cancelAll()
             throw error
         }
