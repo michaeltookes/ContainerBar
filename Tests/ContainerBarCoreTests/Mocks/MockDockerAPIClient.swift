@@ -21,6 +21,7 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     /// instrumentation below is observable.
     private var _responseDelay: Duration?
     private let statsCallBarrier = StatsCallBarrier()
+    private let statsCancellationBarrier = StatsCallBarrier()
     private var _holdStatsResponses = false
     /// Number of `getContainerStats` calls currently in flight.
     private var _currentConcurrentStatsFetches = 0
@@ -136,6 +137,13 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         await statsCallBarrier.waitForCalls(atLeast: expectedCount, timeout: timeout)
     }
 
+    public func waitForHeldStatsCancellations(
+        atLeast expectedCount: Int,
+        timeout: Duration = .seconds(10)
+    ) async -> Bool {
+        await statsCancellationBarrier.waitForCalls(atLeast: expectedCount, timeout: timeout)
+    }
+
     private func recordCall(_ method: String) {
         stateLock.withLock {
             _callCount += 1
@@ -215,7 +223,12 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     private func waitForHeldStatsResponseRelease() async throws {
         while stateLock.withLock({ _holdStatsResponses }) {
-            try await Task.sleep(for: .milliseconds(5))
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch is CancellationError {
+                statsCancellationBarrier.recordCall()
+                throw CancellationError()
+            }
         }
     }
 
