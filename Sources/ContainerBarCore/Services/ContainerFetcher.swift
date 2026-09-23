@@ -203,14 +203,14 @@ public actor ContainerFetcher {
 
             var iterator = runningContainers.makeIterator()
 
-            // Prime the window. `addTaskUnlessCancelled` returns false once the
-            // parent refresh Task is cancelled (a host switch cancels the
-            // in-flight refresh — CB-064), so a discarded refresh stops
-            // scheduling doomed stats calls against a fetcher the store has
-            // already thrown away and only drains whatever is already running.
+            // Prime the window. A host switch cancels the parent refresh task
+            // (CB-064), so check both parent cancellation and the task group
+            // before scheduling work against a fetcher the store has already
+            // discarded.
             var inFlight = 0
             while inFlight < Self.maxConcurrentStatsFetches, let container = iterator.next() {
-                guard group.addTaskUnlessCancelled(operation: { await self.fetchStats(for: container) }) else {
+                guard !Task.isCancelled,
+                      group.addTaskUnlessCancelled(operation: { await self.fetchStats(for: container) }) else {
                     break
                 }
                 inFlight += 1
@@ -218,14 +218,13 @@ public actor ContainerFetcher {
 
             // Drain and refill: for every completed fetch, start the next
             // pending container (if any), holding the in-flight count at or
-            // below the bound. `addTaskUnlessCancelled` again refuses to enqueue
-            // once cancelled, so a cancelled refresh drains the in-flight work
-            // and stops rather than issuing the entire remaining set.
+            // below the bound. Once the parent refresh is cancelled, drain the
+            // in-flight work and stop rather than issuing the remaining set.
             while let (id, stats) = await group.next() {
                 if let stats {
                     results[id] = stats
                 }
-                if let container = iterator.next() {
+                if !Task.isCancelled, let container = iterator.next() {
                     _ = group.addTaskUnlessCancelled(operation: { await self.fetchStats(for: container) })
                 }
             }
