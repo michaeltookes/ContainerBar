@@ -9,18 +9,30 @@ struct SSHTunnelReconnectCoordinatorTests {
     /// underlying start operation exactly once and every caller gets the same
     /// socket path, instead of each launching its own ssh.
     ///
-    /// Deterministic via the probe's entry gate — `waitUntilEntered()` guarantees
-    /// the first reconnect has entered and parked before the concurrent callers
-    /// are issued, so they must join the in-flight task regardless of scheduling.
+    /// Deterministic via two gates: `waitUntilEntered()` parks the first
+    /// reconnect operation, and `joinBarrier` confirms the later callers have
+    /// selected that in-flight task before the probe is released.
     @Test("reconnect coalesces concurrent callers into one start")
     func reconnectCoalescesConcurrentCallers() async throws {
-        let coordinator = SSHTunnelReconnectCoordinator()
+        let joinBarrier = ReconnectJoinBarrier(expectedCount: 2)
+        let coordinator = SSHTunnelReconnectCoordinator(
+            onReuseInFlightTask: { await joinBarrier.recordJoin() }
+        )
         let probe = ReconnectProbe(result: "/tmp/coalesced.sock")
 
         let first = Task { try await coordinator.reconnect { try await probe.start() } }
         await probe.waitUntilEntered()
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
         let third = Task { try await coordinator.reconnect { try await probe.start() } }
+        do {
+            try await withTestTimeout { await joinBarrier.waitUntilSatisfied() }
+        } catch {
+            first.cancel()
+            second.cancel()
+            third.cancel()
+            await probe.release()
+            throw error
+        }
         await probe.release()
 
         let results = try await [first.value, second.value, third.value]
@@ -34,7 +46,10 @@ struct SSHTunnelReconnectCoordinatorTests {
     /// treats it as retryable.
     @Test("reconnect propagates a DockerAPIError to all coalesced callers")
     func reconnectPropagatesDockerAPIError() async throws {
-        let coordinator = SSHTunnelReconnectCoordinator()
+        let joinBarrier = ReconnectJoinBarrier(expectedCount: 1)
+        let coordinator = SSHTunnelReconnectCoordinator(
+            onReuseInFlightTask: { await joinBarrier.recordJoin() }
+        )
         let probe = ReconnectProbe(
             result: "/tmp/unused.sock",
             error: DockerAPIError.sshConnectionFailed("superseded")
@@ -43,6 +58,14 @@ struct SSHTunnelReconnectCoordinatorTests {
         let first = Task { try await coordinator.reconnect { try await probe.start() } }
         await probe.waitUntilEntered()
         let second = Task { try await coordinator.reconnect { try await probe.start() } }
+        do {
+            try await withTestTimeout { await joinBarrier.waitUntilSatisfied() }
+        } catch {
+            first.cancel()
+            second.cancel()
+            await probe.release()
+            throw error
+        }
         await probe.release()
 
         for task in [first, second] {
@@ -87,6 +110,40 @@ struct SSHTunnelReconnectCoordinatorTests {
         _ = try await coordinator.reconnect { try await probe.start() }
 
         #expect(await probe.startCount == 2)
+    }
+}
+
+private actor ReconnectJoinBarrier {
+    private let expectedCount: Int
+    private var joinedCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(expectedCount: Int) {
+        self.expectedCount = expectedCount
+    }
+
+    func recordJoin() {
+        joinedCount += 1
+        resumeIfSatisfied()
+    }
+
+    func waitUntilSatisfied() async {
+        if joinedCount >= expectedCount {
+            return
+        }
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            self.continuation = continuation
+        }
+    }
+
+    private func resumeIfSatisfied() {
+        guard joinedCount >= expectedCount, let continuation else {
+            return
+        }
+
+        self.continuation = nil
+        continuation.resume()
     }
 }
 
@@ -145,3 +202,29 @@ private actor ReconnectProbe {
         released = true
     }
 }
+
+private func withTestTimeout<T: Sendable>(
+    _ duration: Duration = .seconds(2),
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask {
+            try await operation()
+        }
+        group.addTask {
+            try await Task.sleep(for: duration)
+            throw TestTimeoutError()
+        }
+
+        do {
+            let value = try await group.next()!
+            group.cancelAll()
+            return value
+        } catch {
+            group.cancelAll()
+            throw error
+        }
+    }
+}
+
+private struct TestTimeoutError: Error {}

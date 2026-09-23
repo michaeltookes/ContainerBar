@@ -18,8 +18,13 @@ import Foundation
 /// `clearConnectTaskIfCurrent`.
 final class SSHTunnelReconnectCoordinator: @unchecked Sendable {
     private let lock = NSLock()
+    private let onReuseInFlightTask: (@Sendable () async -> Void)?
     private var reconnectTask: Task<String, Error>?
     private var reconnectTaskID: UUID?
+
+    init(onReuseInFlightTask: (@Sendable () async -> Void)? = nil) {
+        self.onReuseInFlightTask = onReuseInFlightTask
+    }
 
     /// Runs `operation` behind a single in-flight task. Every caller that
     /// arrives while a reconnect is running awaits the *same* task, so
@@ -27,9 +32,9 @@ final class SSHTunnelReconnectCoordinator: @unchecked Sendable {
     /// same error). A fresh call after the previous task has completed starts a
     /// new `operation`.
     func reconnect(_ operation: @escaping @Sendable () async throws -> String) async throws -> String {
-        let task = lock.withLock { () -> Task<String, Error> in
+        let taskSelection = lock.withLock { () -> (task: Task<String, Error>, reusedInFlightTask: Bool) in
             if let reconnectTask {
-                return reconnectTask
+                return (reconnectTask, true)
             }
 
             let taskID = UUID()
@@ -40,10 +45,14 @@ final class SSHTunnelReconnectCoordinator: @unchecked Sendable {
 
             reconnectTask = task
             reconnectTaskID = taskID
-            return task
+            return (task, false)
         }
 
-        return try await task.value
+        if taskSelection.reusedInFlightTask {
+            await onReuseInFlightTask?()
+        }
+
+        return try await taskSelection.task.value
     }
 
     /// Cancels any in-flight reconnect and clears it. Used by a deliberate
