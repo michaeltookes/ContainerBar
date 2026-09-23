@@ -229,14 +229,18 @@ public final class SSHTunnelConnection: @unchecked Sendable {
 
         guard adoptedState else {
             // Lost the adoption race to a newer attempt: throw a retryable
-            // DockerAPIError, not a bare CancellationError. Real teardown
-            // cancellation comes from checkCancellation in waitForSocket.
-            throw DockerAPIError.sshConnectionFailed("SSH tunnel connection was superseded by a newer attempt")
+            // DockerAPIError unless deliberate teardown cancelled this task.
+            throw try supersededConnectionError()
         }
 
         adopted = true
         logger.info("SSH tunnel established: \(localSocket)")
         return localSocket
+    }
+
+    func supersededConnectionError() throws -> DockerAPIError {
+        try Task.checkCancellation()
+        return DockerAPIError.sshConnectionFailed("SSH tunnel connection was superseded by a newer attempt")
     }
 
     /// Monitors tunnel death: flips `tunnelDied` when the adopted process exits.
