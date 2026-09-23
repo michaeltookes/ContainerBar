@@ -24,8 +24,15 @@ public actor ContainerFetcher {
     /// Minimum time between fetches to avoid hammering the API
     private let minFetchInterval: TimeInterval = 1.0
 
-    /// Maximum number of concurrent stats fetches
-    private static let maxConcurrentStatsFetches = 10
+    /// Maximum number of stats fetches allowed in flight at once.
+    ///
+    /// This is a genuine concurrency bound, not a count cap: every running
+    /// container gets its stats fetched, but the fetcher keeps at most this
+    /// many `getContainerStats` calls in flight simultaneously so it never
+    /// spawns an unbounded task fan-out on hosts with many running
+    /// containers. Exposed (internal) so tests can assert the bound is
+    /// respected.
+    static let maxConcurrentStatsFetches = 10
 
     // MARK: - Initialization
 
@@ -183,30 +190,54 @@ public actor ContainerFetcher {
             return [:]
         }
 
-        // Limit concurrent stats fetches
-        let containersToFetch = Array(runningContainers.prefix(Self.maxConcurrentStatsFetches))
-
-        // Fetch stats concurrently using TaskGroup
+        // Fetch stats for ALL running containers, but keep at most
+        // `maxConcurrentStatsFetches` fetches in flight at once. This is a
+        // sliding-window limiter over the full running set: prime the group
+        // with up to the bound's worth of tasks, then each time a task
+        // finishes, enqueue the next container. That bounds the task
+        // fan-out without truncating the container set — every running
+        // container gets stats, unlike the old `prefix(bound)` count cap.
         return await withTaskGroup(of: (String, ContainerStats?).self) { group in
-            for container in containersToFetch {
-                group.addTask {
-                    do {
-                        let stats = try await self.client.getContainerStats(id: container.id)
-                        return (container.id, stats)
-                    } catch {
-                        self.logger.warning("Failed to fetch stats for \(container.displayName): \(error.localizedDescription)")
-                        return (container.id, nil)
-                    }
-                }
+            var results: [String: ContainerStats] = [:]
+            results.reserveCapacity(runningContainers.count)
+
+            var iterator = runningContainers.makeIterator()
+
+            // Prime the window.
+            var inFlight = 0
+            while inFlight < Self.maxConcurrentStatsFetches, let container = iterator.next() {
+                group.addTask { await self.fetchStats(for: container) }
+                inFlight += 1
             }
 
-            var results: [String: ContainerStats] = [:]
-            for await (id, stats) in group {
+            // Drain and refill: for every completed fetch, start the next
+            // pending container (if any), holding the in-flight count at or
+            // below the bound.
+            while let (id, stats) = await group.next() {
                 if let stats {
                     results[id] = stats
                 }
+                if let container = iterator.next() {
+                    group.addTask { await self.fetchStats(for: container) }
+                }
             }
+
             return results
+        }
+    }
+
+    /// Fetch stats for a single container, mapping any failure to `nil`.
+    ///
+    /// A failed stats fetch logs a warning and contributes `nil`, which the
+    /// caller drops from the results dictionary — the container list is still
+    /// complete, that card just shows no CPU/MEM for this cycle.
+    private func fetchStats(for container: DockerContainer) async -> (String, ContainerStats?) {
+        do {
+            let stats = try await client.getContainerStats(id: container.id)
+            return (container.id, stats)
+        } catch {
+            logger.warning("Failed to fetch stats for \(container.displayName): \(error.localizedDescription)")
+            return (container.id, nil)
         }
     }
 
