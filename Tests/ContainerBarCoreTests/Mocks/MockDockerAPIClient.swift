@@ -16,6 +16,18 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     private var _callCount = 0
     private var _lastCalledMethod: String?
 
+    /// Optional per-call delay, applied inside `getContainerStats` so
+    /// concurrent fetches genuinely overlap and the peak-concurrency
+    /// instrumentation below is observable.
+    private var _responseDelay: Duration?
+    private let statsCallBarrier = StatsCallBarrier()
+    private let statsCancellationBarrier = StatsCallBarrier()
+    private var _holdStatsResponses = false
+    /// Number of `getContainerStats` calls currently in flight.
+    private var _currentConcurrentStatsFetches = 0
+    /// High-water mark of concurrent `getContainerStats` calls seen so far.
+    private var _peakConcurrentStatsFetches = 0
+
     public var mockContainers: [DockerContainer] {
         stateLock.withLock { _mockContainers }
     }
@@ -40,8 +52,23 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         stateLock.withLock { _callCount }
     }
 
+    public var statsCallCount: Int {
+        statsCallBarrier.callCount
+    }
+
     public var lastCalledMethod: String? {
         stateLock.withLock { _lastCalledMethod }
+    }
+
+    public var responseDelay: Duration? {
+        get { stateLock.withLock { _responseDelay } }
+        set { stateLock.withLock { _responseDelay = newValue } }
+    }
+
+    /// Highest number of `getContainerStats` calls that were in flight at the
+    /// same time. Used to assert the fetcher's concurrency bound.
+    public var peakConcurrentStatsFetches: Int {
+        stateLock.withLock { _peakConcurrentStatsFetches }
     }
 
     public init() {}
@@ -93,6 +120,28 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
             _shouldFail = shouldFail
             _failureError = error
         }
+    }
+
+    public func holdStatsResponses() {
+        stateLock.withLock { _holdStatsResponses = true }
+    }
+
+    public func releaseStatsResponses() {
+        stateLock.withLock { _holdStatsResponses = false }
+    }
+
+    public func waitForStatsCalls(
+        atLeast expectedCount: Int,
+        timeout: Duration = .seconds(10)
+    ) async -> Bool {
+        await statsCallBarrier.waitForCalls(atLeast: expectedCount, timeout: timeout)
+    }
+
+    public func waitForHeldStatsCancellations(
+        atLeast expectedCount: Int,
+        timeout: Duration = .seconds(10)
+    ) async -> Bool {
+        await statsCancellationBarrier.waitForCalls(atLeast: expectedCount, timeout: timeout)
     }
 
     private func recordCall(_ method: String) {
@@ -155,8 +204,42 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         return container
     }
 
+    /// Register a `getContainerStats` call as in flight, update the peak
+    /// high-water mark, and return the configured response delay — all under
+    /// one lock so the peak reflects true concurrent overlap.
+    private func beginStatsFetch() -> Duration? {
+        let delay = stateLock.withLock {
+            _currentConcurrentStatsFetches += 1
+            _peakConcurrentStatsFetches = max(_peakConcurrentStatsFetches, _currentConcurrentStatsFetches)
+            return _responseDelay
+        }
+        statsCallBarrier.recordCall()
+        return delay
+    }
+
+    private func endStatsFetch() {
+        stateLock.withLock { _currentConcurrentStatsFetches -= 1 }
+    }
+
+    private func waitForHeldStatsResponseRelease() async throws {
+        while stateLock.withLock({ _holdStatsResponses }) {
+            do {
+                try await Task.sleep(for: .milliseconds(5))
+            } catch is CancellationError {
+                statsCancellationBarrier.recordCall()
+                throw CancellationError()
+            }
+        }
+    }
+
     public func getContainerStats(id: String) async throws -> ContainerStats {
         recordCall("getContainerStats")
+        let delay = beginStatsFetch()
+        defer { endStatsFetch() }
+        try await waitForHeldStatsResponseRelease()
+        if let delay {
+            try await Task.sleep(for: delay)
+        }
         let snapshot = stateLock.withLock {
             (_shouldFail, _failureError, _mockStats[id])
         }
@@ -209,4 +292,92 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         }
         return "Mock log output for container \(id)"
     }
+}
+
+private final class StatsCallBarrier: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _callCount = 0
+    private var waiters: [StatsCallWaiter] = []
+
+    var callCount: Int {
+        lock.withLock { _callCount }
+    }
+
+    func recordCall() {
+        let readyWaiters = lock.withLock {
+            _callCount += 1
+            return takeReadyWaiters()
+        }
+        readyWaiters.forEach { $0.resume() }
+    }
+
+    func waitForCalls(atLeast expectedCount: Int, timeout: Duration) async -> Bool {
+        let waiterID = UUID()
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask { [self] in
+                await waitForCalls(atLeast: expectedCount, waiterID: waiterID)
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return false
+            }
+
+            let didReachExpectedCount = await group.next() ?? false
+            if !didReachExpectedCount {
+                cancelWaiter(id: waiterID)
+            }
+            group.cancelAll()
+            return didReachExpectedCount
+        }
+    }
+
+    private func waitForCalls(atLeast expectedCount: Int, waiterID: UUID) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let shouldResume = lock.withLock {
+                if _callCount >= expectedCount {
+                    return true
+                }
+                waiters.append(StatsCallWaiter(
+                    id: waiterID,
+                    expectedCount: expectedCount,
+                    continuation: continuation
+                ))
+                return false
+            }
+            if shouldResume {
+                continuation.resume()
+            }
+        }
+    }
+
+    private func takeReadyWaiters() -> [CheckedContinuation<Void, Never>] {
+        var ready: [CheckedContinuation<Void, Never>] = []
+        var pending: [StatsCallWaiter] = []
+        for waiter in waiters {
+            if _callCount >= waiter.expectedCount {
+                ready.append(waiter.continuation)
+            } else {
+                pending.append(waiter)
+            }
+        }
+        waiters = pending
+        return ready
+    }
+
+    private func cancelWaiter(id: UUID) {
+        let waiter = lock.withLock { () -> StatsCallWaiter? in
+            guard let index = waiters.firstIndex(where: { $0.id == id }) else {
+                return nil
+            }
+            return waiters.remove(at: index)
+        }
+        waiter?.continuation.resume()
+    }
+}
+
+private struct StatsCallWaiter {
+    let id: UUID
+    let expectedCount: Int
+    let continuation: CheckedContinuation<Void, Never>
 }

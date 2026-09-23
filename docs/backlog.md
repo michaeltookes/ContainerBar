@@ -10,10 +10,6 @@ _No open high-priority items._
 
 ## Medium Priority
 
-### CB-068: Stats are silently truncated to the first 10 running containers
-**Priority**: Medium
-**Description**: Audit 2026-09-18. `ContainerFetcher.maxConcurrentStatsFetches = 10` is applied as `runningContainers.prefix(10)` — a count cap, not a concurrency bound. Containers 11+ never get stats, `buildMetricsSnapshot` sums only the fetched ones, and `ContainerFetcherTests.largeContainerCountFetch` ("20 running … mimics Beelink host") enshrines it with `#expect(result.stats.count <= 10)`. On the Beelink host cards 11+ show no CPU/MEM and the status-item percentage is wrong, with which ten get stats depending on Docker's list order. (Concurrency is largely nominal anyway: every request serializes on the transport's `ioGate`.) Fix: bound concurrency (chunked `withTaskGroup` batches or a limiter) but fetch stats for all running containers; update the test to assert `stats.count == 20`.
-
 ### CB-069: Aggregate memory limit sums per-container limits, so unconstrained containers inflate the denominator
 **Priority**: Medium
 **Description**: Audit 2026-09-18. `ContainerFetcher.buildMetricsSnapshot` computes `totalMemLimit = statsList.reduce(0) { $0 + $1.memoryLimitBytes }`. Docker reports `memory_stats.limit` = host `MemTotal` for containers with no cgroup limit (the common case), so three unlimited containers on a 16 GB host render "/ 48 GB" in `GeneralStatsGrid`, the memory fraction in `StatusItemController.updateIcon` is one-third of reality, and `ContainerMetricsSnapshot.overallHealth`'s 95 % warning can never trip. Fix: use `DockerSystemInfo.memoryTotal` (already decoded from `/info`) as the denominator, or `min(sum, hostTotal)`; at minimum de-duplicate limits equal to host memory. Test with a fixture of unlimited containers.
