@@ -203,22 +203,30 @@ public actor ContainerFetcher {
 
             var iterator = runningContainers.makeIterator()
 
-            // Prime the window.
+            // Prime the window. `addTaskUnlessCancelled` returns false once the
+            // parent refresh Task is cancelled (a host switch cancels the
+            // in-flight refresh — CB-064), so a discarded refresh stops
+            // scheduling doomed stats calls against a fetcher the store has
+            // already thrown away and only drains whatever is already running.
             var inFlight = 0
             while inFlight < Self.maxConcurrentStatsFetches, let container = iterator.next() {
-                group.addTask { await self.fetchStats(for: container) }
+                guard group.addTaskUnlessCancelled(operation: { await self.fetchStats(for: container) }) else {
+                    break
+                }
                 inFlight += 1
             }
 
             // Drain and refill: for every completed fetch, start the next
             // pending container (if any), holding the in-flight count at or
-            // below the bound.
+            // below the bound. `addTaskUnlessCancelled` again refuses to enqueue
+            // once cancelled, so a cancelled refresh drains the in-flight work
+            // and stops rather than issuing the entire remaining set.
             while let (id, stats) = await group.next() {
                 if let stats {
                     results[id] = stats
                 }
                 if let container = iterator.next() {
-                    group.addTask { await self.fetchStats(for: container) }
+                    _ = group.addTaskUnlessCancelled(operation: { await self.fetchStats(for: container) })
                 }
             }
 
@@ -230,13 +238,20 @@ public actor ContainerFetcher {
     ///
     /// A failed stats fetch logs a warning and contributes `nil`, which the
     /// caller drops from the results dictionary — the container list is still
-    /// complete, that card just shows no CPU/MEM for this cycle.
+    /// complete, that card just shows no CPU/MEM for this cycle. A cancellation
+    /// (e.g. a host switch discarding the refresh) is not a fetch failure, so it
+    /// logs at `debug` instead of `warning`, matching the CB-064 handling in the
+    /// outer `fetch` catch.
     private func fetchStats(for container: DockerContainer) async -> (String, ContainerStats?) {
         do {
             let stats = try await client.getContainerStats(id: container.id)
             return (container.id, stats)
         } catch {
-            logger.warning("Failed to fetch stats for \(container.displayName): \(error.localizedDescription)")
+            if error is CancellationError || Task.isCancelled {
+                logger.debug("Stats fetch cancelled for \(container.displayName)")
+            } else {
+                logger.warning("Failed to fetch stats for \(container.displayName): \(error.localizedDescription)")
+            }
             return (container.id, nil)
         }
     }

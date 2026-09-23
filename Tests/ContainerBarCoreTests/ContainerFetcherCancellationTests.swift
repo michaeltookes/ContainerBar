@@ -43,4 +43,45 @@ struct ContainerFetcherCancellationTests {
         let cached = try await fetcher.fetch(includeStats: false, all: true)
         #expect(cached.containers.map(\.id) == ["c1"])
     }
+
+    @Test("Cancelling a large stats fetch stops the sliding-window refill")
+    func cancelledStatsFetchStopsRefilling() async throws {
+        // Regression guard (CB-068 review): the sliding-window limiter must not
+        // keep enqueueing stats calls after the parent refresh is cancelled
+        // (a host switch since CB-064). With `addTaskUnlessCancelled`, a
+        // cancelled refresh drains the primed wave and stops instead of issuing
+        // all N requests against a fetcher the store has already discarded.
+        let runningCount = 25
+        let mock = MockDockerAPIClient()
+        var containers: [DockerContainer] = []
+        var stats: [String: ContainerStats] = [:]
+        for index in 1...runningCount {
+            let id = "running-\(index)"
+            containers.append(DockerContainer.mock(id: id, name: "svc-\(index)", state: .running))
+            stats[id] = ContainerStats.mock(containerId: id)
+        }
+        mock.setMockContainers(containers)
+        mock.setMockStats(stats)
+        // Hold each stats call open so the primed wave is still in flight when
+        // we cancel; refill only happens after a call completes, so it cannot
+        // run before we cancel.
+        mock.responseDelay = .milliseconds(200)
+
+        let fetcher = ContainerFetcher(client: mock, host: Self.testHost)
+        let task = Task { try await fetcher.fetch(includeStats: true, all: true) }
+
+        // Wait until the first wave has entered the client: 1 listContainers +
+        // maxConcurrentStatsFetches getContainerStats calls recorded.
+        let firstWaveCalls = 1 + ContainerFetcher.maxConcurrentStatsFetches
+        while mock.callCount < firstWaveCalls {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        task.cancel()
+        _ = try? await task.value
+
+        // No more than the primed wave was ever issued — the refill loop stopped
+        // rather than firing all 25 doomed requests.
+        #expect(mock.callCount <= firstWaveCalls)
+    }
 }
