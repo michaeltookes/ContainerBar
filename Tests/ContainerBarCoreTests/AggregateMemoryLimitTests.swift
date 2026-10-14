@@ -71,6 +71,18 @@ struct AggregateMemoryLimitTests {
     @Test("Sentinel limits saturate instead of overflowing")
     func saturatesOnOverflow() {
         #expect(AggregateMemoryLimit.saturatingSum([UInt64.max, 1, UInt64.max]) == UInt64.max)
-        #expect(AggregateMemoryLimit.denominator(limits: [UInt64.max, 5], hostMemoryTotal: nil) == UInt64.max)
+    }
+
+    @Test("Host total unknown: UInt64.max and other >1 PiB sentinels are excluded from the fallback")
+    func fallbackExcludesSentinels() {
+        let limits = [UInt64.max, Self.host, 256 * Self.mib, UInt64(1) << 62]
+        #expect(AggregateMemoryLimit.denominator(limits: limits, hostMemoryTotal: nil) == Self.host + 256 * Self.mib)
+        #expect(AggregateMemoryLimit.denominator(limits: [UInt64.max, 5], hostMemoryTotal: nil) == 5)
+    }
+
+    @Test("Host total unknown and every container reports a sentinel: 0, so health stays unknown")
+    func fallbackAllSentinelsIsZero() {
+        #expect(AggregateMemoryLimit.denominator(limits: [UInt64.max, UInt64.max], hostMemoryTotal: nil) == 0)
+        #expect(AggregateMemoryLimit.denominator(limits: [UInt64.max, 0], hostMemoryTotal: 0) == 0)
     }
 }
