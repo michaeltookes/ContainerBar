@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- Container logs no longer show stray control characters before each line:
+  stdout and stderr are always separated from Docker's stream framing, log
+  lines after an empty frame are no longer dropped, TTY containers' output is
+  shown unchanged, and daemon-side log errors appear as a `[docker error]` line
 - Hosts running more than 10 containers now show CPU and memory for every
   running container instead of only the first ten, and the menu-bar aggregate
   CPU/memory percentage reflects all of them
