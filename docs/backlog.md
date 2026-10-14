@@ -212,6 +212,71 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 **Priority**: Medium
 **Description**: Filed 2026-09-20 by the owner. Every image under `docs/images/` (9 files) dates from 2026-01-30 — the v2.0.0 era — so none of them show the host-picker pills, the sparkline metric cards and General Stats grid, custom sections/grouping, the in-menu logs panel, TLS hosts in Settings, or the CB-052 labelled controls, and the README's single image (`full-view.png`, 322×719, non-Retina) undersells the dashboard. `docs/GETTING_STARTED.md` references seven of the same stale files. Work: (1) capture a fresh set at 2× (Retina) in both light and dark appearance, cropped to the window/menu with a small margin — at minimum the full dashboard with grouped containers and metrics, the host picker with two or more hosts, a container card's detail popover, the quick-action bar and logs panel, the Sections and Connections settings panes, and the menu-bar icon states; (2) **use hunt mode for the captures** (`CONTAINERBAR_HUNT_MODE=1`, which runs `FixtureDockerAPIClient` against synthetic containers and a throwaway defaults suite) so no real host names, IPs, container names, or image tags from the owner's LAN land in a public repo — verify each PNG shows only fixture data before committing; (3) replace the files in `docs/images/` under stable names (keep existing names where the subject is the same so external links survive, delete the ones no longer referenced), update the `![…]` references in `README.md` and `docs/GETTING_STARTED.md`, and give the README a short gallery (dashboard, host switching, settings) directly under the title with the Features list reordered to match what the images show; (4) keep the total image payload reasonable (optimize PNGs; the current set is ~1.6 MB). Captures are a manual owner step on a Mac with a GUI session (not the SSH-only mini); the agent side is the fixture verification, file swap, and doc edits. No code changes.
 
+### CB-110: One preflight deadline for the CI and desktop-lock waits (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Codex review of PR #66, last round. Requirements story 6 AC2 (CI idle) and AC3 (QA lock) each say the pass "waits up to 10 minutes" before reporting BLOCKED `ci-busy` / `desktop-busy`, while AC4 and architecture §7 give the CI wait and the lock wait one shared 8-minute budget (both end at T0 + 480 s). Read literally, a pass could wait 10 minutes for CI and another 10 for the lock, overrunning the 1380 s case cut-off and eating the 420 s restore reserve; read the other way, the outcome depends on which wait an agent applies first. Define both waits from the common deadline T0 + 480 s so the BLOCKED reason and the remaining execution budget are deterministic. Owner: business analyst (requirements wording), orchestrator (CB-105 brief and recipe).
+
+**Technical tasks**:
+- [ ] `docs/requirements/lucius-daily-qa.md` story 6: rewrite AC2 and AC3 so each wait ends at T0 + 480 s (no independent 10-minute wait); state the order (CI wait first, then the lock wait with whatever is left) and that a wait reaching the deadline reports `ci-busy` if CI was still busy, else `desktop-busy`.
+- [ ] Check architecture §7 "One deadline per run" and the step-0 sequence use the same wording; fix any remaining "10 minutes" in either doc.
+- [ ] CB-105 recipe and brief preamble: compute `deadline = T0 + 480` once at session start and use it for both loops; log the time each wait ended in the run notes.
+
+**Acceptance**: Size **S**, docs and brief only.
+- Given CI is busy for the whole preflight, when the pass starts, then it reports BLOCKED `ci-busy` no later than T0 + 480 s and never starts the lock wait.
+- Given CI goes idle at T0 + 300 s and the lock is held until after T0 + 480 s, then the pass reports BLOCKED `desktop-busy` at T0 + 480 s (the lock wait gets the remaining 180 s, not 10 minutes).
+- Given both clear before the deadline, then the case cut-off stays T0 + 1380 s and the 420 s restore reserve is untouched.
+- `grep -n "10 minutes" docs/requirements/lucius-daily-qa.md docs/architecture/lucius-daily-qa.md` returns no line about the CI or lock wait.
+
+### CB-111: `cbqa-podman-revive.timer` must name the unit it starts (CB-100 follow-up)
+**Priority**: Medium
+**Description**: Codex review of PR #66, last round. A systemd timer starts the service with its own name unless `[Timer] Unit=` says otherwise. As specified (architecture §2 and CB-100's tasks), `cbqa-podman-revive.timer` has no `Unit=` line and no companion service, so on elapse systemd tries to start a non-existent `cbqa-podman-revive.service`; the five-minute recovery after an aborted `api-stop` never happens and the API stays down until someone runs `api-start`. Either give the timer `Unit=cbqa-podman.service`, or add a companion `cbqa-podman-revive.service` (`Type=oneshot`, `ExecStart=systemctl start cbqa-podman.service`) and extend the polkit rule accordingly. Owner: solution architect (doc), homelab-it (host).
+
+**Technical tasks**:
+- [ ] `docs/architecture/lucius-daily-qa.md` §2: add `[Timer] Unit=cbqa-podman.service` (preferred; no extra unit or polkit change) to the `cbqa-podman-revive.timer` definition and to the provisioning checklist; state why it is needed.
+- [ ] CB-100 technical tasks: same line on the timer; P6 records `systemctl show cbqa-podman-revive.timer -p Unit` = `cbqa-podman.service` before the outage cycles.
+- [ ] homelab-it: apply on the host in the homelab repo, `systemctl daemon-reload`, rerun P6.
+
+**Acceptance**: Size **S**, docs plus a host change.
+- Given the provisioned host, when `systemctl show cbqa-podman-revive.timer -p Unit` runs, then it prints `Unit=cbqa-podman.service` (or the companion service, if that option is chosen and it exists).
+- Given `ssh cbqa-ctl api-stop` and no `api-start`, then within 6 minutes `ssh cbqa-ctl status` exits 0 with every fixture still running and `startedAt` unchanged, twice in a row (probe P6).
+- Failure path: `journalctl -u cbqa-podman-revive.timer` shows no "Unit cbqa-podman-revive.service not found" line after an elapse.
+
+### CB-112: Marker recovery always normalises ContainerBar's windows and dialogs (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Codex review of PR #66, last round. CB-105's step 0 recovers a left-over run marker by running `containerbar-qa-restore.sh` (no GUI) and restores preferences only when it detects drift. An aborted run can leave a Settings window open (TC-CB-08) or a Sparkle dialog up (TC-CB-14) with preferences intact, and that window then survives into the next run, where it covers the menu panel and breaks the first cases' selectors. On the next GUI-capable pass, marker recovery must normalise the app's window and dialog state unconditionally, not only on preference drift: quit ContainerBar through its own menu (or `osascript -e 'tell application "ContainerBar" to quit'`) and relaunch it, which closes Settings and any Sparkle dialog. No `kill`/`pkill`/`killall`. Owner: orchestrator (CB-105 brief and recipe).
+
+**Technical tasks**:
+- [ ] Architecture §7 step 0: after the script-based recovery succeeds and a marker was found, always quit and relaunch ContainerBar before writing the new marker, whether or not the preferences drifted; record `windows-normalised` in the run notes.
+- [ ] CB-105 restore checklist and the `CONTAINERBAR_QA.md` recipe: the same step, with the quit going through the app's menu or osascript, never a signal.
+- [ ] If the quit is refused (a modal sheet blocks it), close the Sparkle dialog or Settings window by its accessibility identifier first; if that fails, end BLOCKED `restore-failed` and keep the marker.
+
+**Acceptance**: Size **S**, brief only.
+- Given a marker left by an aborted run with the Settings window open and the preferences at baseline, when the next pass's step 0 runs, then before the first case no Settings window exists (accessibility tree check, screenshot of the menu bar region) and ContainerBar has a new PID.
+- Given a marker left with a Sparkle "check for updates" dialog open (TC-CB-14 aborted), then the same holds and no Sparkle window exists.
+- Given no marker, then step 0 does not quit or relaunch the app.
+
+### CB-113: Split swift-log call sites that mix host, user, path and port before OSLog privacy (CB-108 expansion)
+**Priority**: Medium
+**Description**: Codex review of PR #66, last round. CB-108 plans a bootstrap-only OSLog handler with dynamic values `.private` by default and host aliases and container names `.public`. swift-log hands a handler one already-interpolated string, so a handler cannot apply field-level privacy: a message that mixes a host alias with a user name or socket path is either all public (leaks the user and path) or all private (hides the alias the QA pass needs). Before unified logging is enabled, split those call sites so each message carries one kind of value, or move the sensitive values into swift-log metadata with a privacy key the handler maps to `.private`. Call sites found by `grep -rn "logger\.\(info\|debug\|error\|warning\)" Sources` that interpolate a host, user, path or port (2026-10-14):
+- `Sources/ContainerBarCore/API/SSHTunnelProcessLauncher.swift:29`: `"Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)"` (user, host alias, port, remote socket path in one message).
+- `Sources/ContainerBarCore/API/TLSConnection.swift:62`: `"TLS connection established to \(host):\(validatedPort)"` (host may be an address, plus port).
+- `Sources/ContainerBarCore/API/UnixSocketConnection.swift:46`: `"Unix socket connected: \(socketPath)"` (local path, may contain the home directory).
+- `Sources/ContainerBarCore/API/SSHTunnelConnection.swift:237`: `"SSH tunnel established: \(localSocket)"` (local socket path).
+- `Sources/ContainerBar/Services/HuntMode.swift:34`: `"Hunt mode active (env: \(env), derivedData: \(path))"` (DerivedData path).
+- Host display names (user-chosen, may contain an address): `Sources/ContainerBar/Stores/ContainerStore.swift:196`, `Sources/ContainerBar/Stores/SettingsStore.swift:151` and `:165`, `Sources/ContainerBarCore/API/DockerAPIClientImpl.swift:88`, `Sources/ContainerBarCore/Services/ContainerFetcher.swift:93`.
+- Error descriptions that can embed a host or path: `Sources/ContainerBar/Stores/ContainerStore+HostSwitching.swift:173`, `Sources/ContainerBarCore/Services/ContainerFetcher+HostMemory.swift:53`.
+Owner: builder. Lands before or with CB-108.
+
+**Technical tasks**:
+- [ ] Decide the mechanism (split messages vs a metadata privacy key such as `Logger.Metadata["privacy"]`, or a small `LogValue.public/.private` wrapper the handler understands) and record it in architecture §9D.
+- [ ] Rework every call site above; re-run the grep (also `notice`/`trace` and multi-line calls) and list any new hit in the PR.
+- [ ] Unit test the handler: a message built with a private user and path plus a public alias renders the alias in clear and the others as `<private>`.
+
+**Acceptance**: Size **S**, one branch.
+- Given the bootstrapped release build creating an SSH tunnel to `cbqa-tunnel`, when `log show --predicate 'subsystem == "com.tookes.ContainerBar"' --last 5m` is read without a logging profile, then `cbqa-tunnel` appears in clear and the user name, port and both socket paths show as `<private>`.
+- Given a TLS or Unix-socket connection, then no address, home path or DerivedData path appears in clear.
+- No behaviour change: existing tests pass; the grep above returns no line that interpolates a user, path or port into a public message.
+
 ## Low Priority
 
 ### CB-093: Core minor correctness: `getContainer` cannot decode a real inspect payload, CPU% fallback ignores `percpu_usage`, cert loader passphrase lifetime
@@ -258,3 +323,19 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 - Privacy: given a log line that carries any other dynamic value (a socket path, a user name, an error payload), when read without a logging profile, then it shows as `<private>`.
 - Failure path: given the bootstrap runs twice (for example from a test host and the app), then the second call does not crash (swift-log allows one bootstrap; guard it), and unit tests that do not bootstrap still log to their default handler.
 - QA check (Mini): one daily pass attaches the `log show` excerpt to its report; it contains no SSH key path, user home path, or IP address.
+
+### CB-114: Harden `claude-pr-description.yml` so a failed or stalled description never fails the check (port of prompter PRMT-009)
+**Priority**: Low
+**Description**: Codex review of PR #66, last round; the same fix shipped in prompter as PRMT-009. `.github/workflows/claude-pr-description.yml` sets `continue-on-error: true` at job level (line 30), so a failing step stops the job with no per-step handling and the publish step has no explicit guard on the describe step's outcome, and the Claude call has no step timeout, so a stalled call holds the job until the 15-minute job timeout. Move error tolerance to the steps and bound the Claude call. Owner: builder.
+
+**Technical tasks**:
+- [ ] Remove the job-level `continue-on-error`.
+- [ ] Add step-level `continue-on-error: true` to the description-state, describe and publish steps; guard each dependent step with `if: steps.<previous>.outcome == 'success'` (describe on description-state, publish on describe).
+- [ ] `timeout-minutes: 10` on the describe step; raise the job `timeout-minutes` from 15 to 20 with a comment that the job timeout must stay above the step's.
+- [ ] Run `actionlint` on the workflow.
+
+**Acceptance**: Size **S**, one branch.
+- Given an invalid or missing token, or an API error from the Claude call, when the workflow runs on a PR, then the check is green and the PR body is unchanged.
+- Given a Claude call that stalls, then the describe step is cancelled at 10 minutes, publish is skipped, the check is green, and the PR body is unchanged.
+- Given a normal run, then the description is published as before.
+- `actionlint .github/workflows/claude-pr-description.yml` reports nothing.
