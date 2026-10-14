@@ -137,16 +137,7 @@ struct ContainerCardView: View {
     // MARK: - Ports Label
 
     private var formattedPorts: String? {
-        let publicPorts = container.ports.compactMap { $0.publicPort }
-        if publicPorts.isEmpty {
-            return nil
-        } else if publicPorts.count == 1 {
-            return ":\(publicPorts[0])"
-        } else if publicPorts.count <= 2 {
-            return publicPorts.map { ":\($0)" }.joined(separator: " ")
-        } else {
-            return ":\(publicPorts[0]) +\(publicPorts.count - 1)"
-        }
+        PortPresentation.cardLabel(for: container.ports)
     }
 
     private func portsLabelView(_ text: String) -> some View {
