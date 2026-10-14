@@ -9,15 +9,20 @@ public actor ContainerFetcher {
 
     // MARK: - Properties
 
-    private let client: DockerAPIClient
+    let client: DockerAPIClient
     private let failureGate: ConsecutiveFailureGate
-    private let logger = Logger(label: "com.containerbar.fetcher")
 
     /// The host this fetcher is connected to
     public let host: DockerHost
 
     private var lastFetchResult: ContainerFetchResult?
     private var lastFetchTime: Date?
+
+    /// Cached `/info` `MemTotal` for the aggregate memory denominator (CB-069),
+    /// and when it was last requested. See `ContainerFetcher+HostMemory.swift`.
+    var hostMemoryTotal: UInt64?
+    var hostMemoryCheckedAt: Date?
+    let logger = Logger(label: "com.containerbar.fetcher")
 
     // MARK: - Configuration
 
@@ -101,8 +106,15 @@ public actor ContainerFetcher {
                 stats = await fetchStatsForContainers(containers)
             }
 
-            // Build metrics snapshot
-            let metrics = buildMetricsSnapshot(containers: containers, stats: stats)
+            // Build metrics snapshot. The host's total memory is the aggregate
+            // memory denominator whenever any container is unconstrained
+            // (CB-069); it is only needed when there are stats to aggregate.
+            let hostMemory = stats.isEmpty ? nil : await currentHostMemoryTotal()
+            let metrics = buildMetricsSnapshot(
+                containers: containers,
+                stats: stats,
+                hostMemoryTotal: hostMemory
+            )
 
             // Record success
             await failureGate.recordSuccess()
@@ -253,32 +265,5 @@ public actor ContainerFetcher {
             }
             return (container.id, nil)
         }
-    }
-
-    private func buildMetricsSnapshot(
-        containers: [DockerContainer],
-        stats: [String: ContainerStats]
-    ) -> ContainerMetricsSnapshot {
-        let statsList = Array(stats.values)
-
-        let totalCPU = statsList.reduce(0.0) { $0 + $1.cpuPercent }
-        let totalMemUsed = statsList.reduce(UInt64(0)) { $0 + $1.memoryUsageBytes }
-        let totalMemLimit = statsList.reduce(UInt64(0)) { $0 + $1.memoryLimitBytes }
-
-        let runningCount = containers.filter { $0.state == .running }.count
-        let stoppedCount = containers.filter { $0.state == .exited || $0.state == .dead }.count
-        let pausedCount = containers.filter { $0.state == .paused }.count
-
-        return ContainerMetricsSnapshot(
-            containers: statsList,
-            totalCPUPercent: totalCPU,
-            totalMemoryUsedBytes: totalMemUsed,
-            totalMemoryLimitBytes: totalMemLimit,
-            runningCount: runningCount,
-            stoppedCount: stoppedCount,
-            pausedCount: pausedCount,
-            totalCount: containers.count,
-            updatedAt: Date()
-        )
     }
 }
