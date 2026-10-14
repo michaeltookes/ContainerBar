@@ -61,6 +61,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             guard let sshUser = host.sshUser else {
                 throw DockerAPIError.invalidConfiguration("Missing SSH user")
             }
+            // Settings written by an older build may hold a value ssh would parse as an option.
+            do {
+                try SSHTargetValidator.validate(host: remoteHost, user: sshUser)
+            } catch {
+                throw DockerAPIError.invalidConfiguration(error.localizedDescription)
+            }
             let sshPort = host.sshPort ?? 22
 
             let podmanUID = host.remotePodmanUID ?? ContainerRuntime.defaultPodmanUID
@@ -231,14 +237,15 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
         let response = try await performRequest(request)
         try validateResponse(response)
 
-        // Docker logs use multiplexed stream format when TTY is disabled
-        // For simplicity, we attempt direct UTF-8 decoding first
-        if let logs = String(data: response.body, encoding: .utf8) {
-            return logs
-        }
-
-        // If that fails, parse multiplexed format
-        return parseMultiplexedLogs(response.body)
+        // Non-TTY containers return a multiplexed stream (8-byte frame headers);
+        // TTY containers return the raw stream. Decide from Config.Tty, never
+        // from whether the body happens to be valid UTF-8 (CB-070).
+        let framing = LogStreamDecoder.framing(
+            tty: await containerUsesTTY(id: id),
+            contentType: response.headers["content-type"],
+            body: response.body
+        )
+        return decodeLogs(response.body, framing: framing)
     }
 
     public func getSystemInfo() async throws -> DockerSystemInfo {

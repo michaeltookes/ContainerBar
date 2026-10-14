@@ -15,6 +15,14 @@ enum SSHTunnelProcessLauncher {
         remoteSocketPath: String,
         logger: Logger
     ) throws -> SSHTunnelLaunchResult {
+        // Defense in depth: callers validate too, but never hand ssh an unchecked value.
+        do {
+            try SSHTargetValidator.validate(host: host, user: user)
+        } catch {
+            logger.error("Refusing to launch SSH tunnel: invalid host or user")
+            throw DockerAPIError.invalidConfiguration(error.localizedDescription)
+        }
+
         let localSocketPath = makeLocalSocketPath()
         try? FileManager.default.removeItem(atPath: localSocketPath)
 
@@ -22,18 +30,13 @@ enum SSHTunnelProcessLauncher {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
-            "-nNT",
-            "-o", "StrictHostKeyChecking=yes",
-            "-o", "UserKnownHostsFile=\(knownHostsPath())",
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=10",
-            "-o", "ServerAliveInterval=30",
-            "-o", "ServerAliveCountMax=3",
-            "-p", String(port),
-            "-L", "\(localSocketPath):\(remoteSocketPath)",
-            "\(user)@\(host)"
-        ]
+        process.arguments = arguments(
+            host: host,
+            user: user,
+            port: port,
+            localSocket: localSocketPath,
+            remoteSocket: remoteSocketPath
+        )
 
         process.environment = resolvedEnvironment(logger: logger)
         logger.info(process.environment?["SSH_AUTH_SOCK"] == nil ? "SSH agent socket is not set" : "SSH agent socket is available")
@@ -50,6 +53,32 @@ enum SSHTunnelProcessLauncher {
         }
 
         return SSHTunnelLaunchResult(process: process, errorPipe: errorPipe, localSocketPath: localSocketPath)
+    }
+
+    /// Builds the `ssh` argv. The user goes in `-l` (never `user@host`) and `--`
+    /// ends option parsing before the host, so neither value can become an option.
+    /// The host stays a bare argument so `~/.ssh/config` aliases keep working.
+    static func arguments(
+        host: String,
+        user: String,
+        port: Int,
+        localSocket: String,
+        remoteSocket: String
+    ) -> [String] {
+        [
+            "-nNT",
+            "-o", "StrictHostKeyChecking=yes",
+            "-o", "UserKnownHostsFile=\(knownHostsPath())",
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=10",
+            "-o", "ServerAliveInterval=30",
+            "-o", "ServerAliveCountMax=3",
+            "-p", String(port),
+            "-l", user,
+            "-L", "\(localSocket):\(remoteSocket)",
+            "--",
+            host
+        ]
     }
 
     static func waitForSocket(

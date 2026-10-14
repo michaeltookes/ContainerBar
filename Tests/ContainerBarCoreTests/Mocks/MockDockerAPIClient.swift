@@ -11,6 +11,7 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
     private var _mockContainers: [DockerContainer] = []
     private var _mockStats: [String: ContainerStats] = [:]
     private var _mockSystemInfo: DockerSystemInfo?
+    private var _systemInfoError: Error?
     private var _shouldFail = false
     private var _failureError: Error = DockerAPIError.connectionFailed
     private var _callCount = 0
@@ -115,6 +116,13 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
         }
     }
 
+    /// Make only `getSystemInfo` throw `error` (nil restores normal behaviour).
+    public func setSystemInfoError(_ error: Error?) {
+        stateLock.withLock {
+            _systemInfoError = error
+        }
+    }
+
     public func setFailure(_ shouldFail: Bool, error: Error = DockerAPIError.connectionFailed) {
         stateLock.withLock {
             _shouldFail = shouldFail
@@ -167,6 +175,9 @@ public final class MockDockerAPIClient: DockerAPIClient, @unchecked Sendable {
 
     public func getSystemInfo() async throws -> DockerSystemInfo {
         recordCall("getSystemInfo")
+        if let error = stateLock.withLock({ _systemInfoError }) {
+            throw error
+        }
         let snapshot = stateLock.withLock {
             (_shouldFail, _failureError, _mockSystemInfo)
         }
