@@ -68,4 +68,15 @@ struct UnixSocketConnectionTests {
             return
         }
     }
+
+    @Test("Start-error mapping surfaces unauthorized for a socket permission error")
+    func mapStartErrorSurfacesUnauthorizedForPermissionDenied() {
+        for code in [POSIXErrorCode.EACCES, .EPERM] {
+            let mapped = UnixSocketConnection.mapStartError(.posix(code), socketPath: "/tmp/podman.sock")
+            guard case .unauthorized = mapped else {
+                Issue.record("Expected .unauthorized for \(code), got \(mapped)")
+                return
+            }
+        }
+    }
 }
