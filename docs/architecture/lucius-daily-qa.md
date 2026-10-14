@@ -81,7 +81,7 @@ Expected daily baseline: 6 containers, 5 running, 1 exited. `cbqa-ctl status` li
  │   │                                   │ Wed/Sat only, stopped by PID)   │
  │ launchd com.genkeilabs.containerbar-hourly (zero tokens, < 60 s)         │
  │   ├─ ssh cbqa-ctl status   ├─ GitHub API / appcast / tap   ├─ ps         │
- │ self-hosted runners (actions-runner/_work) ── BLOCK desktop QA if busy   │
+ │ self-hosted runners (Runner.Worker / API busy) ── BLOCK desktop QA        │
  └──────┼───────────────────────────────────┼───────────────────────────────┘
         │ SSH (LAN), tunnel key              │ SSH, control key (forced cmd)
  ┌──────▼───────────────────────────────────▼───────────────────────────────┐
@@ -151,7 +151,7 @@ The app's argv ends in `cbqa@cbqa-tunnel` (or `-l cbqa -- cbqa-tunnel` after CB-
 ```
 cron fires → isolated session reads tasks/<date>-containerbar-daily.md (Environment preamble + this pass)
  0 Preflight (shell, no GUI)
-   a CI-idle check: pgrep -f 'actions-runner/_work'; while it matches, re-check every minute for up to
+   a CI-idle check (the CI-busy predicate below); while busy, re-check every minute for up to
      10 min → still busy: BLOCKED ci-busy, stop
    b acquire the desktop lock (the same workspace lock the Sentwise daily pass takes, described in the
      brief's Environment preamble); held by another brief: wait up to 10 min → else BLOCKED desktop-busy
@@ -177,13 +177,18 @@ cron fires → isolated session reads tasks/<date>-containerbar-daily.md (Enviro
  6 Evidence: report.md + assets under the evidence root; one Discord message; inbox line only on FAIL/BLOCKED
 ```
 
+**CI-busy predicate** (the one definition used by step 0a, every case, the hourly check, and the brief's story 6 AC2). CI is busy if **either** holds:
+1. `pgrep -x Runner.Worker` prints a PID. The runner's listener spawns one `Runner.Worker` process per job (`Runner.Worker spawnclient …`) and it lives for the whole job, including runner-internal phases (checkout, setup, post-job cleanup) when no child command's arguments mention the work directory. This covers every runner registered on this host, whatever repository or organisation it serves.
+2. `gh api repos/michaeltookes/ContainerBar/actions/runners` or `gh api repos/michaeltookes/sentwise/actions/runners` lists any of the runners registered on this host with `"busy": true`. homelab-it knows the Mini's runner names; the recipe keeps them in its private section, and the check matches on those names only. This catches the window between job assignment and the worker process appearing.
+If the API call fails (no network, or a token without admin read on the repository), the check records `runner-api-unavailable` in the report and relies on (1) alone; it does not treat the failure as idle evidence for anything else. The earlier predicate `pgrep -f actions-runner/_work` is retired: `pgrep -f` matches argument lists, not working directories, so it misses a job during runner-internal phases.
+
 Every case re-runs check 0a first without waiting: a runner job that starts mid-pass ends the pass after the current step with the remaining cases BLOCKED `ci-busy`, then step 5 runs.
 
 ### Failure paths
 
 | Case | Detected by | User-visible (Discord) | Logged | Retry |
 |---|---|---|---|---|
-| CI job on the Mini's runners | `pgrep -f actions-runner/_work` before the pass (10 min wait) and before each case (no wait) | `BLOCKED ci-busy: <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
+| CI job on the Mini's runners | the CI-busy predicate (`pgrep -x Runner.Worker`, or the runners API reports a runner on this host `busy: true`) before the pass (10 min wait) and before each case (no wait) | `BLOCKED ci-busy: <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
 | Fixture host down / SSH refused / `cbqa-ctl status` exit 2 | preflight 0d | `BLOCKED qa-runtime-down` | ssh stderr (first line) | one retry after 60 s, then BLOCKED. Product cases are **not** marked FAIL when preflight fails |
 | App cannot connect while preflight passed | TC-CB-03 | `FAIL TC-CB-03` + cropped screenshot of the error text | app error text verbatim, the status item's accessibility value | none; this is a product finding for triage |
 | Release drift (tag ≠ appcast ≠ cask ≠ installed) | 0f | `FAIL TC-CB-01` with the four versions | versions | none |
@@ -204,7 +209,7 @@ Either way the passes take the same desktop lock as Sentwise and run the same CI
 
 **Daily deep pass.** OpenClaw cron job `ContainerBar daily QA`: `07:05 America/Chicago`, isolated session, model `gpt-6-astra`, timeout 1200 s, announces to the ContainerBar channel (Q4). The Sentwise pass runs 09:35–09:55, so the two are 2 h 10 min apart and both take the desktop lock anyway. 07:05 is chosen because the Mini's runners are rarely busy before the workday's first pushes, the 06:45 fixture reset has finished, and the overnight memory jobs (01:00–03:00) are done. The brief lives at `~/.openclaw/workspace/tasks/<date>-containerbar-daily.md` (the date is the brief's creation date; the job reuses it until replaced) with the standard Environment preamble (machine facts, monitor pause, lock, Peekaboo recipes, evidence paths), and points at the standing recipe `~/.openclaw/workspace/CONTAINERBAR_QA.md` (brief story 2), the way the Sentwise briefs point at `SENTWISE_QA.md`. The workspace's AGENTS.md task-brief rule applies.
 
-**Hourly smoke: yes, zero tokens.** A launchd agent `com.genkeilabs.containerbar-hourly` runs a shell script hourly 08:00–20:00. No LLM, no AppleScript (System Events wedges under launchd), no GUI interaction. It exits immediately if the desktop lock is held. Checks, each with a timeout, < 60 s total:
+**Hourly smoke: yes, zero tokens.** A launchd agent `com.genkeilabs.containerbar-hourly` runs a shell script hourly 08:00–20:00. No LLM, no AppleScript (System Events wedges under launchd), no GUI interaction. It exits immediately if the desktop lock is held. It then evaluates the CI-busy predicate (section 7); when CI is busy it records `ci-busy` and skips check 2 (a CI job may replace or relaunch the app, which would read as a crash or a CPU spike), still running checks 1, 3 and 4. Checks, each with a timeout, < 60 s total:
 1. Release consistency: latest GitHub release tag (`api.github.com/repos/michaeltookes/ContainerBar/releases/latest`), appcast top `sparkle:shortVersionString`, the cask `version` in the tap, and the installed `CFBundleShortVersionString` all agree.
 2. App alive: `pgrep -x ContainerBar` (the app is left running between passes). Its RSS is below 200 MB and its CPU time grew by less than 36 s over the hour (≈1 %), from `ps -o rss=,time=`. This catches leaks and idle wake-up regressions (CB-073).
 3. Fixture host: `ssh -o ConnectTimeout=5 cbqa-ctl status` matches the expected names and states, allowing `cbqa-target` to be either running or exited. A mismatch is a host problem, not an app one.
@@ -261,7 +266,7 @@ Asset: a screenshot per step (cropped to the app) for every case, plus one MP4 v
 
 - **Budget:** daily pass ≤ 1200 s wall clock (target 12 min); hourly ≤ 60 s, zero tokens.
 - **Isolation:** QA can mutate only `cbqa-*` under `cbqa`, enforced by the host. On the Mini it mutates only ContainerBar's preferences domain and its app bundle, and always restores the baseline.
-- **Desktop exclusivity:** shared desktop lock with the Sentwise pass (10 min wait, then `desktop-busy`); CI-idle check before the pass (10 min wait, then `ci-busy`) and before every case (no wait); the hourly script does no GUI work.
+- **Desktop exclusivity:** shared desktop lock with the Sentwise pass (10 min wait, then `desktop-busy`); the CI-busy predicate (section 7: `Runner.Worker` process or a busy runner on this host in the runners API) before the pass (10 min wait, then `ci-busy`) and before every case (no wait); the hourly script does no GUI work.
 - **Network:** the LAN only; GitHub, the appcast, and the tap for version checks. No pulls from container registries during a pass.
 - **Observability:** report.md per run (case table PASS/FAIL/BLOCKED/SKIPPED, versions, durations, findings); `hourly.log`; one Discord message per daily run; inbox line only on FAIL or BLOCKED (`ContainerBar#qa | lucius | qa-found|blocked | artifacts/containerbar-qa/runs/<date> | …`).
 - **Evidence layout (brief section 4 and story 2 AC2):** `~/.openclaw/workspace/artifacts/containerbar-qa/runs/<YYYY-MM-DD>-<kind>-<HHMM>/` with `<kind>` = `daily`, `hourly` or `release`, containing `report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png` for every step, and `assets/<TC-id>.mp4` for the video cases listed in §9E; retained 30 days.
