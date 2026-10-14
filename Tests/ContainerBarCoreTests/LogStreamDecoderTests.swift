@@ -115,7 +115,28 @@ struct LogStreamDecoderTests {
         #expect(result.truncated == false)
     }
 
+    @Test("System-error frame mid-stream is kept inline and later frames survive")
+    func systemErrorFrameMidStream() {
+        var payload = Self.frame(1, "cbqa-line-1\n")
+        payload.append(Self.frame(1, "partial line"))
+        payload.append(Self.frame(3, "error from daemon in stream: log reader failed"))
+        payload.append(Self.frame(2, "cbqa-err-1\n"))
+
+        let result = LogStreamDecoder.decode(payload, framing: .multiplexed)
+        #expect(result.text == "cbqa-line-1\npartial line\n[docker error] error from daemon in stream: log reader failed\ncbqa-err-1\n")
+        #expect(result.truncated == false)
+    }
+
     // MARK: - Framing decision
+
+    @Test("Header probe accepts a system-error frame and rejects stream type 4")
+    func probeAcceptsSystemErrorFrame() {
+        let systemError = Self.frame(3, "error from daemon in stream: boom")
+        #expect(LogStreamDecoder.looksMultiplexed(systemError))
+        #expect(LogStreamDecoder.framing(tty: nil, contentType: nil, body: systemError) == .multiplexed)
+        #expect(LogStreamDecoder.decode(systemError, framing: .multiplexed).text == "[docker error] error from daemon in stream: boom\n")
+        #expect(LogStreamDecoder.looksMultiplexed(Self.frame(4, "nope")) == false)
+    }
 
     @Test("TTY container returns the raw stream even when it looks like a frame header")
     func ttyStreamReturnedRaw() {

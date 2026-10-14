@@ -43,12 +43,18 @@ enum LogStreamDecoder {
         return looksMultiplexed(body) ? .multiplexed : .raw
     }
 
+    /// Stream id Docker's `stdcopy` uses for a daemon-side error written after
+    /// the HTTP 200 (for example a log-reader failure). Its payload is error text.
+    static let systemErrorStream: UInt8 = 3
+    static let systemErrorPrefix = "[docker error] "
+
     /// True when the body starts with a plausible frame header: stream type
-    /// 0, 1 or 2 and the three reserved bytes zero.
+    /// 0 (stdin), 1 (stdout), 2 (stderr) or 3 (system error) and the three
+    /// reserved bytes zero.
     static func looksMultiplexed(_ data: Data) -> Bool {
         guard data.count >= headerSize else { return false }
         let start = data.startIndex
-        return data[start] <= 2 && data[start + 1] == 0 && data[start + 2] == 0 && data[start + 3] == 0
+        return data[start] <= systemErrorStream && data[start + 1] == 0 && data[start + 2] == 0 && data[start + 3] == 0
     }
 
     static func decode(_ data: Data, framing: LogStreamFraming) -> Result {
@@ -62,6 +68,8 @@ enum LogStreamDecoder {
 
     /// Concatenates the payloads of every complete frame in order, then decodes
     /// them as UTF-8 once, so a character split across two frames survives.
+    /// A system-error frame is kept inline on its own line, prefixed with
+    /// `[docker error] `, and the frames after it are still decoded.
     static func demultiplex(_ data: Data) -> Result {
         var payload = Data()
         var offset = data.startIndex
@@ -85,11 +93,28 @@ enum LogStreamDecoder {
                 truncated = true
                 break
             }
-            payload.append(data[offset..<(offset + size)])
+            let frame = data[offset..<(offset + size)]
+            if header[header.startIndex] == systemErrorStream {
+                appendSystemError(frame, to: &payload)
+            } else {
+                payload.append(frame)
+            }
             offset += size
         }
 
         return Result(text: utf8Text(payload), truncated: truncated)
+    }
+
+    private static func appendSystemError(_ frame: Data, to payload: inout Data) {
+        let newline = UInt8(ascii: "\n")
+        if let last = payload.last, last != newline {
+            payload.append(newline)
+        }
+        payload.append(Data(systemErrorPrefix.utf8))
+        payload.append(frame)
+        if frame.last != newline {
+            payload.append(newline)
+        }
     }
 
     /// Decodes UTF-8, replacing invalid sequences with U+FFFD instead of
