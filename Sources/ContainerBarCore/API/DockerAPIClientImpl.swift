@@ -61,6 +61,12 @@ public final class DockerAPIClientImpl: DockerAPIClient, @unchecked Sendable {
             guard let sshUser = host.sshUser else {
                 throw DockerAPIError.invalidConfiguration("Missing SSH user")
             }
+            // Settings written by an older build may hold a value ssh would parse as an option.
+            do {
+                try SSHTargetValidator.validate(host: remoteHost, user: sshUser)
+            } catch {
+                throw DockerAPIError.invalidConfiguration(error.localizedDescription)
+            }
             let sshPort = host.sshPort ?? 22
 
             let podmanUID = host.remotePodmanUID ?? ContainerRuntime.defaultPodmanUID
