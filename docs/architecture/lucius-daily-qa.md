@@ -1,6 +1,6 @@
 # Lucius daily QA for ContainerBar — design
 
-Status: proposed (2026-10-14). Companion to the requirements brief `docs/requirements/containerbar-factory-intake.md` (written in parallel; the two are reconciled at merge). This repository is public: every host, user, and address below is a placeholder; the real values live in the QA machine's private configuration, never here.
+Status: proposed (2026-10-14), reconciled with the requirements brief `docs/requirements/lucius-daily-qa.md` (stories US-lucius-daily-qa-1..7, backlog CB-100..CB-106) on the same branch. Where the two differed, the brief's names were adopted (fixtures `cbqa-*`, host entry `QA Runtime`, recipe `CONTAINERBAR_QA.md`, evidence layout, reason codes) and this design's runtime topology was adopted. This repository is public: every host, user, and address below is a placeholder; the real values live in the QA machine's private configuration, never here.
 
 Placeholders used throughout:
 
@@ -46,24 +46,25 @@ Placeholders used throughout:
 
 ### Fixtures (owned by `homelab-it`)
 
-All fixtures belong to `cbqa`, carry the label `com.tookes.containerbar.qa=1`, use images pinned by digest and pulled once (no daily pulls), and are named `cb-qa-*`:
+All fixtures belong to `cbqa`, carry the label `com.tookes.containerbar.qa=1`, use images pinned by digest and pulled once (no daily pulls), and are named `cbqa-*`:
 
 | Name | Image (pinned) | State after reset | Purpose |
 |---|---|---|---|
-| `cb-qa-web` | small HTTP server (e.g. `nginx:alpine`) | running, port `18080->80` published | ports rendering, card details |
-| `cb-qa-logger` | `busybox` | running, non-TTY, prints `cb-qa-logger tick <n>` every 5 s | logs panel; multiplexed stream framing (CB-070) |
-| `cb-qa-toggle` | `busybox` running `sleep infinity` | running | the **only** container QA starts and stops |
-| `cb-qa-limited` | `busybox`, `--memory 64m` | running | memory metrics (CB-069) |
-| `cb-qa-exited` | `busybox` running `true` | exited (0) | "show stopped containers" setting |
+| `cbqa-web` | small HTTP server (e.g. `nginx:alpine`) | running, no memory limit, `18080:80/tcp` and `18080:80/udp` published | ports rendering, card details (CB-079) |
+| `cbqa-logs` | `busybox` | running, non-TTY, prints `cbqa-line-1`, `cbqa-line-2`, `cbqa-line-3` to stdout and `cbqa-err-1` to stderr at start, then sleeps | logs panel; multiplexed stream framing (CB-070) |
+| `cbqa-target` | `busybox` running `sleep infinity` | running | the **only** container QA stops, starts, or restarts |
+| `cbqa-limited` | `busybox`, `--memory 256m` | running | memory metrics (CB-069) |
+| `cbqa-stopped` | `busybox` running `true` | exited (0) | "show stopped containers" setting |
+| `cbqa-tty` | `busybox` with `-t`, prints `cbqa-tty-line-1`, then sleeps | running, TTY | raw (non-multiplexed) log path, CB-070's TTY case |
 
-Expected daily baseline: 5 containers, 4 running, 1 exited.
+Expected daily baseline: 6 containers, 5 running, 1 exited. `cbqa-ctl status` lists **all** of `cbqa`'s containers unfiltered, so anything without the prefix is visible (brief story 1 AC2).
 
-**Provisioning (one-time, `homelab-it`, homelab repo, never this repo):** create `cbqa` (no sudo, no `docker` group); install Podman from the distro; `loginctl enable-linger cbqa`; `systemctl --user enable --now podman.socket` as `cbqa`; install `cb-qa-ctl` (below) in `cbqa`'s home; add two keys to `cbqa`'s `authorized_keys`:
+**Provisioning (one-time, `homelab-it`, homelab repo, never this repo):** create `cbqa` (no sudo, no `docker` group); install Podman from the distro; `loginctl enable-linger cbqa`; `systemctl --user enable --now podman.socket` as `cbqa`; install `cbqa-ctl` (below) in `cbqa`'s home; add two keys to `cbqa`'s `authorized_keys`:
 
 1. **Tunnel key:** `restrict,port-forwarding <key>`. No shell, no PTY, forwarding only. This is the key the app uses.
-2. **Control key:** `restrict,command="~/bin/cb-qa-ctl" <key>`. A forced command that reads `SSH_ORIGINAL_COMMAND` and accepts only `status` (JSON list of `cb-qa-*` names and states) and `reset`.
+2. **Control key:** `restrict,command="~/bin/cbqa-ctl" <key>`. A forced command that reads `SSH_ORIGINAL_COMMAND` and accepts only the verbs in the `cbqa-ctl` contract (section 5): `status`, `info`, `reset`, `target-stop`, `api-stop`, `api-start`.
 
-**Reset:** `cb-qa-ctl reset` removes every container with the QA label (`podman rm -f --filter label=com.tookes.containerbar.qa=1`) and recreates the five fixtures from the pinned digests; idempotent; < 20 s. It runs from a `cbqa` systemd user timer at **06:45 America/Chicago** daily and is the first step of every daily pass (via the control key), so a pass that died mid-way never leaves the next one in a bad state. `cb-qa-ctl` never takes arguments beyond the two verbs and never touches anything without the label.
+**Reset:** `cbqa-ctl reset` removes every container with the QA label (`podman rm -f --filter label=com.tookes.containerbar.qa=1`) and recreates the six fixtures from the pinned digests; idempotent; < 20 s. It runs from a `cbqa` systemd user timer at **06:45 America/Chicago** daily and is the first step of every daily pass (via the control key), so a pass that died mid-way never leaves the next one in a bad state. `cbqa-ctl` takes no arguments beyond its verbs and never touches anything without the label.
 
 ## 3. Components and boundaries
 
@@ -74,7 +75,7 @@ Expected daily baseline: 5 containers, 4 running, 1 exited.
  │   │  Peekaboo (AX + screenshots)                                         │
  │   ▼                                                                      │
  │ /Applications/ContainerBar.app  (cask install = notarized release zip)   │
- │   │ host "QA Podman (SSH)"            │ host "QA Podman (forwarded socket)"
+ │   │ host "QA Runtime" (SSH)           │ host "QA Runtime (socket)"        
  │   │ /usr/bin/ssh -L … cbqa-tunnel     │ ~/qa/containerbar/podman.sock     │
  │   │                                   ▲ ssh -L (started by the brief,   │
  │   │                                   │ Wed/Sat only, stopped by PID)   │
@@ -86,8 +87,8 @@ Expected daily baseline: 5 containers, 4 running, 1 exited.
  ┌──────▼───────────────────────────────────▼───────────────────────────────┐
  │ <qa-container-host>                                                      │
  │  user cbqa: rootless Podman socket /run/user/<cbqa-uid>/podman/podman.sock│
- │             cb-qa-web, cb-qa-logger, cb-qa-toggle, cb-qa-limited,        │
- │             cb-qa-exited; cb-qa-ctl; systemd timer 06:45 reset           │
+ │             cbqa-web, cbqa-logs, cbqa-target, cbqa-limited,        │
+ │             cbqa-stopped; cbqa-ctl; systemd timer 06:45 reset           │
  │  ── isolation boundary (user namespace) ──                               │
  │  system container runtime + real services: never reachable by QA         │
  └──────────────────────────────────────────────────────────────────────────┘
@@ -103,12 +104,12 @@ No server-side data model. The state that matters:
 **App preferences on `<qa-mini>`** (domain `com.tookes.ContainerBar`, keys from `SettingsStore.Keys`): `refreshInterval`, `showStoppedContainers`, `launchAtLogin`, `iconStyle`, `dockerHosts` (JSON data), `selectedHostId`, `containerSections` (JSON data); plus Sparkle's `SUEnableAutomaticChecks`, `SUHasLaunchedBefore`, `SULastCheckTime`.
 
 **QA baseline** (`seed-data.md` documents it; the private plist lives at `~/.openclaw/workspace/qa/containerbar/baseline.plist`, never committed):
-- Hosts: `QA Podman (SSH)` — SSH, runtime Podman, host `cbqa-tunnel`, user `cbqa`, port 22, remote socket `/run/user/<cbqa-uid>/podman/podman.sock`, selected by default; `QA Podman (forwarded socket)` — Unix Socket, runtime Podman, socket `~/qa/containerbar/podman.sock` (absolute path).
-- `refreshInterval = 30s`, `showStoppedContainers = true`, `launchAtLogin = false`, no sections (one section added and removed by TC-CB-08).
+- Hosts: `QA Runtime` — SSH, runtime Podman, host `cbqa-tunnel`, user `cbqa`, port 22, remote socket `/run/user/<cbqa-uid>/podman/podman.sock`, selected by default; `QA Runtime (socket)` — Unix Socket, runtime Podman, socket `~/qa/containerbar/podman.sock` (absolute path).
+- `refreshInterval = 10s` (TC-CB-08 changes it to 30 s and back), `showStoppedContainers = true`, `launchAtLogin = false`, no sections (one section added and removed by TC-CB-08).
 - `SUEnableAutomaticChecks = false`, `SUHasLaunchedBefore = true` (no Sparkle permission prompt or background check interrupts a pass; update checks in QA are always user-initiated).
 - The baseline is created once by adding the hosts through the Settings UI (that is also the first full run of TC-CB-05), then exported with `defaults export com.tookes.ContainerBar baseline.plist`.
 
-**Per-run snapshot and rollback.** Step 0 of every pass exports the current domain to `runs/<date>/defaults-before.plist`. The last step quits the app through its own Quit button, re-imports `baseline.plist`, and relaunches. If a pass aborts, the next pass's step 0 notices a diff against the baseline, records it in the report as a finding ("previous run left state"), and restores the baseline before testing.
+**Per-run snapshot and rollback.** Step 0 of every pass exports the current domain to `<run>/defaults-before.plist` and diffs it against `baseline.plist`. Restore is through the UI (brief story 5 AC2: the pass sets the values back in Settings and relaunches). `defaults import baseline.plist` is the **fallback only**: when step 0 finds drift left by an aborted run, or when the UI restore failed, the pass quits the app through its own Quit button, imports the baseline, relaunches, and records it in the run notes as a finding ("previous run left state").
 
 **App-side migrations.** None for QA. CB-075 introduces a settings schema version; its rollback design is in the ticket notes (section 13) and TC-CB-08 is its regression guard.
 
@@ -129,9 +130,9 @@ Host cbqa-ctl
 ```
 The app's argv ends in `cbqa@cbqa-tunnel` (or `-l cbqa -- cbqa-tunnel` after CB-072), which `ssh` resolves through this config, so no address appears in the app's preferences or screenshots. The host key must be in `~/.ssh/known_hosts` (the app uses `StrictHostKeyChecking=yes`).
 
-**`cb-qa-ctl` contract.** `ssh cbqa-ctl status` → exit 0 and one JSON line `{"containers":[{"name":"cb-qa-web","state":"running"},…]}`; exit 2 if Podman is unreachable. `ssh cbqa-ctl reset` → exit 0 and `{"reset":"ok","containers":5}`; non-zero with a one-line reason otherwise. Any other verb → exit 64.
+**`cbqa-ctl` contract.** `ssh cbqa-ctl status` → exit 0 and one JSON line `{"containers":[{"name":"cbqa-web","state":"running"},…]}`; exit 2 if Podman is unreachable. `ssh cbqa-ctl reset` → exit 0 and `{"reset":"ok","containers":6}`; non-zero with a one-line reason otherwise. `status` lines also carry `startedAt` (for the restart check). `ssh cbqa-ctl info` → `{"memTotal":<bytes>,"podmanVersion":"…"}` (the denominator check for CB-069). `ssh cbqa-ctl target-stop` → stops `cbqa-target` outside the app (the stale-state case). `ssh cbqa-ctl api-stop` → stops `cbqa`'s `podman.socket` and `podman.service` (containers keep running under conmon) **and** schedules an automatic `api-start` in 5 minutes (`systemd-run --user --on-active=5m`), so an aborted run can never leave the API down; `ssh cbqa-ctl api-start` starts them again now. Any other verb → exit 64. Verbs take no arguments.
 
-**Docker-compatible API calls the pass exercises** (through the app, never directly): `GET /_ping`, `GET /info`, `GET /containers/json?all=1`, `GET /containers/{id}/stats?stream=false`, `POST /containers/{id}/stop`, `POST /containers/{id}/start`, `GET /containers/{id}/logs?stdout=1&stderr=1&tail=N`.
+**Docker-compatible API calls the pass exercises** (through the app, never directly): `GET /_ping`, `GET /info`, `GET /containers/json?all=1`, `GET /containers/{id}/stats?stream=false`, `POST /containers/{id}/stop`, `POST /containers/{id}/start`, `POST /containers/{id}/restart`, `GET /containers/{id}/logs?stdout=1&stderr=1&tail=N`.
 
 **Accessibility contract** (stable identifiers QA selects by; a builder adds the missing ones, section 9). Existing: `openSettings`, `refreshContainers`, `toggleSearch`, `quitApp`, `actionBar-refresh|hosts|logs|settings`, `containerCard-<slug>`, `hostPill-<slug>-<uuid>`, `hostRow-<slug>-<uuid>`, `refreshIntervalPicker`, `aboutVersion`, `testConnection`, `openAddHostSheet`, `addHostSheet`, `confirmAddHost`, `logs-panel-close`, `logs-panel-container-<id>`, `refreshLogs`, `dismissActionError`. Status item: label `ContainerBar` and an accessibility value describing state (`StatusItemController` lines ~101 and ~224) but **no identifier**.
 
@@ -150,53 +151,68 @@ The app's argv ends in `cbqa@cbqa-tunnel` (or `-l cbqa -- cbqa-tunnel` after CB-
 ```
 cron fires → isolated session reads tasks/<date>-containerbar-daily.md (Environment preamble + this pass)
  0 Preflight (shell, no GUI)
-   a pgrep -f 'actions-runner/_work' → any match: report BLOCKED(ci), stop
-   b acquire desktop lock (same lock as the Sentwise pass; wait ≤ 5 min) → else BLOCKED(lock)
-   c pause the hourly monitors (Sentwise and ContainerBar launchd checks honour the lock)
-   d ssh cbqa-ctl reset; ssh cbqa-ctl status == baseline → else BLOCKED(env)
-   e defaults export → defaults-before.plist; diff vs baseline (finding if drifted); restore
-   f install check: brew upgrade --cask michaeltookes/tap/containerbar (no-op when current);
+   a CI-idle check: pgrep -f 'actions-runner/_work'; while it matches, re-check every minute for up to
+     10 min → still busy: BLOCKED ci-busy, stop
+   b acquire the desktop lock (the same workspace lock the Sentwise daily pass takes, described in the
+     brief's Environment preamble); held by another brief: wait up to 10 min → else BLOCKED desktop-busy
+   c pause the hourly monitors (the Sentwise and ContainerBar launchd checks skip while the lock is held)
+   d ssh cbqa-ctl reset; ssh cbqa-ctl status == baseline → else retry once after 60 s → BLOCKED qa-runtime-down
+   e defaults export → defaults-before.plist; diff vs baseline (finding if drifted; fallback restore)
+   f install check (daily: verify only; release brief: brew upgrade --cask containerbar, story 3 AC4);
      codesign --verify --deep --strict, spctl --assess, xcrun stapler validate on /Applications/ContainerBar.app;
      installed CFBundleShortVersionString == latest GitHub release tag == appcast top item == cask version
  1 Launch: if not running, `open -a /Applications/ContainerBar.app`; wait for the status item (identifier
    containerBarStatusItem; until it ships, title/label "ContainerBar" via `peekaboo menubar list`)
- 2 Read-only legs (every day): TC-CB-01..04, 06, 07, 09
- 3 Mutating legs (every day, fixtures only): TC-CB-10 (stop/start cb-qa-toggle), TC-CB-08 (settings persistence:
-   change refresh interval, add/remove a section, Quit via quitApp, relaunch, verify, restore)
- 4 Rotating legs: Wed/Sat TC-CB-11 (Unix-socket path via forwarded socket); Mon TC-CB-13 (Sparkle update path)
- 5 Restore: Quit via quitApp → defaults import baseline.plist → relaunch (app stays running between passes)
-   → stop the forwarded-socket ssh by its PID if started → resume monitors → release lock
- 6 Evidence: runs/<date>/report.md + screenshots; one Discord message; inbox line only on FAIL/BLOCKED
+ 2 Read-only legs (every pass): TC-CB-01..04, 06, 07, 09, 14
+ 3 Mutating legs (every pass, fixtures and prefs only): TC-CB-10 (stop/start cbqa-target), TC-CB-15 (restart),
+   TC-CB-17 (stale stop via cbqa-ctl target-stop), TC-CB-16 (api-stop / api-start), TC-CB-08 (settings
+   persistence: refresh interval 10 s → 30 s, show-stopped off, Quit via quitApp, relaunch, verify, restore in UI)
+ 4 Rotating leg: Wed/Sat TC-CB-11 and TC-CB-12 (Unix-socket path via the SSH-forwarded socket)
+   Release brief only (orchestrator-fired): TC-CB-13 (Sparkle offer from the previous release, no install),
+   cask upgrade and zip checks (story 3 AC4-AC6)
+ 5 Restore (brief story 6 AC4): cbqa-target running (cbqa-ctl reset if needed); api-start if api-stop ran;
+   baseline settings shown in the UI (fallback: defaults import); the forwarded-socket ssh stopped by its
+   recorded PID and its socket file removed; selected host back to QA Runtime; no Settings window or Sparkle
+   dialog open; ContainerBar left running; resume monitors; release the lock
+ 6 Evidence: report.md + assets under the evidence root; one Discord message; inbox line only on FAIL/BLOCKED
 ```
 
-Every leg re-runs check 0a first; a runner job that starts mid-pass ends the pass with BLOCKED(ci) after the current step, then step 5.
+Every case re-runs check 0a first without waiting: a runner job that starts mid-pass ends the pass after the current step with the remaining cases BLOCKED `ci-busy`, then step 5 runs.
 
 ### Failure paths
 
 | Case | Detected by | User-visible (Discord) | Logged | Retry |
 |---|---|---|---|---|
-| CI job on the Mini's runners | `pgrep -f actions-runner/_work` before each leg | `BLOCKED(ci): <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
-| Fixture host down / SSH refused | preflight 0d | `BLOCKED(env): fixture host unreachable` | ssh stderr (first line) | one retry after 60 s, then BLOCKED. Product cases are **not** marked FAIL when preflight fails |
+| CI job on the Mini's runners | `pgrep -f actions-runner/_work` before the pass (10 min wait) and before each case (no wait) | `BLOCKED ci-busy: <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
+| Fixture host down / SSH refused / `cbqa-ctl status` exit 2 | preflight 0d | `BLOCKED qa-runtime-down` | ssh stderr (first line) | one retry after 60 s, then BLOCKED. Product cases are **not** marked FAIL when preflight fails |
 | App cannot connect while preflight passed | TC-CB-03 | `FAIL TC-CB-03` + cropped screenshot of the error text | app error text verbatim, the status item's accessibility value | none; this is a product finding for triage |
 | Release drift (tag ≠ appcast ≠ cask ≠ installed) | 0f | `FAIL TC-CB-01` with the four versions | versions | none |
 | Sparkle shows an update when none is expected | any leg | finding "unexpected update prompt"; dismiss with **Remind Me Later**, never **Skip This Version** (that persists) | dialog text | none |
 | App crash or hang | process gone / AX tree unresponsive for 30 s | `FAIL P1` + newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips` filename | crash report path (file stays local) | relaunch once to finish read-only legs |
 | Pass aborted mid-way | next pass step 0e | finding "previous run left state" | the diff | baseline restored automatically |
-| Desktop lock held past 5 min | 0b | `BLOCKED(lock)` | lock holder | none |
+| Desktop lock held past 10 min | 0b | `BLOCKED desktop-busy` | lock holder | none |
+| Action about to hit a non-`cbqa-target` card | every click (brief story 4 AC9) | `BLOCKED scope-guard` | the card name | none |
+| Recipe element not found (UI changed) | any step | step `blocked`, recipe named stale (brief story 2 AC5) | `peekaboo see` element list as text | none; never improvise a path |
+| System prompt (Keychain, TCC, Gatekeeper) | any step | `BLOCKED` + one line to `#lucius-updates` (brief story 6 AC5) | cropped screenshot | none; never type a password or grant a permission |
 
 ## 8. Scheduling
 
-**Daily deep pass.** OpenClaw cron job `ContainerBar daily QA`: `07:05 America/Chicago`, isolated session, model `gpt-6-astra`, timeout 1200 s, announces to the ContainerBar channel (Q4). The Sentwise pass runs 09:35–09:55, so the two are 2 h 10 min apart and both take the desktop lock anyway. 07:05 is chosen because the Mini's runners are rarely busy before the workday's first pushes, the 06:45 fixture reset has finished, and the overnight memory jobs (01:00–03:00) are done. The brief lives at `~/.openclaw/workspace/tasks/<date>-containerbar-daily.md` (the date is the brief's creation date; the job reuses it until replaced) with the standard Environment preamble (machine facts, monitor pause, lock, Peekaboo recipes, evidence paths), and the workspace's AGENTS.md task-brief rule applies.
+**Frequency is Michael's call (brief open question 2).** Two options are on the table:
+- **Recommended: one full pass a day at 07:05 CT, every day, plus the hourly check.** One pass already covers every case; the hourly check catches a crash, a release drift, or a dead fixture host within the hour; a second full pass doubles the model spend and the CI-collision exposure for little new signal, because the released build does not change between 07:05 and 15:00.
+- **Brief's assumption: two full passes on weekdays (10:00 and 15:00 CT) and one at 10:00 on weekends, plus the hourly check.** If chosen, move the first pass off 10:00 or accept that it often waits on the Sentwise lock (Sentwise runs 09:35–09:55 and may overrun); 10:15 is the nearest safe slot.
+Either way the passes take the same desktop lock as Sentwise and run the same CI-idle check, so they never overlap.
+
+**Daily deep pass.** OpenClaw cron job `ContainerBar daily QA`: `07:05 America/Chicago`, isolated session, model `gpt-6-astra`, timeout 1200 s, announces to the ContainerBar channel (Q4). The Sentwise pass runs 09:35–09:55, so the two are 2 h 10 min apart and both take the desktop lock anyway. 07:05 is chosen because the Mini's runners are rarely busy before the workday's first pushes, the 06:45 fixture reset has finished, and the overnight memory jobs (01:00–03:00) are done. The brief lives at `~/.openclaw/workspace/tasks/<date>-containerbar-daily.md` (the date is the brief's creation date; the job reuses it until replaced) with the standard Environment preamble (machine facts, monitor pause, lock, Peekaboo recipes, evidence paths), and points at the standing recipe `~/.openclaw/workspace/CONTAINERBAR_QA.md` (brief story 2), the way the Sentwise briefs point at `SENTWISE_QA.md`. The workspace's AGENTS.md task-brief rule applies.
 
 **Hourly smoke: yes, zero tokens.** A launchd agent `com.genkeilabs.containerbar-hourly` runs a shell script hourly 08:00–20:00. No LLM, no AppleScript (System Events wedges under launchd), no GUI interaction. It exits immediately if the desktop lock is held. Checks, each with a timeout, < 60 s total:
 1. Release consistency: latest GitHub release tag (`api.github.com/repos/michaeltookes/ContainerBar/releases/latest`), appcast top `sparkle:shortVersionString`, the cask `version` in the tap, and the installed `CFBundleShortVersionString` all agree.
 2. App alive: `pgrep -x ContainerBar` (the app is left running between passes). Its RSS is below 200 MB and its CPU time grew by less than 36 s over the hour (≈1 %), from `ps -o rss=,time=`. This catches leaks and idle wake-up regressions (CB-073).
-3. Fixture host: `ssh -o ConnectTimeout=5 cbqa-ctl status` matches the expected names and states, allowing `cb-qa-toggle` to be either running or exited. A mismatch is a host problem, not an app one.
+3. Fixture host: `ssh -o ConnectTimeout=5 cbqa-ctl status` matches the expected names and states, allowing `cbqa-target` to be either running or exited. A mismatch is a host problem, not an app one.
 4. Gatekeeper: `spctl --assess` on the installed app (cheap, catches a revoked certificate).
 
 It posts to Discord through the webhook in `~/.openclaw/.env` **only on a state change** (green→red, red→green), plus nothing at all when green. Its log goes to `~/.openclaw/workspace/artifacts/containerbar-qa/hourly.log`, rotated weekly.
 
-**Weekly rotation** so both transports and the update path are covered every week: SSH tunnel every day; forwarded Unix socket Wednesday and Saturday; Sparkle update Monday; and Thursday, if Q2 is approved, the Docker leg against `cbqa-docker`.
+**Weekly rotation** so both transports are covered every week: SSH tunnel every pass; the SSH-forwarded Unix socket on Wednesday and Saturday; and Thursday, if Q2 is approved, the Docker leg against `cbqa-docker`. The Sparkle offer-from-previous-release case (TC-CB-13) runs only in the orchestrator-fired release brief, never in a scheduled pass (brief story 3 AC6: daily passes never install).
 
 ## 9. Repo artifacts a builder must add
 
@@ -213,7 +229,7 @@ One builder branch, **"QA hooks"** (app code), plus one docs branch (test cases)
 
 **B. No QA build and no `--qa` flag.** Not needed: the baseline is preferences plus fixtures, and hunt mode already covers offline QA. Explicitly out of scope.
 
-**C. Sparkle testability.** Nothing beyond CB-074 (the updater is injected, nil in hunt mode, and the button is bound to `canCheckForUpdates`) and the identifiers in A5. The Monday leg needs the previous release's `ContainerBar.zip` to stay downloadable from GitHub Releases (it is; do not delete old releases) and the appcast's latest item to be correct. Release-prep must keep publishing a `sparkle:shortVersionString` the hourly check can parse.
+**C. Sparkle testability.** Nothing beyond CB-074 (the updater is injected, nil in hunt mode, and the button is bound to `canCheckForUpdates`) and the identifiers in A5. The release brief's TC-CB-13 needs the previous release's `ContainerBar.zip` to stay downloadable from GitHub Releases (it is; do not delete old releases) and the appcast's latest item to be correct. Release-prep must keep publishing a `sparkle:shortVersionString` the hourly check can parse.
 
 **D. Optional, recommended (separate small item for the BA to file):** bootstrap swift-log to an OSLog handler (subsystem `com.tookes.ContainerBar`, dynamic values `.private` by default, host aliases and container names `.public`). Today no `LoggingSystem.bootstrap` exists, so logs go to stderr and are lost when launched by Launch Services. With it, the pass attaches `log show --predicate 'subsystem == "com.tookes.ContainerBar"' --last 25m` to failures. Not a blocker.
 
@@ -223,38 +239,41 @@ One builder branch, **"QA hooks"** (app code), plus one docs branch (test cases)
 |---|---|---|---|
 | TC-CB-01 | Installed build is the signed latest release | read-only | codesign/spctl/stapler pass; versions agree (tag, appcast, cask, installed) |
 | TC-CB-02 | Status item present and named | read-only | item with id `containerBarStatusItem` / label `ContainerBar`; accessibility value non-empty |
-| TC-CB-03 | Connects to the QA host over SSH | read-only | menu opens; `connectionStatus` names `QA Podman (SSH)`; no error banner |
-| TC-CB-04 | Lists the fixture baseline | read-only | five `containerCard-cb-qa-*` cards; four running, `cb-qa-exited` shown as exited |
+| TC-CB-03 | Connects to the QA host over SSH | read-only | menu opens; `connectionStatus` names `QA Runtime`; no error banner |
+| TC-CB-04 | Lists the fixture baseline | read-only | six `containerCard-cbqa-*` cards; Running pill = 5; `cbqa-stopped` shown as stopped |
 | TC-CB-05 | Remote Podman socket at a non-1000 UID | read-only (setup run: mutating) | host detail shows `/run/user/<cbqa-uid>/podman/podman.sock`; Test Connection green |
-| TC-CB-06 | Card details: ports and memory | read-only | `cb-qa-web` shows a single `18080` pill (no doubles, CB-079); `cb-qa-limited` shows `/ 64 MB` and the aggregate is not a multiple of host RAM (CB-069) |
-| TC-CB-07 | Logs panel shows clean log lines | read-only | `cb-qa-logger` logs contain `cb-qa-logger tick`; no control bytes or frame-header garbage before lines (CB-070) |
-| TC-CB-08 | Settings persist across relaunch | mutating (prefs) | refresh interval change, show-stopped toggle, and one added section survive Quit → relaunch; both QA hosts still present (CB-075 guard); restored after |
+| TC-CB-06 | Card details: ports and memory | read-only | `cbqa-web` shows a single `18080` pill (no doubles, CB-079); detail popover lists two rows (tcp, udp); the RAM tile's denominator equals `cbqa-ctl info` `memTotal` ±0.1 GB (CB-069) |
+| TC-CB-07 | Logs panel shows clean log lines | read-only | `cbqa-logs` shows `cbqa-line-1..3` and `cbqa-err-1` in order, each line starting exactly with `cbqa-`; `cbqa-tty` shows `cbqa-tty-line-1` unchanged (CB-070) |
+| TC-CB-08 | Settings persist across relaunch | mutating (prefs) | refresh interval 10 s → 30 s and show-stopped off survive Quit → relaunch (`cbqa-stopped` hidden); `QA Runtime` and `QA Runtime (socket)` still present, `QA Runtime` selected (CB-075 guard); restored in the UI after |
 | TC-CB-09 | Refresh reflects external change | read-only | after `ssh cbqa-ctl reset`, the card list matches within one refresh interval; icon returns from the refresh glyph (CB-073) |
-| TC-CB-10 | Stop and start a fixture | mutating (`cb-qa-toggle` only) | Stop → card exited within 10 s and `cbqa-ctl status` agrees; Start → running; no error banner |
-| TC-CB-11 | Unix-socket transport (forwarded) | read-only | with `QA Podman (forwarded socket)` selected, TC-CB-03/04 expectations hold (Wed, Sat) |
+| TC-CB-10 | Stop and start a fixture | mutating (`cbqa-target` only) | Stop → card exited within 10 s and `cbqa-ctl status` agrees; Start → running; no error banner |
+| TC-CB-11 | Unix-socket transport (SSH-forwarded socket) | read-only | with `QA Runtime (socket)` selected and the brief's forward running, TC-CB-03/04 expectations hold (Wed, Sat) |
 | TC-CB-12 | Missing socket shows a useful error | read-only | forwarded-socket host selected with the forward **not** running → error names the socket/runtime, not "not configured" (CB-077) |
-| TC-CB-13 | Sparkle offers and installs the latest release | mutating (app bundle) | Mon: previous release zip moved into `/Applications` (current bundle moved to Trash, not `rm`) → Check for Updates → offer shows the latest version → install → relaunch → `aboutVersion` = latest |
-| TC-CB-14 | Check for Updates when current | read-only | "You're up to date" dialog; dismiss |
+| TC-CB-13 | Sparkle offers the latest release to the previous one | release brief only | installed app quit first; previous release zip extracted into a new temp dir and launched → Settings > About → Check for Updates → offer names the latest version with appcast notes → **Remind Me Later** (no install) → quit → temp dir deleted → installed app relaunched |
+| TC-CB-14 | Check for Updates when current | read-only | "You're up to date" dialog; dismiss; newer version advertised → record `update-available <v>`, Remind Me Later, PASS with note |
+| TC-CB-15 | Restart a fixture | mutating (`cbqa-target` only) | Restart → `cbqa-ctl status` `startedAt` later than before within 30 s; card running. If the released build exposes no Restart control in the dashboard (CB-082), the step is `blocked` with the element list, not FAIL |
+| TC-CB-16 | Runtime goes away and comes back | mutating (`cbqa-ctl api-stop`/`api-start`) | within two refresh intervals a disconnected / not-running message (captured verbatim), no stale container shown as running; after `api-start` the six containers return without relaunch. "Invalid response…" links CB-071, "not configured" links CB-077 |
+| TC-CB-17 | Stop on an already-stopped container | mutating (`cbqa-target` only) | after `cbqa-ctl target-stop` and before a refresh, Stop in the app → banner or no-op, card stopped after next refresh, no crash; banner dismissed with `dismissActionError`; `cbqa-target` started again |
 
-Asset: screenshot per step (cropped to the app), video only for TC-CB-10 and TC-CB-13.
+Asset: screenshot per step (cropped to the app), video only for TC-CB-10, TC-CB-13 and TC-CB-16. TC-CB-13 runs in the release brief, not in scheduled passes.
 
 ## 10. Non-functional requirements
 
 - **Budget:** daily pass ≤ 1200 s wall clock (target 12 min); hourly ≤ 60 s, zero tokens.
-- **Isolation:** QA can mutate only `cb-qa-*` under `cbqa`, enforced by the host. On the Mini it mutates only ContainerBar's preferences domain and its app bundle, and always restores the baseline.
-- **Desktop exclusivity:** shared desktop lock with the Sentwise pass; CI check before every leg; the hourly script does no GUI work.
+- **Isolation:** QA can mutate only `cbqa-*` under `cbqa`, enforced by the host. On the Mini it mutates only ContainerBar's preferences domain and its app bundle, and always restores the baseline.
+- **Desktop exclusivity:** shared desktop lock with the Sentwise pass (10 min wait, then `desktop-busy`); CI-idle check before the pass (10 min wait, then `ci-busy`) and before every case (no wait); the hourly script does no GUI work.
 - **Network:** the LAN only; GitHub, the appcast, and the tap for version checks. No pulls from container registries during a pass.
 - **Observability:** report.md per run (case table PASS/FAIL/BLOCKED/SKIPPED, versions, durations, findings); `hourly.log`; one Discord message per daily run; inbox line only on FAIL or BLOCKED (`ContainerBar#qa | lucius | qa-found|blocked | artifacts/containerbar-qa/runs/<date> | …`).
-- **Evidence layout:** `~/.openclaw/workspace/artifacts/containerbar-qa/runs/<YYYY-MM-DD>[-<leg>]/{report.md, defaults-before.plist, screenshots/TC-CB-<n>-<step>.png, video/TC-CB-<n>.mov}`; retained 30 days.
+- **Evidence layout (brief section 4 and story 2 AC2):** `~/.openclaw/workspace/artifacts/containerbar-qa/runs/<YYYY-MM-DD>-<kind>-<HHMM>/` with `<kind>` = `daily`, `hourly` or `release`, containing `report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png`, and `assets/<TC-id>.mov`; retained 30 days.
 - **Performance signals tracked over time:** idle CPU/RSS (hourly) and time-to-first-list after launch (daily, TC-CB-03).
 
 ## 11. Test strategy hooks
 
 - The planner's TC set is section 9E; every case names its fixture and whether it mutates.
 - Seed data: the fixture table and preferences baseline (section 4). The project-planner writes `seed-data.md` from them with placeholders.
-- Needs Lucius / a device: all TC-CB cases. Needs `homelab-it` first: the fixtures, `cb-qa-ctl`, the timer, and both keys authorised. Needs a builder first: identifiers A1–A5 (until then QA selects by label and may need hover, which is fragile).
+- Needs Lucius / a device: all TC-CB cases. Needs `homelab-it` first: the fixtures, `cbqa-ctl`, the timer, and both keys authorised. Needs a builder first: identifiers A1–A5 (until then QA selects by label and may need hover, which is fragile).
 - Unit-test hooks that keep the desktop pass small: SSH argv construction (CB-072), settings decode/backup/migration (CB-075), log demultiplexing on a captured Docker payload (CB-070), memory denominator (CB-069), updater nil in hunt mode (CB-074).
-- First-run acceptance for the whole setup: three consecutive green daily passes and one Wednesday and one Monday leg before the orchestrator treats the pass as a gate.
+- First-run acceptance for the whole setup: three consecutive green daily passes including one Wednesday or Saturday Unix-socket leg, and one release brief, before the orchestrator treats the pass as a gate.
 
 ## 12. Trade-offs considered
 
@@ -264,11 +283,13 @@ Asset: screenshot per step (cropped to the app), video only for TC-CB-10 and TC-
 - **A QA build or `--qa` flag:** would make the pass test something users never run, and would duplicate hunt mode. Rejected.
 - **An LLM-driven hourly smoke:** the Sentwise precedent spent ~200k tokens per hour reading four indicators. Rejected in favour of launchd shell.
 - **Quitting the app after each pass vs. leaving it running:** leaving it running gives a 24/7 soak and the hourly CPU/RSS signal, at the cost of a second third-party item in the Mini's menu bar (Q5).
-- **Installing from the zip vs. the cask:** the cask downloads the same notarized zip and is what most users run, so it is the daily path; the Monday leg covers a direct-zip install plus Sparkle.
+- **Installing from the zip vs. the cask:** the cask downloads the same notarized zip and is what most users run, so it is the release-day upgrade path; the release brief also checks the direct zip and the Sparkle offer (brief story 3 AC4–AC6).
 
 ## 13. Ticket design notes (CB-069..CB-082)
 
-Items that need a design note before a builder starts are below. CB-069, CB-070, CB-078, CB-079, CB-080, CB-081, and CB-082 are self-contained as written: their backlog descriptions already name the fix and the test, and they need only the TC references above (CB-069 → TC-CB-06, CB-070 → TC-CB-07, CB-079 → TC-CB-06, CB-081 shares identifier work with section 9A2).
+Items that need a design note before a builder starts are below: CB-071, CB-072, CB-073, CB-074, CB-075, CB-076, CB-077, CB-078. CB-069, CB-070, CB-079, CB-080, CB-081, and CB-082 are self-contained with the BA's Acceptance blocks; they need only the TC references above (CB-069 → TC-CB-06, CB-070 → TC-CB-07, CB-079 → TC-CB-06, CB-081 shares identifier work with section 9A2). For CB-070 the builder starts from a synthetic multiplexed payload built to the Docker stream format (8-byte header: stream type, three zero bytes, big-endian length); the real `cbqa-logs` capture replaces or joins it once the fixtures exist, and does not block the branch.
+
+**CB-078 (dashboard Add Remote Host drift).** Decision: route the dashboard's **Add Remote Host** to the Settings `AddHostSheet` (the BA's assumption) rather than share a `RemoteHostFormFields` view. One form means CB-072's validation, the remote socket path, the runtime picker, and CB-080's test result live in one place. Mechanics: the dashboard button closes the menu (`closeMenuIfOpen()`), opens Settings on the Connections tab, and presents the sheet. Add a `SettingsRoute` value (`.connections(addHost: true)`) on the settings window controller, so this is not driven by notifications. Delete the dashboard form's own fields and `hostPanelSave` path from `HostPanelView`; the host list and selection in the panel stay. Keep `addRemoteHost` as the button's identifier. Tests: the route helper maps the button to `.connections(addHost: true)`; the existing `AddHostSheet` tests cover the form.
 
 **CB-072 (SSH argv injection).** Extract a pure `SSHTunnelProcessLauncher.arguments(host:user:port:localSocket:remoteSocket:) -> [String]` and unit-test it. Order: `-nNT`, the existing `-o` options, `-p <port>`, `-l <user>`, `-L <local>:<remote>`, `--`, `<host>`. `-l` replaces `user@host`, so a user value can never be parsed as an option or contain `@` games, and `--` ends option parsing before the host. Validation lives in one function, `SSHTargetValidator`, called from `RemoteHostDraftBuilder` (UI error: "Host and user cannot start with '-' or contain spaces.") and again in `DockerAPIClientImpl.init` (throws the existing invalid-configuration error, so a hand-edited or previously persisted bad host fails safely at connect time with that message rather than launching `ssh`). Rules: non-empty; no leading `-`; no whitespace or control characters; user matches `[A-Za-z0-9._][A-Za-z0-9._-]*`; host is a hostname, an `~/.ssh/config` alias, IPv4, or a bracket-free IPv6 literal. Aliases must keep working, since QA's `cbqa-tunnel` depends on them. Tests: injection strings for both fields, alias accepted, IPv6 accepted, and the argv snapshot. Security-review gate per AGENTS.md.
 
@@ -278,7 +299,7 @@ Items that need a design note before a builder starts are below. CB-069, CB-070,
 
 **CB-076 (status-item menu lifecycle).** Track open state from `NSMenuDelegate`: `menuWillOpen` sets `isMenuOpen = true` and `menuDidClose(_:)` sets it false, and `toggleMenu` uses the flag (drop `highlightedItem`). The delegate methods are called on the main thread, so use `MainActor.assumeIsolated { rebuildMenu() }` in `menuWillOpen` for a synchronous rebuild, not a spawned `Task`. That removes the first-show empty-menu race; verify on `<qa-mini>` with TC-CB-02/03. Any modal (`.remove`'s `NSAlert`) runs only after `menu.cancelTracking()` and a hop to the next main-queue turn, the same as `.viewLogs`. Screen choice: `statusItem.button?.window?.screen ?? NSScreen.main`. A single size authority: `AutoResizingHostingView` exposes `width`/`minHeight`, and `+MenuBuilding` stops re-clamping. Collapsed group state moves into the store keyed by group id (non-persistent unless the BA's story says persist). The status-item identifier from section 9A1 lands in the same branch if the QA-hooks branch has not merged first. Tests: a controller test with a fake menu for toggle-open/close and the modal-after-close ordering.
 
-**CB-071 (transport-neutral errors).** Add `DockerAPIError.connectionClosed` (peer EOF before any response bytes) and `.transportFailed(String)` for non-TLS receive/parse failures, replacing the `.tlsConnectionFailed("…")` misuse on the Unix path. `connectionClosed` is transient in `DockerAPIError+Retry` and marks the transport disconnected so the next request reconnects. Map it through the injected error mapper on `NWConnectionTransport.Config` (the `mapSendFailure` pattern) so each transport keeps its own wording. User copy: "Lost connection to <runtime>. Reconnecting…" for the transient case. This matters for the daily pass because the SSH tunnel and forwarded socket idle for 30 s between refreshes: a regression here shows up as TC-CB-09 failures and as red hourly checks after the host's daemon restarts.
+**CB-071 (transport-neutral errors).** Add `DockerAPIError.connectionClosed` (peer EOF before any response bytes) and `.transportFailed(String)` for non-TLS receive/parse failures, replacing the `.tlsConnectionFailed("…")` misuse on the Unix path. `connectionClosed` is transient in `DockerAPIError+Retry` and marks the transport disconnected so the next request reconnects. Map it through the injected error mapper on `NWConnectionTransport.Config` (the `mapSendFailure` pattern) so each transport keeps its own wording. User copy: "Lost connection to <runtime>. Reconnecting…" for the transient case. This matters for the daily pass because the SSH tunnel and forwarded socket sit idle between refreshes: a regression here shows up as TC-CB-09 failures and as red hourly checks after the host's daemon restarts.
 
 **CB-073 (icon observation loop).** The deployment target is macOS 14, so the `Observations` async sequence is not available. Use a continuation-driven loop: register `withObservationTracking`, and in `onChange` schedule one coalesced main-actor update (a `pendingIconUpdate` flag) that re-registers before reading. No sleep. Inject a clock for the test that asserts the icon leaves the refresh glyph after `isRefreshing` flips false within one turn. Success is visible in the hourly check's idle CPU budget.
 
@@ -292,27 +313,30 @@ Items that need a design note before a builder starts are below. CB-069, CB-070,
 - **Podman compat API drift vs. Docker** can produce findings that are not real Docker bugs. Mitigation: the report tags runtime-specific findings; Docker coverage comes in phase 2 (Q2).
 - **The app's default Podman socket for local machines** (`~/.local/share/containers/podman/machine/podman.sock`) may not match current Podman releases, which put the API socket under the machine's temporary directory. Not testable without option A. Recorded for the BA as a possible finding to verify against Podman docs.
 - **Host maintenance or the pending Docker-vs-Podman change on `<qa-container-host>`** could break the fixtures. Mitigation: rootless `cbqa` is independent of the system runtime; the hourly check reports a red host before the 07:05 pass.
-- **The `brew upgrade` step in preflight** changes the installed app on release days. That is intended (it is the install-path test), and it is recorded in report.md.
+- **The `brew upgrade` step in the release brief** changes the installed app. That is intended (it is the install-path test), and it is recorded in report.md.
+- **`log show --predicate 'process == "ContainerBar"'`** (used by the brief's launch-failure and CB-079 checks) sees only system and SwiftUI messages until the optional OSLog bootstrap (9D) ships; the app's own swift-log output is not in it. The SwiftUI duplicate-ID warning CB-079 counts is a system message, so that check works today.
 
 **Open questions for Michael** (each with the assumption this design proceeds on):
 1. **May QA touch the homelab container host at all,** through a dedicated unprivileged `cbqa` user with rootless Podman that cannot see the real services? *Assumed yes.* If no, the only remaining option is a Podman machine on the Mini (Q3).
 2. **Docker coverage:** add a rootless Docker daemon for a second QA user (weekly Docker leg), or rely on unit tests with captured Docker payloads? *Assumed: phase 1 Podman only; revisit after your Docker-vs-Podman decision for the host.*
 3. **Podman machine on Lucius' Mini:** amend the 2026-10-12 "no containers on the Macs" decision for this one QA VM, to cover local socket discovery and the stopped-runtime error? *Assumed no; the forwarded socket covers the Unix-socket code path.*
-4. **Channel and time:** post the daily result to a ContainerBar Discord channel (or #lucius-updates if none exists) at 07:05 CT? *Assumed #lucius-updates until a ContainerBar channel exists; 07:05 CT.*
+4. **Frequency and channel:** one full pass at 07:05 CT every day (recommended), or the brief's two weekday passes (10:00 and 15:00 CT, moved to 10:15 and 15:00) and one at weekends; results to a new private `#containerbar` channel? *Assumed one pass at 07:05 CT; `#lucius-updates` until `#containerbar` exists.*
 5. **Leave ContainerBar running on the Mini between passes** (24/7 soak plus hourly CPU/memory checks) next to Sentwise's menu-bar item? *Assumed yes.*
 
 ## 15. Story-to-design map
 
-The BA's brief names the stories; this maps the work this design implies so the orchestrator can attach it to them at merge.
+Stories are in `docs/requirements/lucius-daily-qa.md`; their technical tasks are written under each story there.
 
 | Work | Owner | Design sections | Blocks |
 |---|---|---|---|
-| Provision `cbqa`, rootless Podman socket, fixtures, `cb-qa-ctl`, 06:45 timer, two restricted keys | homelab-it (homelab repo) | 2, 5, 6 | everything below except the builder branch |
-| `<qa-mini>` setup: keys, `~/.ssh/config` aliases, known_hosts, cask install, baseline plist (TC-CB-05 setup run) | orchestrator → Lucius brief | 4, 5 | daily pass |
+| CB-100: provision `cbqa`, rootless Podman socket, six fixtures, `cbqa-ctl`, 06:45 timer, two restricted keys | homelab-it (homelab repo) | 2, 5, 6 | everything below except the builder branches |
+| CB-100/CB-101: `<qa-mini>` setup: keys, `~/.ssh/config` aliases, known_hosts, both host entries, Sparkle prefs, baseline plist (TC-CB-05 setup run); `CONTAINERBAR_QA.md` recipe | orchestrator → Lucius brief | 4, 5 | daily pass |
 | QA-hooks branch: identifiers 9A1–A6 | builder | 5, 9A | reliable selectors (the pass can start before, by label) |
-| `docs/qa/test-cases.md`, `docs/qa/seed-data.md` | project-planner or builder (docs) | 9E, 4 | daily pass brief |
-| Daily cron job and brief | orchestrator | 7, 8, 10 | — |
-| Hourly launchd check | orchestrator | 8 | — |
-| CB-072, CB-074, CB-075, CB-076, CB-071, CB-073, CB-077 | builder, one branch each | 13 | CB-074 before TC-CB-13/14 count as gates |
+| CB-101 task: `docs/qa/test-cases.md`, `docs/qa/seed-data.md` | project-planner or builder (docs) | 9E, 4 | daily pass brief |
+| CB-102..CB-104: install, dashboard, settings cases | Lucius via the brief | 7, 9E | — |
+| CB-105: cron job(s), brief, CI-idle check, lock, restore; hourly launchd check | orchestrator | 7, 8, 10 | — |
+| CB-106: report, Discord, inbox, defect intake | Lucius, orchestrator, BA | 10 | — |
+| CB-071, CB-072, CB-073, CB-074, CB-075, CB-076, CB-077, CB-078 | builder, branches as the backlog's Acceptance blocks split them | 13 | CB-074 before TC-CB-13/14 count as gates |
+| QA-hooks identifiers (new item, BA to file) | builder | 9A | — |
 | OSLog bootstrap (optional) | builder | 9D | — |
 | Docker leg (phase 2, Q2) | homelab-it + orchestrator | 2 | — |
