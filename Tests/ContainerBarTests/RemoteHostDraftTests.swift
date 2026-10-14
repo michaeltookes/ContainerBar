@@ -31,10 +31,10 @@ struct RemoteHostDraftTests {
 
 @Suite("RemoteHostDraftBuilder SSH target validation (CB-072)")
 struct RemoteHostDraftSSHTargetTests {
-    private static let message = "Host and user cannot start with '-' or contain spaces."
+    private static let message = "Host and user cannot be empty, start with '-', or contain spaces or control characters."
 
     @Test("Refuses a user that ssh would parse as an option", arguments: [
-        "-oProxyCommand=touch /tmp/cbqa-pwned", "-l", "-lroot", "alice@evil", "alice smith"
+        "-oProxyCommand=touch /tmp/cbqa-pwned", "-l", "-lroot", "alice smith"
     ])
     func refusesHostileUser(user: String) {
         do {
@@ -61,13 +61,20 @@ struct RemoteHostDraftSSHTargetTests {
     }
 
     @Test("Accepts an ssh config alias, IPv4, and bracketed IPv6", arguments: [
-        ("cbqa-tunnel", "cbqa-tunnel"), ("192.168.1.10:2222", "192.168.1.10"), ("[fe80::1%en0]:22", "fe80::1%en0")
+        ("cbqa-tunnel", "cbqa-tunnel"), ("prod+vpn", "prod+vpn"), ("192.168.1.10:2222", "192.168.1.10"),
+        ("[fe80::1%en0]:22", "fe80::1%en0")
     ])
     func acceptsValidHosts(input: String, expectedHost: String) throws {
         let draft = try RemoteHostDraftBuilder.build(nameInput: "", hostInput: input, userInput: "")
         #expect(draft.host == expectedHost)
         #expect(draft.sshUser == "root")
         #expect(RemoteHostDraftBuilder.sshTargetMessage(hostInput: input, userInput: "") == nil)
+    }
+
+    @Test("Accepts a realm-style login such as alice@EXAMPLE.COM")
+    func acceptsRealmLogin() throws {
+        let draft = try RemoteHostDraftBuilder.build(nameInput: "", hostInput: "qa.example.com", userInput: "alice@EXAMPLE.COM")
+        #expect(draft.sshUser == "alice@EXAMPLE.COM")
     }
 
     @Test("No inline message while the host field is still empty")

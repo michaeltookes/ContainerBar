@@ -68,19 +68,20 @@ struct SSHTunnelArgumentsTests {
     }
 
     @Test("validator rejects hostile users with the user-facing message", arguments: hostileValues + [
-        "", "alice smith", "alice@evil", "al\nice", "al\u{0}ice", "ålice", "a;rm"
+        "", "alice smith", "alice\tsmith", "al\nice", "al\u{0}ice", "al\u{7F}ice", "al\u{2028}ice",
+        String(repeating: "a", count: 256)
     ])
     func rejectsHostileUsers(user: String) {
         #expect(throws: SSHTargetValidator.ValidationError.invalidUser) {
             try SSHTargetValidator.validate(host: "qa.example.com", user: user)
         }
         #expect(SSHTargetValidator.ValidationError.invalidUser.errorDescription
-            == "Host and user cannot start with '-' or contain spaces.")
+            == "Host and user cannot be empty, start with '-', or contain spaces or control characters.")
     }
 
     @Test("validator rejects hostile hosts", arguments: hostileValues + [
-        "", "qa example.com", "alice@qa.example.com", "qa.example.com\n", "[::1]", "host:22",
-        "fe80::1%", "fe80::1%-x y", "::g", String(repeating: "a", count: 256)
+        "", "qa example.com", "qa.example.com\n", "qa\u{0}.example.com", "qa\u{1B}.example.com",
+        "fe80::1%-x y", String(repeating: "a", count: 256)
     ])
     func rejectsHostileHosts(host: String) {
         #expect(throws: SSHTargetValidator.ValidationError.invalidHost) {
@@ -88,15 +89,17 @@ struct SSHTunnelArgumentsTests {
         }
     }
 
-    @Test("validator accepts hostnames, aliases, IPv4 and IPv6 literals", arguments: [
+    @Test("validator accepts hostnames, aliases, IPv4, IPv6, and unicode hostnames", arguments: [
         "qa.example.com", "cbqa-tunnel", "my_box", "192.168.1.10", "::1", "fe80::1%en0",
-        "2001:db8::8a2e:370:7334", "::ffff:192.0.2.1"
+        "2001:db8::8a2e:370:7334", "::ffff:192.0.2.1", "prod+vpn", "host.example.com.", "bücher.example"
     ])
     func acceptsValidHosts(host: String) throws {
         try SSHTargetValidator.validate(host: host, user: "deploy-user.1")
     }
 
-    @Test("validator accepts conventional user names", arguments: ["root", "alice", "_svc", "deploy-user", "a.b_c-1"])
+    @Test("validator accepts user names, including realm logins", arguments: [
+        "root", "alice", "_svc", "deploy-user", "a.b_c-1", "alice@EXAMPLE.COM", "ålice"
+    ])
     func acceptsValidUsers(user: String) throws {
         try SSHTargetValidator.validate(host: "qa.example.com", user: user)
     }
@@ -118,7 +121,7 @@ struct SSHTunnelArgumentsTests {
                 return
             }
             #expect(error.localizedDescription
-                == "Configuration error: Host and user cannot start with '-' or contain spaces.")
+                == "Configuration error: Host and user cannot be empty, start with '-', or contain spaces or control characters.")
         } catch {
             Issue.record("Unexpected error \(error)")
         }
