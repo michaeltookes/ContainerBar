@@ -143,7 +143,13 @@ public enum ConnectionType: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Docker system information
+/// Docker system information (`GET /info`).
+///
+/// Decoding is lenient (CB-069): the real Docker Engine `/info` body has
+/// `ServerVersion` but no `DockerVersion`, and Podman's compat body differs in
+/// other optional fields, so every field except `MemTotal` falls back to a
+/// default instead of failing the whole decode. `dockerVersion` and
+/// `serverVersion` fall back to each other.
 public struct DockerSystemInfo: Codable, Sendable {
     public let id: String
     public let containers: Int
@@ -173,5 +179,35 @@ public struct DockerSystemInfo: Codable, Sendable {
         case memoryTotal = "MemTotal"
         case cpuCount = "NCPU"
         case serverVersion = "ServerVersion"
+    }
+}
+
+extension DockerSystemInfo {
+    // In an extension so the memberwise initializer is kept.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        func int(_ key: CodingKeys) throws -> Int {
+            try values.decodeIfPresent(Int.self, forKey: key) ?? 0
+        }
+        func string(_ key: CodingKeys) throws -> String? {
+            try values.decodeIfPresent(String.self, forKey: key)
+        }
+        let server = try string(.serverVersion)
+        let docker = try string(.dockerVersion)
+        self.init(
+            id: try string(.id) ?? "",
+            containers: try int(.containers),
+            containersRunning: try int(.containersRunning),
+            containersPaused: try int(.containersPaused),
+            containersStopped: try int(.containersStopped),
+            images: try int(.images),
+            dockerVersion: docker ?? server ?? "",
+            operatingSystem: try string(.operatingSystem) ?? "",
+            kernelVersion: try string(.kernelVersion) ?? "",
+            architecture: try string(.architecture) ?? "",
+            memoryTotal: try values.decode(UInt64.self, forKey: .memoryTotal),
+            cpuCount: try int(.cpuCount),
+            serverVersion: server ?? docker ?? ""
+        )
     }
 }
