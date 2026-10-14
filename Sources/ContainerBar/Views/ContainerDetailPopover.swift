@@ -66,24 +66,25 @@ struct ContainerDetailPopover: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            ForEach(container.ports.prefix(5), id: \.privatePort) { port in
+            let rows = PortPresentation.rows(for: container.ports)
+            ForEach(rows.prefix(PortPresentation.maxPopoverRows)) { row in
                 HStack(spacing: 4) {
-                    if let publicPort = port.publicPort {
-                        Text("\(port.ip ?? "0.0.0.0"):\(publicPort)")
+                    if let publicPort = row.publicPort {
+                        Text("\(row.hostAddress ?? "0.0.0.0"):\(publicPort)")
                             .foregroundStyle(.primary)
                         Image(systemName: "arrow.right")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                             .accessibilityHidden(true)
                     }
-                    Text("\(port.privatePort)/\(port.type)")
-                        .foregroundStyle(port.publicPort != nil ? .primary : .secondary)
+                    Text("\(row.privatePort)/\(row.type)")
+                        .foregroundStyle(row.publicPort != nil ? .primary : .secondary)
                 }
                 .font(.system(.caption, design: .monospaced))
             }
 
-            if container.ports.count > 5 {
-                Text("+ \(container.ports.count - 5) more")
+            if rows.count > PortPresentation.maxPopoverRows {
+                Text("+ \(rows.count - PortPresentation.maxPopoverRows) more")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
