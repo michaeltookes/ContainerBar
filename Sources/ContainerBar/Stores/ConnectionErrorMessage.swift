@@ -49,9 +49,10 @@ func notRunningMessage(for runtime: ContainerRuntime) -> String {
     }
 }
 
-/// "Can't reach <host> over SSH." plus the class of the first stderr line
-/// (authentication, host key, refused), or that first line verbatim when it
-/// matches none of them.
+/// "Can't reach <host> over SSH." plus the class of the failure found anywhere
+/// in stderr (authentication, host key, refused), or the first non-empty
+/// stderr line verbatim when no line matches. Classification scans every line,
+/// because ssh often prints a banner or warning before the line that matters.
 func sshFailureMessage(hostName: String, stderr: String) -> String {
     let base = "Can't reach \(hostName) over SSH."
     let firstLine = stderr
@@ -59,7 +60,7 @@ func sshFailureMessage(hostName: String, stderr: String) -> String {
         .map { $0.trimmingCharacters(in: .whitespaces) }
         .first { !$0.isEmpty } ?? ""
 
-    switch SSHFailureClass(stderrLine: firstLine) {
+    switch SSHFailureClass(stderr: stderr) {
     case .authentication:
         return "\(base) Authentication failed: check the SSH user and key."
     case .hostKey:
@@ -71,15 +72,17 @@ func sshFailureMessage(hostName: String, stderr: String) -> String {
     }
 }
 
-/// Coarse classification of an ssh stderr line, so the banner says what kind
-/// of failure happened without echoing ssh's full diagnostic output.
+/// Coarse classification of ssh's stderr (all lines, case-insensitive), so the
+/// banner says what kind of failure happened without echoing ssh's full
+/// diagnostic output. Host key wins over authentication, which wins over
+/// refused, when several markers appear.
 enum SSHFailureClass: Equatable {
     case authentication
     case hostKey
     case refused
     case other
 
-    init(stderrLine line: String) {
+    init(stderr text: String) {
         let hostKeyMarkers = [
             "host key verification failed",
             "remote host identification has changed",
@@ -87,11 +90,11 @@ enum SSHFailureClass: Equatable {
         ]
         let authMarkers = ["permission denied", "authentication failed", "too many authentication failures"]
 
-        if hostKeyMarkers.contains(where: { line.localizedCaseInsensitiveContains($0) }) {
+        if hostKeyMarkers.contains(where: { text.localizedCaseInsensitiveContains($0) }) {
             self = .hostKey
-        } else if authMarkers.contains(where: { line.localizedCaseInsensitiveContains($0) }) {
+        } else if authMarkers.contains(where: { text.localizedCaseInsensitiveContains($0) }) {
             self = .authentication
-        } else if line.localizedCaseInsensitiveContains("connection refused") {
+        } else if text.localizedCaseInsensitiveContains("connection refused") {
             self = .refused
         } else {
             self = .other

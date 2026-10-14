@@ -73,6 +73,22 @@ struct ConnectionErrorMessageTests {
         #expect(empty == "Can't reach QA Runtime over SSH.")
     }
 
+    @Test("SSH failure class is found when a banner line precedes the error")
+    func sshClassAfterBannerLine() {
+        let auth = sshFailureMessage(
+            hostName: "box",
+            stderr: "Warning: Permanently added 'box' (ED25519) to the list of known hosts.\ncbqa@box: Permission denied (publickey)."
+        )
+        #expect(auth == "Can't reach box over SSH. Authentication failed: check the SSH user and key.")
+
+        let hostKey = sshFailureMessage(
+            hostName: "box",
+            stderr: "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\nHost key verification failed."
+        )
+        #expect(hostKey.hasSuffix("Host key verification failed: verify the host key in ~/.ssh/known_hosts."))
+        #expect(!hostKey.contains("@@@"))
+    }
+
     @Test("Unclassified SSH stderr keeps only the first non-empty line")
     func sshUnclassifiedFirstLine() {
         let message = sshFailureMessage(hostName: "box", stderr: "\n  ssh: Could not resolve hostname box\nsecond line")
@@ -81,9 +97,9 @@ struct ConnectionErrorMessageTests {
 
     @Test("SSH failure classifier")
     func sshFailureClassifier() {
-        #expect(SSHFailureClass(stderrLine: "Too many authentication failures") == .authentication)
-        #expect(SSHFailureClass(stderrLine: "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!") == .hostKey)
-        #expect(SSHFailureClass(stderrLine: "connect: Connection refused") == .refused)
-        #expect(SSHFailureClass(stderrLine: "Operation timed out") == .other)
+        #expect(SSHFailureClass(stderr: "Too many authentication failures") == .authentication)
+        #expect(SSHFailureClass(stderr: "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!") == .hostKey)
+        #expect(SSHFailureClass(stderr: "connect: Connection refused") == .refused)
+        #expect(SSHFailureClass(stderr: "Operation timed out") == .other)
     }
 }
