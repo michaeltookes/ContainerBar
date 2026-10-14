@@ -12,21 +12,32 @@ extension ContainerFetcher {
     static let hostMemoryRetryInterval: TimeInterval = 30
 
     /// The host's total memory from `/info` `MemTotal`, cached between
-    /// refreshes. Returns `nil` when it is unavailable; a failure here never
-    /// fails the fetch, it only switches the denominator to its fallback.
-    func currentHostMemoryTotal(now: Date = Date()) async -> UInt64? {
+    /// refreshes. Returns `nil` when it is unavailable; a lookup failure never
+    /// fails the fetch, it only switches the denominator to its fallback (or
+    /// keeps the last good value).
+    ///
+    /// After a success the value is reused for `hostMemoryRefreshInterval`;
+    /// after a failure (or no value yet) the lookup is retried after
+    /// `hostMemoryRetryInterval`, even when an older value is still cached.
+    ///
+    /// - Throws: `CancellationError` when the refresh is cancelled before or
+    ///   during the request, so a cancelled fetch stays cancelled and is not
+    ///   recorded as a success.
+    func currentHostMemoryTotal(now: Date = Date()) async throws -> UInt64? {
         if let checkedAt = hostMemoryCheckedAt {
-            let interval = hostMemoryTotal == nil ? Self.hostMemoryRetryInterval : Self.hostMemoryRefreshInterval
+            let useRetry = hostMemoryTotal == nil || hostMemoryLastLookupFailed
+            let interval = useRetry ? Self.hostMemoryRetryInterval : Self.hostMemoryRefreshInterval
             if now.timeIntervalSince(checkedAt) < interval {
                 return hostMemoryTotal
             }
         }
-        // A cancelled refresh is discarded anyway; do not spend a request.
-        if Task.isCancelled { return hostMemoryTotal }
+        try Task.checkCancellation()
 
         do {
             let info = try await client.getSystemInfo()
+            try Task.checkCancellation()
             hostMemoryCheckedAt = now
+            hostMemoryLastLookupFailed = false
             if info.memoryTotal > 0 {
                 hostMemoryTotal = info.memoryTotal
             } else {
@@ -34,10 +45,12 @@ extension ContainerFetcher {
                 hostMemoryTotal = nil
             }
         } catch {
-            if !(error is CancellationError || Task.isCancelled) {
-                hostMemoryCheckedAt = now
-                logger.debug("Host memory lookup failed: \(error.localizedDescription)")
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
             }
+            hostMemoryCheckedAt = now
+            hostMemoryLastLookupFailed = true
+            logger.debug("Host memory lookup failed: \(error.localizedDescription)")
             // Keep a previously read value rather than flapping the tile.
         }
         return hostMemoryTotal

@@ -22,6 +22,7 @@ public actor ContainerFetcher {
     /// and when it was last requested. See `ContainerFetcher+HostMemory.swift`.
     var hostMemoryTotal: UInt64?
     var hostMemoryCheckedAt: Date?
+    var hostMemoryLastLookupFailed = false
     let logger = Logger(label: "com.containerbar.fetcher")
 
     // MARK: - Configuration
@@ -109,7 +110,7 @@ public actor ContainerFetcher {
             // Build metrics snapshot. The host's total memory is the aggregate
             // memory denominator whenever any container is unconstrained
             // (CB-069); it is only needed when there are stats to aggregate.
-            let hostMemory = stats.isEmpty ? nil : await currentHostMemoryTotal()
+            let hostMemory = stats.isEmpty ? nil : try await currentHostMemoryTotal()
             let metrics = buildMetricsSnapshot(
                 containers: containers,
                 stats: stats,
