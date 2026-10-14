@@ -85,8 +85,8 @@ struct AddHostSheet: View {
                     .accessibilityIdentifier("confirmAddHost")
                 }
 
-                if let validationError {
-                    Text(validationError)
+                if let message = validationError ?? sshTargetMessage {
+                    Text(message)
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -120,6 +120,11 @@ struct AddHostSheet: View {
         case .ssh:
             return false
         }
+    }
+
+    private var sshTargetMessage: String? {
+        guard connectionType == .ssh else { return nil }
+        return RemoteHostDraftBuilder.sshTargetMessage(hostInput: host, userInput: sshUser)
     }
 
     private var defaultRemoteSocketPath: String {

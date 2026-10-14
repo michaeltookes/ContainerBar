@@ -172,8 +172,9 @@ struct HostPanelView: View {
                 .accessibilityIdentifier("hostPanelSave")
             }
 
-            if let validationError {
-                Text(validationError)
+            if let message = validationError
+                ?? RemoteHostDraftBuilder.sshTargetMessage(hostInput: newHostAddress, userInput: newHostUser) {
+                Text(message)
                     .font(.system(size: 11))
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)

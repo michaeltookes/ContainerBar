@@ -73,15 +73,33 @@ enum RemoteHostDraftBuilder {
 
         let (parsedHost, inlinePort) = try parseHostAndInlinePort(from: hostInput)
         let port = try resolvePort(portInput, inlinePort: inlinePort)
+        let user = trimmedUser.isEmpty ? "root" : trimmedUser
+        try SSHTargetValidator.validate(host: parsedHost, user: user)
 
         return RemoteHostDraft(
             name: trimmedName.isEmpty ? "Remote Host" : trimmedName,
             runtime: runtime,
             socketPath: trimmedSocketPath?.isEmpty == true ? nil : trimmedSocketPath,
             host: parsedHost,
-            sshUser: trimmedUser.isEmpty ? "root" : trimmedUser,
+            sshUser: user,
             sshPort: port
         )
+    }
+
+    /// The inline message for a host or user value that `ssh` could misread as an
+    /// option (CB-072), or nil when both are acceptable or the host is still empty.
+    /// Forms show it while Save is disabled, so the refusal is explained, not silent.
+    static func sshTargetMessage(hostInput: String, userInput: String) -> String? {
+        guard let (parsedHost, _) = try? parseHostAndInlinePort(from: hostInput) else {
+            return nil
+        }
+        let trimmedUser = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try SSHTargetValidator.validate(host: parsedHost, user: trimmedUser.isEmpty ? "root" : trimmedUser)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     private static func resolvePort(_ portInput: String?, inlinePort: Int?) throws -> Int {
