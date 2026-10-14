@@ -19,9 +19,10 @@ import ViewInspector
 /// The action callback is asserted for real: `Button.tap()` invokes the stored
 /// action closure synchronously without a window server (it reads
 /// `action|closure` via reflection), so it runs under `swift test` over SSH on
-/// the QA mini. The quick-action button sits behind `.opacity(0)` until hover,
-/// but opacity is not `.hidden()`, so ViewInspector still treats it as
-/// responsive and `tap()` fires.
+/// the QA mini. The quick-action button's label sits behind `.opacity(0)` until
+/// hover (the button itself stays at full opacity so it remains in the
+/// accessibility tree, CB-107); opacity is not `.hidden()`, so ViewInspector
+/// still treats it as responsive and `tap()` fires.
 @MainActor
 @Suite("ContainerCardView view body")
 struct ContainerCardViewTests {
@@ -104,6 +105,35 @@ struct ContainerCardViewTests {
             .replacingOccurrences(of: "/", with: "-")
         #expect(throws: Never.self) {
             try card.find(viewWithAccessibilityIdentifier: expected)
+        }
+    }
+
+    @Test("Running card exposes containerStop-<slug> with the card's slug while not hovered")
+    func runningCardExposesStopIdentifier() throws {
+        let container = DockerContainer.mock(name: "cbqa-target", state: .running)
+        let card = try inspectedCard(container: container, stats: .mock())
+
+        #expect(throws: Never.self) {
+            try card.find(viewWithAccessibilityIdentifier: "containerCard-cbqa-target")
+        }
+        #expect(throws: Never.self) {
+            try card.find(viewWithAccessibilityIdentifier: "containerStop-cbqa-target")
+        }
+        #expect(throws: (any Error).self) {
+            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-target")
+        }
+    }
+
+    @Test("Exited card exposes containerStart-<slug> with the card's slug while not hovered")
+    func exitedCardExposesStartIdentifier() throws {
+        let container = DockerContainer.mock(name: "cbqa-stopped", state: .exited)
+        let card = try inspectedCard(container: container, stats: nil)
+
+        #expect(throws: Never.self) {
+            try card.find(viewWithAccessibilityIdentifier: "containerCard-cbqa-stopped")
+        }
+        #expect(throws: Never.self) {
+            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-stopped")
         }
     }
 
