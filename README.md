@@ -86,7 +86,7 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 
 ### Prerequisites
 
-- Xcode 16.0+ (for Swift 6.0)
+- Xcode 26.x (Swift 6.2), the toolchain CI and release builds use
 - Swift 6.0+
 - An Apple Silicon (arm64) Mac — ContainerBar is not built or shipped for Intel
 
