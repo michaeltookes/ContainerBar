@@ -10,10 +10,6 @@ _No open high-priority items._
 
 ## Medium Priority
 
-### CB-069: Aggregate memory limit sums per-container limits, so unconstrained containers inflate the denominator
-**Priority**: Medium
-**Description**: Audit 2026-09-18. `ContainerFetcher.buildMetricsSnapshot` computes `totalMemLimit = statsList.reduce(0) { $0 + $1.memoryLimitBytes }`. Docker reports `memory_stats.limit` = host `MemTotal` for containers with no cgroup limit (the common case), so three unlimited containers on a 16 GB host render "/ 48 GB" in `GeneralStatsGrid`, the memory fraction in `StatusItemController.updateIcon` is one-third of reality, and `ContainerMetricsSnapshot.overallHealth`'s 95 % warning can never trip. Fix: use `DockerSystemInfo.memoryTotal` (already decoded from `/info`) as the denominator, or `min(sum, hostTotal)`; at minimum de-duplicate limits equal to host memory. Test with a fixture of unlimited containers.
-
 ### CB-070: Multiplexed log-stream frame headers leak into the returned log text
 **Priority**: Medium
 **Description**: Audit 2026-09-18. `DockerAPIClientImpl.getContainerLogs` tries `String(data:encoding:.utf8)` first and only falls back to `parseMultiplexedLogs` when that fails. Non-TTY containers (the default) return 8-byte frame headers `[1|2, 0,0,0, size(4 BE)]` which are valid UTF-8 for virtually every real log, so the headers are embedded in the string that `LogViewerWindow` renders verbatim. The fallback only runs when a size byte happens to form an invalid sequence. `parseMultiplexedLogs` has no test, and its zero-length-frame `break` in `+ResponseHandling.swift` should be `continue`. Fix: decide framing from the container's `Config.Tty` (or probe the first 8 bytes: type in {0,1,2} and bytes 1–3 zero) and demultiplex first; add tests with a captured multiplexed payload.
