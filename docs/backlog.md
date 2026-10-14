@@ -262,7 +262,6 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 - `Sources/ContainerBarCore/API/TLSConnection.swift:62`: `"TLS connection established to \(host):\(validatedPort)"` (host may be an address, plus port).
 - `Sources/ContainerBarCore/API/UnixSocketConnection.swift:46`: `"Unix socket connected: \(socketPath)"` (local path, may contain the home directory).
 - `Sources/ContainerBarCore/API/SSHTunnelConnection.swift:237`: `"SSH tunnel established: \(localSocket)"` (local socket path).
-- `Sources/ContainerBar/Services/HuntMode.swift:34`: `"Hunt mode active (env: \(env), derivedData: \(path))"` (DerivedData path).
 - Host display names (user-chosen, may contain an address): `Sources/ContainerBar/Stores/ContainerStore.swift:196`, `Sources/ContainerBar/Stores/SettingsStore.swift:151` and `:165`, `Sources/ContainerBarCore/API/DockerAPIClientImpl.swift:88`, `Sources/ContainerBarCore/Services/ContainerFetcher.swift:93`.
 - Error descriptions that can embed a host or path: `Sources/ContainerBar/Stores/ContainerStore+HostSwitching.swift:173`, `Sources/ContainerBarCore/Services/ContainerFetcher+HostMemory.swift:53`.
 Owner: builder. Lands before or with CB-108.
@@ -274,7 +273,7 @@ Owner: builder. Lands before or with CB-108.
 
 **Acceptance**: Size **S**, one branch.
 - Given the bootstrapped release build creating an SSH tunnel to `cbqa-tunnel`, when `log show --predicate 'subsystem == "com.tookes.ContainerBar"' --last 5m` is read without a logging profile, then `cbqa-tunnel` appears in clear and the user name, port and both socket paths show as `<private>`.
-- Given a TLS or Unix-socket connection, then no address, home path or DerivedData path appears in clear.
+- Given a TLS or Unix-socket connection, then no address or home path appears in clear.
 - No behaviour change: existing tests pass; the grep above returns no line that interpolates a user, path or port into a public message.
 
 ## Low Priority
@@ -330,12 +329,12 @@ Owner: builder. Lands before or with CB-108.
 
 **Technical tasks**:
 - [ ] Remove the job-level `continue-on-error`.
-- [ ] Add step-level `continue-on-error: true` to the description-state, describe and publish steps; guard each dependent step with `if: steps.<previous>.outcome == 'success'` (describe on description-state, publish on describe).
+- [ ] Add step-level `continue-on-error: true` to the description-state, describe and publish steps; guard each dependent step on the previous step's outcome while keeping the existing should-suggest condition: describe `if: steps.description_state.outcome == 'success' && steps.description_state.outputs.should_suggest == 'true'`, publish `if: steps.describe.outcome == 'success' && steps.description_state.outputs.should_suggest == 'true'`.
 - [ ] `timeout-minutes: 10` on the describe step; raise the job `timeout-minutes` from 15 to 20 with a comment that the job timeout must stay above the step's.
 - [ ] Run `actionlint` on the workflow.
 
 **Acceptance**: Size **S**, one branch.
 - Given an invalid or missing token, or an API error from the Claude call, when the workflow runs on a PR, then the check is green and the PR body is unchanged.
 - Given a Claude call that stalls, then the describe step is cancelled at 10 minutes, publish is skipped, the check is green, and the PR body is unchanged.
-- Given a normal run, then the description is published as before.
+- Given a normal run, then the description is published as before; given a PR that already has an authored description (`should_suggest` false), then describe and publish are skipped as today.
 - `actionlint .github/workflows/claude-pr-description.yml` reports nothing.
