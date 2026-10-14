@@ -122,7 +122,8 @@ struct LogStreamDecoderTests {
         let raw = Self.frame(1, "cbqa-tty\n")
         let framing = LogStreamDecoder.framing(tty: true, contentType: nil, body: raw)
         #expect(framing == .raw)
-        #expect(LogStreamDecoder.decode(raw, framing: framing).text == String(decoding: raw, as: UTF8.self))
+        #expect(LogStreamDecoder.decode(raw, framing: framing).text == LogStreamDecoder.utf8Text(raw))
+        #expect(LogStreamDecoder.decode(raw, framing: framing).text.hasPrefix("\u{1}"))
     }
 
     @Test("Non-TTY container is demultiplexed regardless of content type")
