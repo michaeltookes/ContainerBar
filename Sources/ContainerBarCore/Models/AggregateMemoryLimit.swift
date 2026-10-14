@@ -28,20 +28,17 @@ import Foundation
 ///     never use more memory than the host has).
 ///   Usage is always counted for every container, constrained or not.
 /// - With the host total unknown (`/info` failed or reported 0): the
-///   denominator is the de-duplicated sum of the reported limits. The largest
-///   reported value is presumed to be the host total that unconstrained
-///   containers echo, so it is counted once however many containers report
-///   it; every smaller value is added individually. Zero limits and
-///   "unlimited" sentinels above `maxPlausibleLimit` (1 PiB, e.g.
-///   `UInt64.max`) are excluded; if nothing is left the denominator is 0, so
-///   health reads `.unknown` instead of a false "fine".
-///   This is a degraded path: it can only undercount (never inflate) the
-///   denominator, so the gauge errs toward showing more pressure, not less.
+///   denominator is 0, so the figure is "unknown" (no fraction, health
+///   `.unknown`) until `/info` answers. The reported limits alone cannot say
+///   which value is an echoed host total and which is a real cap (two real
+///   512 MiB caps look the same as two unconstrained containers on a 512 MiB
+///   host), so any guess would either exaggerate usage or suppress the 95 %
+///   warning. Usage is still summed and shown.
 /// - With no stats at all the denominator is 0, which every consumer already
 ///   treats as "no figure" (no division, health `.unknown`).
 ///
 /// Additions saturate at `UInt64.max` so no combination of reported values
-/// can trap on overflow.
+/// (for example a `UInt64.max` "unlimited" sentinel) can trap on overflow.
 public enum AggregateMemoryLimit {
 
     /// Whether `limit` is a real cgroup limit given the host's total memory.
@@ -55,9 +52,8 @@ public enum AggregateMemoryLimit {
     public static func denominator(limits: [UInt64], hostMemoryTotal: UInt64?) -> UInt64 {
         guard !limits.isEmpty else { return 0 }
 
-        guard let host = hostMemoryTotal, host > 0 else {
-            return deduplicatedSum(limits)
-        }
+        // Host total unknown: do not guess (see the type documentation).
+        guard let host = hostMemoryTotal, host > 0 else { return 0 }
 
         let realLimits = limits.filter { isRealLimit($0, hostMemoryTotal: host) }
         if realLimits.count < limits.count {
@@ -66,22 +62,6 @@ public enum AggregateMemoryLimit {
         }
         return min(saturatingSum(realLimits), host)
     }
-
-    /// Fallback when the host total is unknown: count the largest reported
-    /// limit once (presumed host total echoed by unconstrained containers)
-    /// and add every smaller non-zero limit.
-    static func deduplicatedSum(_ limits: [UInt64]) -> UInt64 {
-        let plausible = limits.filter { $0 > 0 && $0 <= maxPlausibleLimit }
-        guard let largest = plausible.max() else { return 0 }
-        let smaller = plausible.filter { $0 < largest }
-        return saturatingSum(smaller + [largest])
-    }
-
-    /// Limits above this (1 PiB) are "unlimited" sentinels such as
-    /// `UInt64.max` or a page-rounded `Int64.max`, never real memory. Only
-    /// the host-unknown fallback needs it; with the host total known, any
-    /// limit at or above it already counts as unconstrained.
-    public static let maxPlausibleLimit: UInt64 = 1 << 50
 
     static func saturatingSum(_ values: [UInt64]) -> UInt64 {
         values.reduce(UInt64(0)) { total, value in
