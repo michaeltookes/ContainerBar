@@ -57,8 +57,7 @@ struct ConnectionErrorMessageTests {
         let cases: [(String, String)] = [
             ("cbqa@qa: Permission denied (publickey).\nmore", "Authentication failed"),
             ("Host key verification failed.", "Host key verification failed"),
-            ("ssh: connect to host qa port 22: Connection refused", "Connection refused"),
-            ("", "")
+            ("ssh: connect to host qa port 22: Connection refused", "Connection refused")
         ]
         for (stderr, expected) in cases {
             let message = userFriendlyConnectionErrorMessage(
@@ -69,6 +68,9 @@ struct ConnectionErrorMessageTests {
             #expect(message.contains(expected))
             #expect(!message.contains("more"))
         }
+
+        let empty = userFriendlyConnectionErrorMessage(for: DockerAPIError.sshConnectionFailed(""), host: sshHost)
+        #expect(empty == "Can't reach QA Runtime over SSH.")
     }
 
     @Test("Unclassified SSH stderr keeps only the first non-empty line")
