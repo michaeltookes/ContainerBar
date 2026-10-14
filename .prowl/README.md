@@ -68,7 +68,14 @@ window. Do not upload screenshots without a dedicated QA login on the runner.
   `hostRow-fixture-docker-f1a7e000-0000-4000-8000-000000000001`),
   `openAddHostSheet`, `addHostSheet`, `cancelAddHost`,
   `host-<name-slug>-<host-uuid>` in the host detail form,
-  `containerCard-<name-slug>` in the dashboard, and `aboutVersion`
+  `containerCard-<name-slug>` in the dashboard, and `aboutVersion`.
+  The QA-hooks identifiers (CB-107, built by `QAAccessibilityID`) are also
+  available: `containerBarStatusItem` on the status item, `connectionStatus`,
+  `logs-panel-container-<name-slug>`, `logsPanelText`, `showStoppedToggle`,
+  `addSectionButton`, `sectionRow-<name-slug>-<section-uuid>`, and the
+  mutating `containerStop-<name-slug>`, `containerStart-<name-slug>`,
+  `checkForUpdates-general`, `checkForUpdates-about`, and
+  `autoCheckUpdatesToggle`, which `config.yml` forbids in hunts
 - `label="…"` — exact accessibility label, **click steps only**. Assertions
   are rewritten to `text=` internally, which `config.yml` forbids, so every
   `assert` must use `id=`. Settings toolbar tabs are native `NSToolbarItem`s,
