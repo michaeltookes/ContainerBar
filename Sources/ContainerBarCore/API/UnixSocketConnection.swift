@@ -96,12 +96,19 @@ final class UnixSocketConnection: @unchecked Sendable {
 
     // ENOENT comes through as a POSIX error from Network.framework when the
     // socket file is missing — mirror the previous implementation's behavior
-    // by surfacing the more specific `socketNotFound` case.
+    // by surfacing the more specific `socketNotFound` case. A socket the user
+    // may not open (EACCES/EPERM) maps to `unauthorized` so the banner says
+    // "access denied" instead of "cannot connect" (CB-077).
     static func mapStartError(_ error: NWError, socketPath: String) -> DockerAPIError {
-        if case .posix(let code) = error, code == .ENOENT {
+        guard case .posix(let code) = error else { return .connectionFailed }
+        switch code {
+        case .ENOENT:
             return .socketNotFound(socketPath)
+        case .EACCES, .EPERM:
+            return .unauthorized
+        default:
+            return .connectionFailed
         }
-        return .connectionFailed
     }
 
     // MARK: - HTTP Operations

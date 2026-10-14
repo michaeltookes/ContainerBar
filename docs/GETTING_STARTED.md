@@ -261,6 +261,7 @@ You can also set a custom global hotkey in Settings to quickly toggle the menu f
 - Ensure Docker Desktop or Podman is running (for local connections)
 - For remote hosts, verify SSH connectivity and that Docker/Podman is running
 - Verify the correct runtime is selected in host configuration
+- If the dashboard says "Docker is not running" or "Podman is not running", start the runtime (or the Podman machine) and press Refresh; ContainerBar reconnects without a relaunch. The message also names the socket path it looked for
 
 **Cannot connect to remote host**
 - Verify SSH keys are set up for passwordless authentication

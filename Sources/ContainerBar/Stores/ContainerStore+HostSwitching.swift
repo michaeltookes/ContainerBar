@@ -127,14 +127,17 @@ extension ContainerStore {
         connectionError = nil
         logger.debug("Refreshing container data (gen \(generation))")
 
-        if fetcher == nil {
-            initializeFetcher()
-        }
+        // Retry building the fetcher on every refresh while it is missing, and
+        // keep the mapped init error (e.g. "Podman is not running") rather
+        // than replacing it with a generic message (CB-077).
+        let initResult: Result<Void, Error> = fetcher == nil ? initializeFetcher() : .success(())
 
         guard isCurrentRefresh(generation) else { return }
 
         guard let fetcher else {
-            connectionError = "Docker connection not configured"
+            if case .failure(let error) = initResult {
+                connectionError = userFriendlyConnectionErrorMessage(for: error, host: settings.selectedHost)
+            }
             isConnected = false
             finishRefresh(generation)
             return
@@ -171,7 +174,7 @@ extension ContainerStore {
         } catch {
             guard isCurrentRefresh(generation) else { return }
             logger.error("Refresh failed: \(error.localizedDescription)")
-            self.connectionError = userFriendlyConnectionErrorMessage(for: error)
+            self.connectionError = userFriendlyConnectionErrorMessage(for: error, host: settings.selectedHost)
             self.isConnected = false
         }
 
