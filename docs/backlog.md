@@ -258,7 +258,7 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 ### CB-113: Split swift-log call sites that mix host, user, path and port before OSLog privacy (CB-108 expansion)
 **Priority**: Medium
 **Description**: Codex review of PR #66, last round. CB-108 plans a bootstrap-only OSLog handler with dynamic values `.private` by default and host aliases and container names `.public`. swift-log hands a handler one already-interpolated string, so a handler cannot apply field-level privacy: a message that mixes a host alias with a user name or socket path is either all public (leaks the user and path) or all private (hides the alias the QA pass needs). Before unified logging is enabled, split those call sites so each message carries one kind of value, or move the sensitive values into swift-log metadata with a privacy key the handler maps to `.private`. Call sites found by `grep -rn "logger\.\(info\|debug\|error\|warning\)" Sources` that interpolate a host, user, path or port (2026-10-14):
-- `Sources/ContainerBarCore/API/SSHTunnelProcessLauncher.swift:29`: `"Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)"` (user, host alias, port, remote socket path in one message).
+- `Sources/ContainerBarCore/API/SSHTunnelProcessLauncher.swift:29`: `"Creating SSH tunnel to \(user)@\(host):\(port) -> \(remoteSocketPath)"` (user, host, port, remote socket path in one message). `host` is the generic `DockerHost.host` field and may hold an IP address or DNS name rather than an `~/.ssh/config` alias, so it stays `.private` by default; only a value the model explicitly classifies as a safe display alias (a separate field, never inferred from `host`) is logged `.public`.
 - `Sources/ContainerBarCore/API/TLSConnection.swift:62`: `"TLS connection established to \(host):\(validatedPort)"` (host may be an address, plus port).
 - `Sources/ContainerBarCore/API/UnixSocketConnection.swift:46`: `"Unix socket connected: \(socketPath)"` (local path, may contain the home directory).
 - `Sources/ContainerBarCore/API/SSHTunnelConnection.swift:237`: `"SSH tunnel established: \(localSocket)"` (local socket path).
@@ -270,9 +270,11 @@ Owner: builder. Lands before or with CB-108.
 - [ ] Decide the mechanism (split messages vs a metadata privacy key such as `Logger.Metadata["privacy"]`, or a small `LogValue.public/.private` wrapper the handler understands) and record it in architecture §9D.
 - [ ] Rework every call site above; re-run the grep (also `notice`/`trace` and multi-line calls) and list any new hit in the PR.
 - [ ] Unit test the handler: a message built with a private user and path plus a public alias renders the alias in clear and the others as `<private>`.
+- [ ] Add an explicitly classified display value for the QA-visible host name (for example a `logAlias` derived from the host entry's user-chosen alias, `.public`), and keep `DockerHost.host` `.private` everywhere; a host configured by IP address or DNS name logs no endpoint in clear.
 
 **Acceptance**: Size **S**, one branch.
 - Given the bootstrapped release build creating an SSH tunnel to `cbqa-tunnel`, when `log show --predicate 'subsystem == "com.tookes.ContainerBar"' --last 5m` is read without a logging profile, then `cbqa-tunnel` appears in clear and the user name, port and both socket paths show as `<private>`.
+- Given an SSH host configured by IP address or DNS name instead of an alias, then that address shows as `<private>` and only the classified display value appears in clear.
 - Given a TLS or Unix-socket connection, then no address or home path appears in clear.
 - No behaviour change: existing tests pass; the grep above returns no line that interpolates a user, path or port into a public message.
 
