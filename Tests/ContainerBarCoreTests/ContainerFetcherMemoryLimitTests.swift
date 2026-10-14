@@ -146,21 +146,23 @@ struct ContainerFetcherMemoryLimitTests {
 
     // MARK: - Failure path
 
-    @Test("/info fails: denominator falls back to the de-duplicated sum, no crash")
-    func infoFailsFallsBack() async throws {
+    @Test("/info fails: denominator is 0 and health unknown, usage still summed, no crash")
+    func infoFailsGivesUnknown() async throws {
         let stats = [
-            try Self.decodedStats(id: "limited", usage: 100 * Self.mib, limitJSON: "\(256 * Self.mib)"),
-            try Self.decodedStats(id: "free1", usage: Self.gib, limitJSON: "\(Self.host)"),
-            try Self.decodedStats(id: "free2", usage: Self.gib, limitJSON: "\(Self.host)")
+            try Self.decodedStats(id: "a", usage: 450 * Self.mib, limitJSON: "\(512 * Self.mib)"),
+            try Self.decodedStats(id: "b", usage: 450 * Self.mib, limitJSON: "\(512 * Self.mib)"),
+            try Self.decodedStats(id: "free", usage: Self.gib, limitJSON: "\(Self.host)")
         ]
         // No system info set: the mock's getSystemInfo throws.
         let metrics = try await Self.snapshot(Self.mock(stats: stats, hostMemory: nil))
 
-        #expect(metrics.totalMemoryLimitBytes == Self.host + 256 * Self.mib)
-        #expect(metrics.totalMemoryLimitMB > 0)
+        #expect(metrics.totalMemoryLimitBytes == 0)
+        #expect(metrics.memoryUsagePercent == 0)
+        #expect(metrics.overallHealth == .unknown)
+        #expect(metrics.totalMemoryUsedBytes == 900 * Self.mib + Self.gib)
     }
 
-    @Test("/info reports MemTotal = 0 and every limit is 0: zero denominator, no division by zero")
+    @Test("/info reports MemTotal = 0: zero denominator, no division by zero")
     func infoZeroAllZeroLimits() async throws {
         let stats = [
             try Self.decodedStats(id: "a", usage: Self.gib, limitJSON: "0"),
