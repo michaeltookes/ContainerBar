@@ -4,9 +4,9 @@
 
 # ContainerBar Project - Master Agent Coordinator
 
-**Version**: 2.1  
+**Version**: 2.2  
 **Project**: ContainerBar - macOS Menu Bar Docker/Podman Monitor  
-**Last Updated**: February 22, 2026
+**Last Updated**: October 14, 2026
 
 ---
 
@@ -21,31 +21,32 @@ ContainerBar is no longer in initial scaffolding. This repo is in active product
 - Architecture is implemented across `ContainerBar` (app) and `ContainerBarCore` (library)
 - Shipping features include local Unix socket + remote SSH tunnel connectivity
 - Sparkle update and release automation scripts are present
-- Current stable release baseline: `2.0.0` (build `3`)
-- `CHANGELOG.md` shows public releases through `2.0.0`
-- Test suite is active via `swift test`
+- Current version and build: read `Distribution/Info.plist` (`CFBundleShortVersionString`, `CFBundleVersion`); release history is in `CHANGELOG.md`
+- Test suite is active via `swift test`; CI also runs SwiftLint and a Prowl end-to-end QA gate
 
 ## Canonical References
 
 Read these first before making decisions:
 
 1. `AGENTS.md` (this file)
-2. `CLAUDE.md` (project snapshot and release metadata)
-3. `.claude/agents/DESIGN_DOCUMENT.md` (architecture and technical intent)
-4. `.claude/agents/PROJECT_ORCHESTRATION.md` (orchestration conventions)
-5. Role-specific files in `.claude/agents/*.md`
+2. `CLAUDE.md` (project snapshot, backlog format, and release metadata)
+3. `docs/backlog.md` and `docs/resolved.md` (open and completed work)
+4. `docs/RELEASING.md` (release runbook)
+5. `.claude/agents/DESIGN_DOCUMENT.md` (architecture and technical intent; written for the original build, so parts are historical)
+6. `.claude/agents/PROJECT_ORCHESTRATION.md` (orchestration conventions; its phase plan is from the original build)
+7. Role-specific files in `.claude/agents/*.md`
 
 ---
 
 ## Backlog Discipline
 
-- Backlog location: `~/Desktop/Backlogs/projects/containerbar-backlog.md`
+- Backlog location: `docs/backlog.md` (open items) and `docs/resolved.md` (completed items). Item and resolved-entry formats are in `CLAUDE.md` under "Backlog Management".
 - Update cadence: update backlog **before** starting and **after** completing every feature or bug fix.
 - Required backlog updates:
   - Add missing work items under the right priority tier.
   - Add newly discovered findings, risks, unknowns, and recommended next actions.
-  - Move completed items to `## Completed` with `(completed: YYYY-MM-DD)`.
-- Use the reusable skill `backlog-and-agent-governance` when backlog or AGENTS governance updates are part of the task.
+  - Move completed items to the top of `docs/resolved.md` as `## ~~CB-NNN: Title~~` with `**Resolved**: YYYY-MM-DD (branch <name>)`.
+- `CB-NNN` ids are stable: never reuse or renumber them.
 
 ---
 
@@ -79,11 +80,13 @@ Read these first before making decisions:
 
 - `Sources/ContainerBar/` - app UI, controllers, stores, services
 - `Sources/ContainerBarCore/` - models, API, services, strategies
-- `Tests/ContainerBarTests/` - app-level tests
-- `Tests/ContainerBarCoreTests/` - core/business logic tests
+- `Tests/ContainerBarTests/` - app-level tests (Swift Testing)
+- `Tests/ContainerBarCoreTests/` - core/business logic tests (Swift Testing)
 - `Distribution/` - Info.plist, entitlements, app assets
-- `scripts/` - build/notarize/DMG/appcast/validation automation
-- `docs/` - user docs + appcast output
+- `scripts/` - build/notarize/DMG/appcast/validation automation, Prowl hunt build (`build-hunt-app.sh`), clean-machine smoke launch (`smoke-launch-mini.sh`)
+- `docs/` - user guide, release runbook, backlog (`backlog.md`, `resolved.md`), images, appcast output
+- `.prowl/` - Prowl end-to-end hunts against a hunt-mode Debug build (see `.prowl/README.md`)
+- `.github/workflows/` - Swift CI (build, test, SwiftLint), Prowl QA, Claude review workflows
 - `.claude/agents/` - agent role docs and communications
 
 ---
@@ -158,38 +161,15 @@ If needed for a task, create additional logs in this folder (for example `securi
 
 ## Current Capability Notes
 
-- Implemented: local Unix socket + SSH tunnel support
+- Implemented: local Unix socket, SSH tunnel, and direct TCP+TLS connections
 - Implemented: dashboard UI, container actions, logs viewer, host management
 - Implemented: release scripts, notarization script, appcast generation scripts
-- Not fully implemented: direct TCP+TLS client path is still a planned capability
 
 ---
 
-## Release Configuration (from CLAUDE.md)
+## Release Configuration
 
-- Release branch: `main`
-- Version source: `Distribution/Info.plist`
-- Version keys:
-  - `CFBundleShortVersionString`
-  - `CFBundleVersion`
-- Changelog file: `CHANGELOG.md`
-- Build script: `./scripts/build-release.sh`
-- Notarize script: `./scripts/notarize.sh`
-- Artifacts:
-  - `dist/ContainerBar.zip`
-  - `dist/ContainerBar.dmg`
-- Tag format: `v{VERSION}`
-- GitHub repo: `michaeltookes/ContainerBar`
-- Appcast script: `./scripts/generate-appcast.sh {VERSION}`
-- Appcast URL: `https://michaeltookes.github.io/ContainerBar/appcast.xml`
-- Appcast file: `docs/appcast.xml`
-- Validation script: `./scripts/validate-release.py`
-
-### Current Release Baseline
-
-- Latest released version: `2.0.0`
-- Release date: `2025-02-11`
-- Current bundle build number: `3`
+The release configuration (version file, scripts, artifacts, tag format, appcast, Homebrew cask, `gh` account) lives in the "Release Configuration" table in `CLAUDE.md`, and the step-by-step process in `docs/RELEASING.md`. The current version is whatever `Distribution/Info.plist` says; dates for each release are in `CHANGELOG.md`.
 
 ---
 
