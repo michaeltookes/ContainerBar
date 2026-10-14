@@ -134,6 +134,16 @@ struct ContainerFetcherMemoryLimitTests {
         #expect(metrics.totalMemoryLimitBytes == 768 * Self.mib)
     }
 
+    @Test("Two containers capped at 512 MiB give a 1 GiB denominator, not the host")
+    func twoCappedContainers() async throws {
+        let stats = [
+            try Self.decodedStats(id: "a", usage: 100 * Self.mib, limitJSON: "\(512 * Self.mib)"),
+            try Self.decodedStats(id: "b", usage: 100 * Self.mib, limitJSON: "\(512 * Self.mib)")
+        ]
+        let metrics = try await Self.snapshot(Self.mock(stats: stats, hostMemory: Self.host))
+        #expect(metrics.totalMemoryLimitBytes == Self.gib)
+    }
+
     // MARK: - Failure path
 
     @Test("/info fails: denominator falls back to the de-duplicated sum, no crash")
