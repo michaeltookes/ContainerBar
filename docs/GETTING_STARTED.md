@@ -81,6 +81,8 @@ To monitor containers on a remote server:
    - **Host**: The IP address or hostname (e.g., `192.168.1.100` or `myserver.local`)
    - **SSH User**: The SSH username (defaults to `root`)
 
+   An alias from your `~/.ssh/config` also works as the host. Neither the host nor the user may be empty, start with `-`, or contain spaces or control characters; ContainerBar refuses to save or connect to such a value, because `ssh` could read it as a command-line option.
+
 ![Add Remote Host](images/add-remote-host.png)
 
 5. Click **Add** to save the host

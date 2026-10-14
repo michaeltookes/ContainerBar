@@ -1,8 +1,6 @@
 import Foundation
 
 extension DockerAPIClientImpl {
-    private static let maxLogFrameSize = 10 * 1024 * 1024
-
     func validateResponse(_ response: HTTPResponse, allowedCodes: Set<Int> = [200]) throws {
         guard allowedCodes.contains(response.statusCode) else {
             logger.error("HTTP error: \(response.statusCode)")
@@ -26,35 +24,42 @@ extension DockerAPIClientImpl {
     }
 
     func parseMultiplexedLogs(_ data: Data) -> String {
-        var result = ""
-        var offset = 0
+        decodeLogs(data, framing: .multiplexed)
+    }
 
-        while offset + 8 <= data.count {
-            let rawSize = (offset + 4..<(offset + 8)).reduce(UInt32(0)) { partial, index in
-                (partial << 8) | UInt32(data[index])
-            }
-            offset += 8
-
-            guard rawSize > 0,
-                  rawSize <= UInt32(Self.maxLogFrameSize),
-                  let frameSize = Int(exactly: rawSize),
-                  offset + frameSize <= data.count else {
-                break
-            }
-
-            let payload = data.subdata(in: offset..<(offset + frameSize))
-            if let text = String(data: payload, encoding: .utf8) {
-                result += text
-            }
-
-            offset += frameSize
+    func decodeLogs(_ data: Data, framing: LogStreamFraming) -> String {
+        let result = LogStreamDecoder.decode(data, framing: framing)
+        if result.truncated {
+            logger.debug("Log stream ended inside a frame; returning the complete frames only")
         }
+        return result.text
+    }
 
-        return result
+    /// The container's `Config.Tty`, or nil when the inspect call fails.
+    func containerUsesTTY(id: String) async -> Bool? {
+        do {
+            let response = try await performRequest(HTTPRequest(path: "/\(apiVersion)/containers/\(id)/json"))
+            try validateResponse(response)
+            return try JSONDecoder().decode(ContainerTTYInspect.self, from: response.body).config?.tty
+        } catch {
+            logger.debug("Could not read TTY mode for container \(id): \(error)")
+            return nil
+        }
     }
 
     public static func local() throws -> DockerAPIClientImpl {
         let host = DockerHost.local
         return try DockerAPIClientImpl(host: host)
     }
+}
+
+/// The slice of `GET /containers/{id}/json` that decides log framing.
+private struct ContainerTTYInspect: Decodable {
+    let config: ContainerTTYConfig?
+    enum CodingKeys: String, CodingKey { case config = "Config" }
+}
+
+private struct ContainerTTYConfig: Decodable {
+    let tty: Bool?
+    enum CodingKeys: String, CodingKey { case tty = "Tty" }
 }
