@@ -31,14 +31,17 @@ import Foundation
 ///   denominator is the de-duplicated sum of the reported limits. The largest
 ///   reported value is presumed to be the host total that unconstrained
 ///   containers echo, so it is counted once however many containers report
-///   it; every smaller value is added individually. Zero limits add nothing.
+///   it; every smaller value is added individually. Zero limits and
+///   "unlimited" sentinels above `maxPlausibleLimit` (1 PiB, e.g.
+///   `UInt64.max`) are excluded; if nothing is left the denominator is 0, so
+///   health reads `.unknown` instead of a false "fine".
 ///   This is a degraded path: it can only undercount (never inflate) the
 ///   denominator, so the gauge errs toward showing more pressure, not less.
 /// - With no stats at all the denominator is 0, which every consumer already
 ///   treats as "no figure" (no division, health `.unknown`).
 ///
-/// Additions saturate at `UInt64.max` so a runtime that reports a sentinel
-/// such as `UInt64.max` for "unlimited" cannot trap on overflow.
+/// Additions saturate at `UInt64.max` so no combination of reported values
+/// can trap on overflow.
 public enum AggregateMemoryLimit {
 
     /// Whether `limit` is a real cgroup limit given the host's total memory.
@@ -68,10 +71,17 @@ public enum AggregateMemoryLimit {
     /// limit once (presumed host total echoed by unconstrained containers)
     /// and add every smaller non-zero limit.
     static func deduplicatedSum(_ limits: [UInt64]) -> UInt64 {
-        guard let largest = limits.max(), largest > 0 else { return 0 }
-        let smaller = limits.filter { $0 > 0 && $0 < largest }
+        let plausible = limits.filter { $0 > 0 && $0 <= maxPlausibleLimit }
+        guard let largest = plausible.max() else { return 0 }
+        let smaller = plausible.filter { $0 < largest }
         return saturatingSum(smaller + [largest])
     }
+
+    /// Limits above this (1 PiB) are "unlimited" sentinels such as
+    /// `UInt64.max` or a page-rounded `Int64.max`, never real memory. Only
+    /// the host-unknown fallback needs it; with the host total known, any
+    /// limit at or above it already counts as unconstrained.
+    public static let maxPlausibleLimit: UInt64 = 1 << 50
 
     static func saturatingSum(_ values: [UInt64]) -> UInt64 {
         values.reduce(UInt64(0)) { total, value in
