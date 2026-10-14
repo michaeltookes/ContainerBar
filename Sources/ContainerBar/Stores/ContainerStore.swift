@@ -189,14 +189,23 @@ public final class ContainerStore {
 
     // MARK: - Fetcher Initialization
 
-    func initializeFetcher() {
+    /// Build the fetcher for the selected host. On failure the fetcher stays
+    /// `nil`, `connectionError` carries the mapped, runtime-aware message, and
+    /// the error is returned so `refresh()` and container actions can surface
+    /// it instead of a generic "not configured" (CB-077). Both retry this
+    /// whenever the fetcher is `nil`, so starting the runtime and pressing
+    /// Refresh recovers without relaunching.
+    @discardableResult
+    func initializeFetcher() -> Result<Void, Error> {
+        let host = settings.selectedHost
         do {
-            let host = settings.selectedHost
             fetcher = try fetcherFactory(host)
             logger.info("Fetcher initialized for host: \(host?.name ?? "Local Docker")")
+            return .success(())
         } catch {
             logger.error("Failed to initialize fetcher: \(error.localizedDescription)")
-            connectionError = error.localizedDescription
+            connectionError = userFriendlyConnectionErrorMessage(for: error, host: host)
+            return .failure(error)
         }
     }
 

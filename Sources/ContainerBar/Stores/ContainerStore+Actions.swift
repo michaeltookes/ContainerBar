@@ -18,13 +18,17 @@ extension ContainerStore {
 
         logger.info("\(progressive) container: \(id)")
 
-        guard let fetcher else {
-            logger.error("No fetcher available")
-            lastActionError = ActionError(
-                message: "Unable to \(infinitive) container: Docker connection is not configured"
-            )
+        // The runtime may have started since the last refresh: build the
+        // fetcher now rather than failing until the next refresh, and report
+        // the mapped init error when it still cannot be built (CB-077).
+        if fetcher == nil, case .failure(let error) = initializeFetcher() {
+            logger.error("No fetcher available: \(error.localizedDescription)")
+            let reason = userFriendlyConnectionErrorMessage(for: error, host: settings.selectedHost)
+            lastActionError = ActionError(message: "Unable to \(infinitive) container: \(reason)")
             return
         }
+
+        guard let fetcher else { return }
 
         do {
             try await action(fetcher)
