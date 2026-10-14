@@ -249,12 +249,13 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 **Technical tasks**:
 - [ ] Architecture §7 step 0: after the script-based recovery succeeds and a marker was found, always quit and relaunch ContainerBar before writing the new marker, whether or not the preferences drifted; record `windows-normalised` in the run notes.
 - [ ] CB-105 restore checklist and the `CONTAINERBAR_QA.md` recipe: the same step, with the quit going through the app's menu or osascript, never a signal.
-- [ ] If the quit is refused (a modal sheet blocks it), close the Sparkle dialog or Settings window by its accessibility identifier first; if that fails, end BLOCKED `restore-failed` and keep the marker.
+- [ ] Marker lifetime: when step 0 runs the script as recovery, it passes a flag (for example `--keep-marker`) so the script does not delete the marker; step 0 deletes the old marker only after the quit and relaunch succeed. If the quit is refused (a modal sheet blocks it), close the Sparkle dialog or Settings window by its accessibility identifier first; if that fails, end BLOCKED `restore-failed` with the old marker still in place for the hourly backstop and the next pass.
 
 **Acceptance**: Size **S**, brief only.
 - Given a marker left by an aborted run with the Settings window open and the preferences at baseline, when the next pass's step 0 runs, then before the first case no Settings window exists (accessibility tree check, screenshot of the menu bar region) and ContainerBar has a new PID.
 - Given a marker left with a Sparkle "check for updates" dialog open (TC-CB-14 aborted), then the same holds and no Sparkle window exists.
 - Given no marker, then step 0 does not quit or relaunch the app.
+- Failure path: given a marker and an app that refuses to quit, then the run ends BLOCKED `restore-failed` and the old marker still exists afterwards.
 
 ### CB-113: Split swift-log call sites that mix host, user, path and port before OSLog privacy (CB-108 expansion)
 **Priority**: Medium
@@ -271,12 +272,13 @@ Owner: builder. Lands before or with CB-108.
 - [ ] Decide the mechanism (split messages vs a metadata privacy key such as `Logger.Metadata["privacy"]`, or a small `LogValue.public/.private` wrapper the handler understands) and record it in architecture §9D.
 - [ ] Rework every call site above; re-run the grep (also `notice`/`trace` and multi-line calls) and list any new hit in the PR.
 - [ ] Unit test for the chosen mechanism: with a field-aware wrapper or metadata, one record carrying a trusted host name plus a user and path renders the name in clear and the others as `<private>`; with split messages, the record carrying the trusted name renders it in clear and each record carrying a user, path, port or untrusted host renders that value as `<private>`.
-- [ ] Keep every user-supplied value private, including display names (a user may enter an IP address or DNS name as the name). Add an explicit trusted designation, off by default (for example a `logNamePublicly` flag on the host entry, settable only through `defaults` or the QA setup, not inferred from the value), and log a host's name `.public` only when it is set; the QA setup run (TC-CB-05) sets it on `QA Runtime` and `QA Runtime (socket)`.
+- [ ] Keep every user-supplied value private, including display names (a user may enter an IP address or DNS name as the name). Add an explicit trusted designation, off by default (for example a `logNamePublicly` flag on the host entry, settable only through `defaults` or the QA setup, not inferred from the value), and log a host's name `.public` only when it is set; the QA setup run (TC-CB-05) sets it on `QA Runtime` and `QA Runtime (socket)`. Decode the new key with `decodeIfPresent(...) ?? false` (or an equivalent migration): `SettingsStore.loadHosts()` decodes the whole array with `try?`, so a required key would make every host saved by an older release disappear on upgrade.
 
 **Acceptance**: Size **S**, one branch.
 - Given the bootstrapped release build creating an SSH tunnel to `cbqa-tunnel`, when `log show --predicate 'subsystem == "com.tookes.ContainerBar"' --last 5m` is read without a logging profile, then the trusted QA host's name appears in clear and the user name, port and both socket paths show as `<private>`.
 - Given an SSH host configured by IP address or DNS name instead of an alias, then that address shows as `<private>`; given a host without the trusted designation whose display name is an IP address or DNS name, then the name shows as `<private>` too.
 - Given a TLS or Unix-socket connection, then no address or home path appears in clear.
+- Upgrade: a legacy hosts JSON without the new key decodes with every host intact and the designation false (unit test).
 - No behaviour change: existing tests pass; the grep above returns no line that interpolates a user, path or port into a public message.
 
 ## Low Priority
