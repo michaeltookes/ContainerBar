@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aggregate memory against the host's total memory when any container has no
   memory limit, instead of adding the host's memory once per container (three
   unlimited containers on a 16 GB machine no longer show "/ 48 GB")
+- Container logs no longer show stray control characters before each line:
+  stdout and stderr are always separated from Docker's stream framing, log
+  lines after an empty frame are no longer dropped, TTY containers' output is
+  shown unchanged, and daemon-side log errors appear as a `[docker error]` line
 - Hosts running more than 10 containers now show CPU and memory for every
   running container instead of only the first ten, and the menu-bar aggregate
   CPU/memory percentage reflects all of them
