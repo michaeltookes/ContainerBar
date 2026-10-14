@@ -26,16 +26,31 @@ enum PortPresentation {
     /// `::`, missing) are one binding, so a dual-stack pair yields one row;
     /// explicit addresses and different protocols stay separate rows.
     static func rows(for ports: [PortMapping]) -> [Row] {
-        var seen = Set<String>()
+        var indexById: [String: Int] = [:]
         var rows: [Row] = []
         for port in ports {
             let addressKey = isWildcard(port.ip) ? "*" : (port.ip ?? "*")
             let publicKey = port.publicPort.map(String.init) ?? "-"
             let id = "\(addressKey)-\(publicKey)-\(port.privatePort)/\(port.type)"
-            guard seen.insert(id).inserted else { continue }
+            let address = port.publicPort == nil ? nil : displayAddress(port.ip)
+            if let index = indexById[id] {
+                // A collapsed dual-stack pair shows the IPv4 wildcard when one
+                // is present, whatever order the runtime listed them in.
+                if rows[index].hostAddress == "[::]", address == "0.0.0.0" {
+                    rows[index] = Row(
+                        id: id,
+                        hostAddress: address,
+                        publicPort: port.publicPort,
+                        privatePort: port.privatePort,
+                        type: port.type
+                    )
+                }
+                continue
+            }
+            indexById[id] = rows.count
             rows.append(Row(
                 id: id,
-                hostAddress: port.publicPort == nil ? nil : displayAddress(port.ip),
+                hostAddress: address,
                 publicPort: port.publicPort,
                 privatePort: port.privatePort,
                 type: port.type
@@ -69,11 +84,11 @@ enum PortPresentation {
         return ip == "0.0.0.0" || ip == "::"
     }
 
-    /// Wildcards display as `0.0.0.0` (the pre-CB-079 default); other IPv6
-    /// addresses are bracketed so `addr:port` stays readable.
+    /// The reported binding address, IPv6 bracketed so `addr:port` stays
+    /// readable (`::` shows as `[::]`). A missing address shows `0.0.0.0`,
+    /// the pre-CB-079 default.
     static func displayAddress(_ ip: String?) -> String {
-        if isWildcard(ip) { return "0.0.0.0" }
-        guard let ip else { return "0.0.0.0" }
+        guard let ip, !ip.isEmpty else { return "0.0.0.0" }
         return ip.contains(":") ? "[\(ip)]" : ip
     }
 }

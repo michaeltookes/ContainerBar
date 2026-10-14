@@ -32,6 +32,24 @@ struct PortPresentationTests {
         #expect(v4First.map(\.id) == ["*-8080-80/tcp"])
         #expect(v6First.map(\.id) == v4First.map(\.id))
         #expect(again == v4First)
+        #expect(v4First.map(\.hostAddress) == ["0.0.0.0"])
+        #expect(v6First.map(\.hostAddress) == ["0.0.0.0"])
+    }
+
+    @Test("IPv6-only wildcard binding keeps its reported address")
+    func ipv6OnlyWildcard() {
+        let rows = PortPresentation.rows(for: [port(8080, 80, ip: "::")])
+
+        #expect(rows.count == 1)
+        #expect(rows[0].id == "*-8080-80/tcp")
+        #expect(rows[0].hostAddress == "[::]")
+        #expect(PortPresentation.cardLabel(for: [port(8080, 80, ip: "::")]) == ":8080")
+    }
+
+    @Test("Missing address still displays the IPv4 wildcard")
+    func missingAddressDisplay() {
+        let rows = PortPresentation.rows(for: [port(8080, 80, ip: nil), port(8080, 80, ip: "::")])
+        #expect(rows.map(\.hostAddress) == ["0.0.0.0"])
     }
 
     @Test("tcp and udp on one port: one pill, two rows with distinct ids")
