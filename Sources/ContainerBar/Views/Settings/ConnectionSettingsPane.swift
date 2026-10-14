@@ -9,8 +9,7 @@ struct ConnectionSettingsPane: View {
 
     @State private var selectedHostId: UUID?
     @State private var isAddingHost = false
-    @State private var isTestingConnection = false
-    @State private var testResult: ConnectionTestResult?
+    @State private var connectionTests = ConnectionTestTracker()
 
     init(fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory) {
         self.fetcherFactory = fetcherFactory
@@ -78,8 +77,8 @@ struct ConnectionSettingsPane: View {
             HostDetailsView(
                 host: host,
                 isSelected: settings.selectedHostId == host.id,
-                isTestingConnection: isTestingConnection,
-                testResult: testResult,
+                isTestingConnection: connectionTests.isTesting(host.id),
+                testResult: connectionTests.result(for: host.id),
                 onSetDefault: { setDefaultHost(host) },
                 onTestConnection: { testConnection(host) },
                 onUpdate: { updateHost($0) }
@@ -104,6 +103,7 @@ struct ConnectionSettingsPane: View {
     private func removeSelectedHost() {
         guard let hostId = selectedHostId else { return }
         settings.removeHost(id: hostId)
+        connectionTests.invalidate(hostId: hostId)
         selectedHostId = settings.hosts.first?.id
     }
 
@@ -114,24 +114,27 @@ struct ConnectionSettingsPane: View {
     }
 
     private func testConnection(_ host: DockerHost) {
-        isTestingConnection = true
-        testResult = nil
+        // The result is recorded against the host the test ran for, and only
+        // if this run is still that host's current one (CB-080).
+        let token = connectionTests.begin(hostId: host.id)
 
         Task { @MainActor in
+            let result: ConnectionTestResult
             do {
                 let fetcher = try fetcherFactory(host)
                 try await fetcher.testConnection()
-                testResult = .success
-                isTestingConnection = false
+                result = .success
             } catch {
-                testResult = .failure(error.localizedDescription)
-                isTestingConnection = false
+                result = .failure(error.localizedDescription)
             }
+            connectionTests.finish(hostId: host.id, token: token, result: result)
         }
     }
 
     private func updateHost(_ host: DockerHost) {
         settings.updateHost(host)
+        // An edited host's old result no longer describes it (CB-080).
+        connectionTests.invalidate(hostId: host.id)
     }
 }
 
