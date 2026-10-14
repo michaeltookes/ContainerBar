@@ -77,6 +77,7 @@ struct AboutPane: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.regular)
+            .accessibilityIdentifier(QAAccessibilityID.checkForUpdatesAbout)
 
             Spacer()
                 .frame(minHeight: 20)

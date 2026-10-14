@@ -13,6 +13,13 @@ struct ConnectionStatusPresentation: Equatable {
     let title: String
     let detail: String?
 
+    /// One spoken/automation string for the status element: the title (which names
+    /// the host) followed by the error detail when there is one.
+    var accessibilityLabel: String {
+        guard let detail, !detail.isEmpty else { return title }
+        return "\(title). \(detail)"
+    }
+
     var indicatorColor: Color {
         switch state {
         case .connecting:

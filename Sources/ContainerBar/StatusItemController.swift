@@ -99,6 +99,7 @@ final class StatusItemController: NSObject {
         // Set accessibility
         button.toolTip = "ContainerBar - Docker Container Monitor"
         button.setAccessibilityLabel("ContainerBar")
+        button.setAccessibilityIdentifier(QAAccessibilityID.statusItem)
         button.setAccessibilityHelp("Click to view Docker containers")
     }
 
