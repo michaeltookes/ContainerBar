@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- A remote host's SSH user or host name can no longer be read by `ssh` as a
+  command-line option. A value such as `-oProxyCommand=…` could previously run
+  a local command when connecting; ContainerBar now passes the user with `-l`,
+  ends option parsing before the host, refuses such values in the Add Host
+  forms with an inline message, and refuses to connect to a saved host that
+  holds one
+
 ### Changed
 - Release validation now checks the uploaded GitHub ZIP and DMG, deployed Sparkle
   appcast, and published Homebrew cask metadata instead of trusting local
