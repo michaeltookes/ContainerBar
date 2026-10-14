@@ -28,9 +28,10 @@ struct MockDockerAPIClientConcurrencyTests {
         let result = try await fetcher.fetch(includeStats: true, all: true)
 
         #expect(result.stats.count == runningCount)
-        // 1 listContainers + one getContainerStats per running container.
-        #expect(mock.callCount == runningCount + 1)
-        #expect(mock.lastCalledMethod == "getContainerStats")
+        // 1 listContainers + one getContainerStats per running container +
+        // 1 getSystemInfo for the aggregate memory denominator (CB-069).
+        #expect(mock.callCount == runningCount + 2)
+        #expect(mock.statsCallCount == runningCount)
     }
 
     @Test("Stats fetch bounds concurrency while covering all running containers")

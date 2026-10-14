@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- The dashboard RAM tile, menu-bar memory gauge, and memory warning now measure
+  aggregate memory against the host's total memory when any container has no
+  memory limit, instead of adding the host's memory once per container (three
+  unlimited containers on a 16 GB machine no longer show "/ 48 GB")
 - Container logs no longer show stray control characters before each line:
   stdout and stderr are always separated from Docker's stream framing, log
   lines after an empty frame are no longer dropped, TTY containers' output is
