@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hosts running more than 10 containers now show CPU and memory for every
   running container instead of only the first ten, and the menu-bar aggregate
   CPU/memory percentage reflects all of them
+- Settings > Connection now shows a connection-test result only under the host
+  it was run against, instead of carrying it over to whichever host is selected
 - Remote SSH Docker hosts now stay responsive over long sessions and reconnect
   cleanly: the tunnel no longer stalls when the remote daemon is unreachable,
   and a dropped tunnel recovers on the next refresh instead of surfacing a
