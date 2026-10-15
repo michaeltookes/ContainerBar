@@ -8,6 +8,8 @@ struct DashboardMenuView: View {
 
     let onAction: (ContainerAction) -> Void
     let onSettings: () -> Void
+    /// Opens Settings > Connections with the Add Host sheet (CB-078).
+    var onAddRemoteHost: (() -> Void)?
     var onQuit: (() -> Void)? = nil
     /// Fires once SwiftUI has run the body and the view appears in the
     /// hierarchy. The host uses this to gate menu-open state mutations
@@ -157,6 +159,9 @@ struct DashboardMenuView: View {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isHostPanelOpen = false
                         }
+                    },
+                    onAddHost: {
+                        onAddRemoteHost?()
                     },
                     onClose: {
                         withAnimation(.easeInOut(duration: 0.2)) {
