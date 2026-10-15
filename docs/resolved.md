@@ -168,7 +168,7 @@ Extracted the routing switch into `ContainerActionRouter` (`@MainActor`, headles
 
 ## ~~CB-013: Remove or consolidate duplicate add-host dialogs~~
 **Resolved**: 2026-05-03
-The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of the routing-coverage cleanup. `HostPanelView.addHostForm` is now the only add-host path.
+The `NSAlert`-based `StatusItemController.addHost()` flow was deleted as part of the routing-coverage cleanup. `HostPanelView.addHostForm` is now the only add-host path. (Superseded 2026-10-14 by CB-078: the dashboard form is gone and `AddHostSheet` in Settings > Connections is the only add-host path; the dashboard's Add Remote Host opens it.)
 
 ## ~~Implement TCP+TLS connection support~~
 **Resolved**: 2026-02-18
