@@ -25,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Add Remote Host** in the dashboard's Hosts panel now opens Settings on
   Connections with the Add Host sheet showing, instead of a separate inline
-  form. The old form had no runtime picker or socket path, so every host added
-  from the dashboard was saved as Docker and a Podman host could not connect;
+  form; the saved host becomes the active host, as before. The old form had
+  no runtime picker or socket path, so every host added from the dashboard
+  was saved as Docker and a Podman host could not connect;
   closing the panel also threw away what had been typed. An open Settings
   window is brought to the front on Connections rather than opened twice
 - When the local Docker or Podman socket is missing, the dashboard now says
