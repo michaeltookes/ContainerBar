@@ -71,21 +71,45 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
     private var settingsStore: SettingsStore?
     private var containerStore: ContainerStore?
     private var fetcherFactory: ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
+    /// One-shot requests to the hosted panes, such as presenting the Add Host
+    /// sheet (CB-078). Lives as long as the controller so a request set before
+    /// the window exists is still there when the pane first appears.
+    private let navigation = SettingsNavigation()
 
     private override init() {
         super.init()
     }
 
+    /// Shows the settings window, creating it only if none is open.
+    ///
+    /// With a `route`, the window switches to the route's tab (an open window
+    /// is reused and brought to the front, never duplicated) and, for
+    /// `.connections(addHost: true)`, the Connections pane presents the Add
+    /// Host sheet. Without one, the window keeps whichever tab it last showed.
     func showSettings(
         settings: SettingsStore,
         containerStore: ContainerStore,
-        fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory
+        fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory,
+        route: SettingsRoute? = nil
     ) {
         self.settingsStore = settings
         self.containerStore = containerStore
         self.fetcherFactory = fetcherFactory
 
+        if let route {
+            // Set the request before the pane is swapped in so its onAppear
+            // (new or switched pane) or onChange (pane already showing) sees it.
+            if route.presentsAddHost {
+                navigation.requestAddHost()
+            }
+            selectedTab = route.tab
+        }
+
         if let existingWindow = window {
+            if route != nil {
+                existingWindow.toolbar?.selectedItemIdentifier = selectedTab.toolbarItemIdentifier
+                updateContent(for: selectedTab)
+            }
             existingWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -98,7 +122,7 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
             backing: .buffered,
             defer: false
         )
-        window.title = "General"
+        window.title = selectedTab.rawValue
         window.delegate = self
         // Stable handle for UI automation; the title changes per tab.
         window.setAccessibilityIdentifier("settingsWindow")
@@ -138,6 +162,7 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
         )
             .environment(settings)
             .environment(containerStore)
+            .environment(navigation)
 
         if let hostingController = hostingController {
             hostingController.rootView = AnyView(contentView)

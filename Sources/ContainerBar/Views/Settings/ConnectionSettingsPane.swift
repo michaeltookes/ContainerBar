@@ -4,6 +4,9 @@ import ContainerBarCore
 /// Connection settings pane for managing Docker hosts
 struct ConnectionSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
+    /// Optional so the pane still renders where no settings window hosts it
+    /// (previews, view tests); the controller always injects one (CB-078).
+    @Environment(SettingsNavigation.self) private var navigation: SettingsNavigation?
 
     private let fetcherFactory: ContainerStore.FetcherFactory
 
@@ -28,6 +31,18 @@ struct ConnectionSettingsPane: View {
         .padding()
         .sheet(isPresented: $isAddingHost) {
             AddHostSheet(onSave: addHost)
+        }
+        // The dashboard's Add Remote Host routes here (CB-078): consume the
+        // request when the pane appears, or when it arrives while showing.
+        .onAppear(perform: presentRequestedAddHost)
+        .onChange(of: navigation?.pendingAddHost ?? false) { _, pending in
+            if pending { presentRequestedAddHost() }
+        }
+    }
+
+    private func presentRequestedAddHost() {
+        if navigation?.consumeAddHostRequest() == true {
+            isAddingHost = true
         }
     }
 
