@@ -99,8 +99,8 @@ final class SettingsWindowController: NSObject, NSToolbarDelegate, NSWindowDeleg
         if let route {
             // Set the request before the pane is swapped in so its onAppear
             // (new or switched pane) or onChange (pane already showing) sees it.
-            if route.presentsAddHost {
-                navigation.requestAddHost()
+            if let request = route.addHostRequest {
+                navigation.requestAddHost(request)
             }
             selectedTab = route.tab
         }

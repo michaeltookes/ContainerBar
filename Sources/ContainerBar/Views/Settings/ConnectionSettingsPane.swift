@@ -12,6 +12,9 @@ struct ConnectionSettingsPane: View {
 
     @State private var selectedHostId: UUID?
     @State private var isAddingHost = false
+    /// True while the sheet was opened by a route that activates the saved
+    /// host (the dashboard's Add Remote Host, CB-078); false for the + button.
+    @State private var activateAddedHost = false
     @State private var connectionTests = ConnectionTestTracker()
 
     init(fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory) {
@@ -35,13 +38,14 @@ struct ConnectionSettingsPane: View {
         // The dashboard's Add Remote Host routes here (CB-078): consume the
         // request when the pane appears, or when it arrives while showing.
         .onAppear(perform: presentRequestedAddHost)
-        .onChange(of: navigation?.pendingAddHost ?? false) { _, pending in
-            if pending { presentRequestedAddHost() }
+        .onChange(of: navigation?.pendingAddHost) { _, pending in
+            if pending != nil { presentRequestedAddHost() }
         }
     }
 
     private func presentRequestedAddHost() {
-        if navigation?.consumeAddHostRequest() == true {
+        if let request = navigation?.consumeAddHostRequest() {
+            activateAddedHost = request.activateOnSave
             isAddingHost = true
         }
     }
@@ -61,7 +65,10 @@ struct ConnectionSettingsPane: View {
 
             // Add/Remove buttons
             HStack(spacing: 4) {
-                Button(action: { isAddingHost = true }) {
+                Button(action: {
+                    activateAddedHost = false
+                    isAddingHost = true
+                }) {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
@@ -111,7 +118,8 @@ struct ConnectionSettingsPane: View {
     // MARK: - Actions
 
     private func addHost(_ host: DockerHost) {
-        settings.addHost(host)
+        Self.saveAddedHost(host, in: settings, activate: activateAddedHost)
+        activateAddedHost = false
         selectedHostId = host.id
     }
 
