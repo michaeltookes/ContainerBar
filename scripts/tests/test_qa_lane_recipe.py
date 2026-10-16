@@ -126,6 +126,17 @@ class RecipeTests(unittest.TestCase):
                 "ssh: connect to host <address> port 22: No route to host",
             "Could not reach [2001:db8::5]:22": "Could not reach <address>:22",
             "No such file /Users/qa/qa/containerbar/podman.sock": "No such file <socket>",
+            # Round 3: DNS names, key files and home paths.
+            "ssh: connect to host qa-box.lan port 22: Operation timed out":
+                "ssh: connect to host <host> port 22: Operation timed out",
+            "ssh: Could not resolve hostname qa-box.lan: nodename nor servname provided, or not known":
+                "ssh: Could not resolve hostname <host>: nodename nor servname provided, or not known",
+            'Load key "/Users/qa/.ssh/cbqa_tunnel_ed25519": invalid format':
+                'Load key "<keyfile>": invalid format',
+            "Warning: Identity file /Users/qa/.ssh/cbqa_tunnel_ed25519 not accessible: No such file or directory.":
+                "Warning: Identity file <path> not accessible: No such file or directory.",
+            "Permission denied reading /home/cbqa-fwd/.ssh/config": "Permission denied reading <path>",
+            "no such identity: ~/.ssh/cbqa_ctl_ed25519": "no such identity: <path>",
         }
         for raw, want in samples.items():
             script = re.sub(r"ERR='[^']*'", "ERR=%s" % shlex_quote(raw), block)
@@ -134,11 +145,44 @@ class RecipeTests(unittest.TestCase):
 
     def test_unexpected_blocked_case_makes_the_run_blocked(self):
         # Codex round 2 (P2): only the CB-116 gate and predicted blocks are exempt.
-        verdict = self.text.split("Verdict:", 1)[1].split("Your final reply", 1)[0]
+        verdict = self.text.split("Verdict:", 1)[1].split("Final reply", 1)[0]
         self.assertIn("any case or step is blocked", verdict)
         self.assertIn("`forward-failed`", verdict)
         self.assertIn("`blocked local-network-denied (CB-116)` while the gate is closed", verdict)
         self.assertIn("known-failures table predicts", verdict)
+
+    def test_signature_failure_launches_nothing(self):
+        # Round 3 (bot P1): a failed signing check must not lead to launching the app.
+        case = self.text.split("**TC-CB-01", 1)[1].split("**TC-CB-02", 1)[0]
+        self.assertIn("Launch nothing", case)
+        self.assertIn("`blocked signature-failed`", case)
+        self.assertIn("start only after all three signature checks passed", case)
+        restore = self.text.split("## Restore and release", 1)[1].split("## Report and post", 1)[0]
+        self.assertIn("skipped after `signature-failed`", restore)
+        self.assertIn("`signature-failed`", self.text.split("Blocked reasons:", 1)[1])
+
+    def test_lock_not_owned_skips_the_restore(self):
+        # Round 3 (bot P1): without the lock the pass must not touch the desktop.
+        gate = self.text.split("`BLOCKED time-budget lock-not-owned`", 1)[1].split("### Runnable", 1)[0]
+        self.assertIn("skip the whole restore", gate)
+        for step in ("no restore script", "no UI", "no `gui-done`", 'release --token "$TOKEN"` once',
+                     "left to the owning pass"):
+            self.assertIn(step, gate.replace("\n", " "))
+        self.assertIn("## Restore and release (always, except after `lock-not-owned`)", self.text)
+
+    def test_socket_error_case_takes_no_screenshot(self):
+        # Round 3 (bot P2): the expanded socket path names the account.
+        case = self.text.split("**TC-CB-12", 1)[1].split("**TC-CB-11", 1)[0]
+        self.assertIn("no screenshot", case)
+        self.assertNotIn(".png", case)
+
+    def test_log_window_close_is_separate_from_panel_close(self):
+        # Round 3 (Codex P2): the log viewer is its own window.
+        self.assertIn("| Close the selection panel | `logs-panel-close` |", self.text)
+        row = [l for l in self.text.splitlines() if l.startswith("| Close the log window")][0]
+        self.assertIn("Logs: <container>", row)
+        self.assertIn("peekaboo window close", row)
+        self.assertIn("close button", row)
 
     def test_no_private_values(self):
         self.assertIsNone(re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", self.text))
