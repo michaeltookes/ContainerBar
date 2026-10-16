@@ -9,19 +9,15 @@ brief wins. Versioned as the repo's `scripts/qa-lane/CONTAINERBAR_QA.md` and cop
 
 - **Run every command from the workspace root** the lane tools use: start each shell call with
   `cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"` (`cbqa_lane.py` is in `tools/containerbar-qa/`).
-- **Lock token.** `preflight` prints `note: lock token <token>`. Copy that exact value into
-  the run notes and pass it to every `normalise`, `case-gate` and `release` call as
-  `--token "<token>"`. Never read a token from `session.json` or reuse an older run's token.
-- **Never** `kill`, `pkill` or `killall`. Quit ContainerBar with its own Quit button or
-  `osascript -e 'quit app "ContainerBar"'`. The only process the pass stops is its SSH forward,
-  through `cbqa_lane.py forward-stop`.
-- Preflight holds the desktop lock: never wrap Peekaboo calls in `device_lock.py`.
+- **Lock token.** Copy the exact value of preflight's `note: lock token <token>` into the run notes and
+  pass it as `--token` to every `normalise`, `case-gate` and `release`. Never read a token from `session.json`.
+- **Never** `kill`, `pkill` or `killall`. Quit ContainerBar with its Quit button or `osascript -e 'quit app
+  "ContainerBar"'`; only `cbqa_lane.py forward-stop` stops a process. No Peekaboo call in `device_lock.py`.
 - Touch only the QA runtime (`ssh cbqa-ctl <verb>`, `cbqa-tunnel`, the `QA Runtime` hosts) and
   only `cbqa-` containers. No secret, key, address, token or real hostname in any asset,
   report or post; crop to the app window or take no screenshot and mark the step `blocked`.
-- **Never improvise.** An element the recipe names that is not there makes the step `blocked`:
-  attach the `peekaboo see --json` element list as text and name this recipe stale under
-  "Defects and proposed backlog items".
+- **Never improvise.** A missing element makes the step `blocked`: attach the `peekaboo see --json`
+  element list as text and name this recipe stale under "Defects and proposed backlog items".
 
 ## Private values (never in this file)
 
@@ -54,7 +50,9 @@ or `adhoc` (an unsigned or ad-hoc build; the grant covers only the `<version>-<b
 | Stop / Start quick action | `containerStop-<slug>-<short-id>` / `containerStart-<slug>-<short-id>` | `Stop container cbqa-target` / `Start container cbqa-target`, after hovering the card |
 | Logs button (action bar) | `actionBar-logs` | button `Logs` (the panel's `View Logs` is a heading, never click it) |
 | Logs row for a fixture | `logs-panel-container-<slug>-` prefix | the row button labelled with the container name, e.g. `cbqa-logs` (2.0.4 id `logs-panel-container-<full id>`) |
-| Log text / refresh / close | `logsPanelText` / `refreshLogs` / `logs-panel-close` | the log text area / `Refresh` / `logs-panel-close` (in 2.0.4) |
+| Log text / refresh | `logsPanelText` / `refreshLogs` | the log text area / `Refresh` |
+| Close the selection panel | `logs-panel-close` | `logs-panel-close` (in 2.0.4) |
+| Close the log window `Logs: <container>` (opens after a row is picked) | none: native window | `peekaboo window close --app com.tookes.ContainerBar --window-title "Logs: cbqa-logs"`; fallback its close button from `see` |
 | Connection state / error dismiss | `connectionStatus` / `dismissActionError` | header text / `Close` |
 | Refresh interval / show stopped | `refreshIntervalPicker` / `showStoppedToggle` | `Refresh Interval` / `Show Stopped Containers` |
 | Test connection / version / update | `testConnection` / `aboutVersion` / `checkForUpdates-about` | `Test Connection` / `Version <v> (<build>)` / `Check for Updates...` |
@@ -62,9 +60,8 @@ or `adhoc` (an unsigned or ad-hoc build; the grant covers only the `<version>-<b
 **Forbidden, always:** Remove container on any container; any action on a card whose name does
 not start with `cbqa-` (stop, start, restart: `cbqa-target` only), else stop the step and mark
 the run BLOCKED `scope-guard`; Remove Host or Delete Section on anything the run did not create;
-Install Update or Skip This Version in a Sparkle dialog (Remind Me Later only); the Launch at
-Login toggle; the keyboard shortcut recorder; setting `CONTAINERBAR_HUNT_MODE`; typing a
-password or granting any permission.
+Install Update or Skip This Version (Remind Me Later only); the Launch at Login toggle; the shortcut
+recorder; setting `CONTAINERBAR_HUNT_MODE`; typing a password or granting any permission.
 
 ## QA runtime
 
@@ -87,12 +84,12 @@ command scoped to the ContainerBar window). Screenshot with
 `peekaboo see --app com.tookes.ContainerBar --annotate --path "<run>/assets/<TC-id>/NN-<slug>.png" --json`;
 a capture showing more than the app panel or Settings window is cropped (`sips -c`) or deleted.
 Command output, dialog text and element lists go into `report.md` verbatim, except that every
-connection error (Test Connection, banners, ssh lines) is redacted first; a screenshot showing an
-address is not kept (step `blocked`):
+connection error (Test Connection, banners, ssh lines) is redacted first (addresses, host names,
+key files, socket and home paths); a screenshot showing one is not kept (step `blocked`):
 
 ```sh
 ERR='paste the error text here'
-printf '%s\n' "$ERR" | sed -E 's/([0-9]{1,3}[.]){3}[0-9]{1,3}/<address>/g; s/[[]?[0-9A-Fa-f]{0,4}(:[0-9A-Fa-f]{0,4}){2,7}(%[A-Za-z0-9]+)?[]]?/<address>/g; s#/[^ ]*[.]sock#<socket>#g'
+printf '%s\n' "$ERR" | sed -E 's/([0-9]{1,3}[.]){3}[0-9]{1,3}/<address>/g; s/[[]?[0-9A-Fa-f]{0,4}(:[0-9A-Fa-f]{0,4}){2,7}(%[A-Za-z0-9]+)?[]]?/<address>/g; s#/[^ ]*[.]sock#<socket>#g; s/host [^< ][^ ]* port/host <host> port/g; s/(resolve hostname )[^: ]+/\1<host>/g; s/Load key "[^"]*"/Load key "<keyfile>"/g; s#(/Users/|/home/|~/)[^ "]*#<path>#g'
 ```
 
 ## Step 0: preflight
@@ -130,8 +127,10 @@ python3 -B tools/containerbar-qa/cbqa_lane.py case-gate --token "$TOKEN" TC-CB-0
 
 `ok`: run it. `BLOCKED ci-busy`: finish the current step, mark this and the rest `blocked ci-busy`,
 go to the restore. `BLOCKED time-budget`: the rest `blocked time-budget`, restore.
-`BLOCKED time-budget lock-not-owned`: start nothing, touch nothing on the desktop, mark the rest
-`blocked time-budget` (note `lock-not-owned`), run `release` (it refuses), record both answers.
+`BLOCKED time-budget lock-not-owned`: the desktop may belong to another pass. Start nothing, mark the
+rest `blocked time-budget` (note `lock-not-owned`), **skip the whole restore** (no restore script, no UI
+restore, no `gui-done`), run `release --token "$TOKEN"` once and record its refusal; the report says
+the desktop was left to the owning pass (the next pass's step 0 recovers the marker).
 Each case: screenshot before and after every action, re-`see` after every click, record PASS, FAIL,
 BLOCKED (reason), SKIPPED or known failure (CB id). A video case starts its recording first.
 
@@ -153,8 +152,11 @@ curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Cask
 
 PASS: the three checks exit 0, the first Authority line equals `CBQA_DEVELOPER_ID_AUTHORITY`, and
 tag (without `v`) = appcast = cask = installed. Installed differs: FAIL `stale-install`, continue
-against the installed build. A signing check fails: FAIL quoting the output, message `QA FAIL`
-naming the check, do not launch the app. Versions disagree: `FAIL TC-CB-01` with the four values.
+against the installed build. Versions disagree: `FAIL TC-CB-01` with the four values.
+**A codesign, spctl or stapler check fails:** FAIL quoting the output, verdict FAIL, message `QA FAIL`
+naming the check. Launch nothing and click nothing in the app: TC-CB-02 and every later case are
+`blocked signature-failed` (the gate is not run); the restore runs the script and `release` only.
+TC-CB-02 and later start only after all three signature checks passed.
 
 **TC-CB-02 Status item present and named.** If `pgrep -x ContainerBar` has no released PID:
 `open /Applications/ContainerBar.app`; within 10 s the status item shows. Then:
@@ -205,7 +207,8 @@ Restore: 10 seconds, show stopped on, Quit, relaunch, `05-restored.png`; note th
 lane's own shell `ssh`, the app only opens a local socket).**
 - **TC-CB-12 Missing socket shows a useful error.** `python3 -B tools/containerbar-qa/cbqa_lane.py
   forward-stop`; select `QA Runtime (socket)` (host pill or Settings > Connections > Set as Active
-  Host); after one refresh, `01-socket-error.png` and the error text verbatim. PASS: it names the socket or the runtime. "Docker connection not configured": known failure CB-077.
+  Host); after one refresh, record the redacted error text only (no screenshot: it shows the expanded
+  socket path with the account name). PASS: it names the socket or the runtime. "Docker connection not configured": known failure CB-077.
 - **TC-CB-11 Unix-socket transport.** `python3 -B tools/containerbar-qa/cbqa_lane.py forward-start`;
   `BLOCKED forward-failed`: case `blocked forward-failed`. `FORWARD-READY`: within one refresh
   interval the panel shows six `cbqa-` cards, Running 5, `cbqa-stopped` stopped, no error banner
@@ -228,13 +231,12 @@ Run these only with the gate open, selecting `QA Runtime`; read the runtime with
 
 ## Stop and ask
 
-A Keychain password prompt, a TCC prompt, a Gatekeeper dialog or any system dialog this recipe
-does not name (the ContainerBar Local Network dialog above is the only exception): type nothing,
-grant nothing, click nothing in it. Take a cropped screenshot, mark the run BLOCKED, post one
-line to `CBQA_ALERT_TARGET` asking the owner to act, then go to the restore. App crash or no AX
+A Keychain, TCC or Gatekeeper prompt, or any system dialog not named here (the ContainerBar Local
+Network dialog is the only exception): type, grant and click nothing. Take a cropped screenshot,
+mark the run BLOCKED, post one line to `CBQA_ALERT_TARGET` asking the owner to act, then restore. App crash or no AX
 response for 30 s: `FAIL P1` with the newest `.ips` file name, relaunch once to finish read-only cases.
 
-## Restore and release (always, whatever happened)
+## Restore and release (always, except after `lock-not-owned`)
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
@@ -243,7 +245,7 @@ zsh tools/containerbar-qa/containerbar-qa-restore.sh   # copy every restore: lin
 
 1. The script: `api-start`, fixture reset, forward stopped by PID, marker deleted, flag left; copy the
    brief's restore checklist into the report, ticked; a failed restore posts to `CBQA_ALERT_TARGET`.
-2. In the UI: refresh interval 10 s, Show Stopped Containers on, no run-created section or host,
+2. In the UI (skipped after `signature-failed`): refresh interval 10 s, Show Stopped Containers on, no run-created section or host,
    `QA Runtime` selected, no Settings window and no Sparkle dialog open, ContainerBar running.
    Fallback when that fails or step 0 found drift: Quit, then
    `defaults import com.tookes.ContainerBar qa/containerbar/baseline.plist`, relaunch, record a finding.
@@ -252,24 +254,23 @@ zsh tools/containerbar-qa/containerbar-qa-restore.sh   # copy every restore: lin
 
 ## Report and post
 
-`<run>/report.md`, in this order: header table (date, ContainerBar version and build, machine
-`<qa-mini>`, session id, verdict with counts PASS/FAIL/BLOCKED/SKIPPED/known); summary table, one
-row per TC id with result and reason; per-case steps with asset paths and verbatim text; **Known
-failures** (CB id, fixed-in, case); **Defects and proposed backlog items** (repro steps, expected,
-actual, evidence path; a stale recipe goes here); **Run notes** (every `note:`, `forward:` and
-`restore:` line, the lock token, restored values, findings, the ticked restore checklist).
+`<run>/report.md`, in order: header table (date, version and build, `<qa-mini>`, session id, verdict
+with counts PASS/FAIL/BLOCKED/SKIPPED/known); summary table (TC id, result, reason); per-case steps
+with asset paths and (redacted) text; **Known failures** (CB id, fixed-in, case); **Defects and
+proposed backlog items** (repro, expected, actual, evidence path; a stale recipe goes here); **Run
+notes** (every `note:`, `forward:`, `restore:` line, lock token, restored values, restore checklist).
 
 Verdict: FAIL if any case failed that is not a known failure. Else BLOCKED if preflight stopped
 the run or any case or step is blocked, for any reason (`forward-failed`, `ci-busy`, `time-budget`,
 a stale recipe, ...), except: `blocked local-network-denied (CB-116)` while the gate is closed, and a
 block the known-failures table predicts (CB-082). Else PASS. A case not scheduled today is SKIPPED.
 
-Your final reply is the one Discord message (the cron job announces it to `CBQA_DAILY_TARGET`):
+Final reply = the one Discord message (the cron job announces it to `CBQA_DAILY_TARGET`):
 `QA PASS — ContainerBar <version> — <YYYY-MM-DD> <HH:MM>` (or `QA FAIL`, naming the failing TC ids,
 or `QA BLOCKED <reason>`), then the counts, the blocked-until-CB-116 count, and the report path.
 On FAIL first attach the failing steps' screenshots (videos only under 25 MB) with
-`openclaw message send` to `CBQA_DAILY_TARGET`. A failed post is recorded in the run notes as
-`post-failed`. On FAIL or BLOCKED end the report with the inbox line for the orchestrator:
+`openclaw message send` to `CBQA_DAILY_TARGET` (a failed post: `post-failed` in the run notes). On
+FAIL or BLOCKED end the report with the inbox line for the orchestrator:
 `ContainerBar#qa-daily | lucius | qa-found|blocked | artifacts/containerbar-qa/runs/<run> | <one sentence>`.
 
 ## Failure vocabulary
@@ -279,14 +280,13 @@ Blocked reasons: `ci-busy` (a runner job on this Mac), `desktop-busy` (lock held
 baseline after one retry), `local-network-denied` (no positive Test Connection proof),
 `app-cannot-connect` (grant present, app still cannot connect: TC-CB-03 FAIL), `forward-failed`
 (no socket in 10 s), `time-budget` (case would start after T0 + 1380 s; `lock-not-owned`: hold ran
-out), `scope-guard` (action about to hit a non-`cbqa-` card), `appcast-unreachable`. FAIL reason:
+out), `signature-failed` (TC-CB-01 signing check failed: nothing launched), `scope-guard` (action about to hit a non-`cbqa-` card), `appcast-unreachable`. FAIL reason:
 `stale-install`. Notes and findings, never a verdict: `runner-api-unavailable`, `windows-normalised`,
 `previous run left state`, `unexpected update prompt`, `post-failed`.
 
 ## Known failures (installed release below `fixed-in` stays quiet)
 
-The orchestrator recomputes `fixed-in` at every release tag (the oldest tag containing the fix's
-merge). Installed version at or above `fixed-in`: drop the entry, and the same failure is a FAIL.
+`fixed-in` (recomputed by the orchestrator at every tag) reached: drop the entry; the failure is a FAIL.
 
 | CB id | Case | Expected failure | fixed-in |
 |---|---|---|---|
