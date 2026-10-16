@@ -9,6 +9,7 @@
 #   CBQA_RUNNER_NAMES   runner names registered on this host (comma separated)
 #   CBQA_ALERT_TARGET   Discord target for #lucius-updates lines
 #   CBQA_DAILY_TARGET   Discord target the daily pass announces to
+#   CBQA_DEVELOPER_ID_AUTHORITY  expected codesign Authority line (read by the recipe, TC-CB-01)
 # The hourly webhook lives in ~/.openclaw/.env as CONTAINERBAR_QA_WEBHOOK.
 set -eu
 here=${0:A:h}
@@ -48,6 +49,8 @@ for f in cbqa_lane.py lane_core.py lane_restore.py lane_preflight.py lane_hourly
          containerbar-qa-restore.sh containerbar-hourly.sh README.md brief-template.md; do
   doit cp "$here/$f" "$tools/$f"
 done
+# The standing recipe the daily brief hands to the agent (CB-101); versioned here, never edited there.
+doit cp "$here/CONTAINERBAR_QA.md" "$ws/CONTAINERBAR_QA.md"
 doit cp "$rendered" "$agent"
 doit launchctl bootout "gui/$(id -u)/com.genkeilabs.containerbar-hourly" || true
 doit launchctl bootstrap "gui/$(id -u)" "$agent"
