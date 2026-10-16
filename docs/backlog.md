@@ -69,6 +69,92 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 **Decisions for Michael**: (1) option A needs an Apple-issued signing identity from your developer account on the QA Mini: will you sign a CSR generated on the Mini for an Apple Development certificate (preferred), export an existing Apple Development certificate and key as a `.p12`, or stay on option B (a manual Allow per branch build)? Assumption taken: a Mini-generated CSR you sign; option B until it is installed. (2) May Lucius click Allow on exactly this one dialog during the TC-CB-05 setup run, or must you click it? Assumption taken: you click it, once per identity; Lucius never grants.
 
+**Amendment (BA 2026-10-16, Michael's answer "You should already have all the tools necessary to handle the signings"): option A is automated by CB-121 to CB-125** (brief `docs/requirements/apple-signing-automation.md`). The API key for issuing the certificate needs the **Admin** role, not Developer as the earlier ask said: Apple's program roles table gives Developer and App Manager certificate creation only with the per-user "Access to Certificates, Identifiers & Profiles" permission, which a team API key cannot hold. Decision (1) above is answered by CB-121's ask; decision (2) stands.
+
+### CB-121: One-time App Store Connect API key (Admin team key) in vendors.env for unattended QA signing
+**Priority**: High (blocks CB-122 to CB-125 and CB-116 option A)
+**Rank**: directly after CB-116, before CB-102. Proposed by BA 2026-10-16; project-manager to confirm.
+**Source**: Michael, 2026-10-16: "Let's start getting the ticket together for the API key that will be needed to fully automate the signing process", after his CB-116 answer "Are you not able to run the commands to sign this? ... You should already have all the tools necessary to handle the signings."
+**Description**: Story US-apple-signing-automation-1. Michael creates one App Store Connect **team** key with the **Admin** role (Developer cannot create certificates through a team key; individual keys cannot use provisioning endpoints), stores its key id, issuer id and `.p8` path in `~/.config/genkei/vendors.env` on the MacBook as `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_P8_PATH` (`.p8` mode 600, never in a repo), and runs the CSR command once in a Jump Desktop session on Lucius' Mini. vendor-ops verifies with a scoped read. Owner: Michael (setup), vendor-ops (verification).
+
+**Ask for Michael** (self-contained):
+1. App Store Connect > Users and Access > Integrations > App Store Connect API > Team Keys > Generate API Key (if the page shows Request Access instead, click it, then come back once Apple approves). Name: `Genkei QA signing`. Access: Admin. Default: Admin, because a Developer-role team key cannot create certificates.
+2. Copy the Key ID (in the key's row), the Issuer ID (top of the same page), and click Download API Key for the `.p8` (one download only). Default: save it as `~/.config/genkei/AuthKey_<KEY ID>.p8` on the MacBook and run `chmod 600 ~/.config/genkei/AuthKey_*.p8`.
+3. Add three lines to `~/.config/genkei/vendors.env` on the MacBook: `APPSTORE_KEY_ID=<Key ID>`, `APPSTORE_ISSUER_ID=<Issuer ID>`, `APPSTORE_P8_PATH=/Users/<you>/.config/genkei/AuthKey_<KEY ID>.p8`. Default: those exact names, nothing pasted into chat, a repo or Discord.
+4. In a Jump Desktop session on Lucius' Mini, open Terminal and run `mkdir -p ~/Desktop && /usr/bin/expect ~/work/cb116/csr.exp ~/Library/Keychains/login.keychain-db ~/Desktop/ContainerBar-QA-Mini.certSigningRequest "Genkei Labs QA Mini (ContainerBar)" && chmod 600 ~/Desktop/ContainerBar-QA-Mini.certSigningRequest`, then tell the orchestrator "CSR ready". Default: now, about one minute; the alternative is approving a one-shot gui launchd job so homelab-it runs it.
+5. When the first signing shows a keychain prompt on the Mini's desktop, type the Mini's login password and click Always Allow. Default: once, only if it appears.
+
+**Acceptance** (Size **S**; brief US-1 AC1 to AC5):
+- Given the three lines, when the Apple script's credential check runs, then all three are reported present, the `.p8` has mode `-rw-------`, and no value is printed; given one is missing, it exits 3 with the exact line to add and sends nothing.
+- Given valid credentials, when a scoped `GET /v1/certificates?filter[certificateType]=DEVELOPMENT` runs (token lifetime at most 20 minutes), then Apple answers 200.
+- Unhappy path: a Developer-role key gets 403 on create; the run reports "API key role cannot create certificates: generate a new team key with the Admin role", makes no retry, and the inbox line is `needs-decision`.
+- Unhappy path: a revoked key or wrong issuer id gets 401; the run stops and asks Michael to repeat steps 1 to 3 only.
+- Amended 2026-10-16 (PR 77 review): the credential leak check passes (amended again 2026-10-16, PR 77 review round 2). It has three parts, each quiet (`-q` or a count, never a mode that prints a matching line) and each run over the working tree and the full history (`git log -p --all`) of this repo and `genkei-ops`, and over every vendor-run report: (a) **real values, fixed strings** (`grep -qF -f` / `grep -cF -f`): `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID` and every base64 body line of the `.p8`, read by name on the MacBook and never printed, from a mode-600 pattern file deleted when the check ends; (b) **JWTs, a separate regex check** (`grep -qE` / `grep -cE`; `grep -F` cannot express it): three base64url segments separated by dots, the first starting `eyJ`, each segment at least 10 characters; (c) **key material, not marker text**: a PEM header line for a private key or a certificate request whose next line is a base64 body line of 40 or more characters (a two-line scan that returns a count). Paths that hold known parser literals are excluded from (c) by path through an allowlist in the check, starting with `Sources/ContainerBarCore/API/TLSCertificateLoader.swift`; (a) and (b) have no exclusions. Tests, all required: on a clean checkout of both repos the check exits 0 (so the `TLSCertificateLoader.swift` literals, in the tree and in history, and this brief's own prose do not trip it); with a planted fixed value, a planted synthetic JWT, and a planted synthetic PEM key block (generated for the test, never a real key) in scratch files, each run exits non-zero. Failure output names only the file and line number (for history, the commit and file), never the value or the line (brief US-1 AC5). CB-122's run reports are inside its scope.
+
+**Test cases**: proposed TC-CB-23 "QA signing credentials and identity valid".
+
+### CB-122: Apple runbook in vendor-ops: issue, download and revoke Apple Development certificates from a CSR via the App Store Connect API
+**Priority**: High
+**Rank**: after CB-121. Proposed by BA 2026-10-16.
+**Source**: same as CB-121.
+**Description**: Story US-apple-signing-automation-2. The orchestrator writes `runbooks/apple.md` and `scripts/apple.sh` in the vendor-config skill (genkei-ops side, nothing in this repo): `cert-list`, `cert-create-dev <csr>` (`POST /v1/certificates`, `certificateType DEVELOPMENT`, `csrContent` = the complete PEM text with BEGIN/END markers, JSON-escaped, as in Apple's example; amended 2026-10-16, PR 77 review), `cert-download <id> <out.cer>`, `cert-revoke <id>` (`DELETE /v1/certificates/{id}`); ES256 JWT with `kid`, `iss`, `aud appstoreconnect-v1`, `exp` at most 20 minutes, `scope` set to the one request; `--dry-run` on every mutation; responses redacted; run report under `genkei-ops/docs/vendor-runs/`. The `.cer` (mode 600) goes to homelab-it for import (CB-123). Refuses every other certificate type and every non-certificate endpoint. Standing approval for `cert-create-dev` and `cert-revoke` of lane-created certificates recorded in genkei-ops decisions when Michael answers CB-121. Owner: orchestrator (runbook), vendor-ops (runs).
+
+**Acceptance** (Size **S**; brief US-2 AC1 to AC6):
+- `cert-create-dev <csr> --dry-run` prints the request with the CSR elided and sends nothing.
+- A real run returns 201, writes a mode-600 `.cer` whose subject starts `Apple Development:` with an end date about one year out, and a separate `cert-list` read shows the new id.
+- Any other certificate type is refused with exit 5 and nothing sent.
+- Unhappy path: 429 `RATE_LIMIT_EXCEEDED` logs `X-Rate-Limit`, waits 60 minutes, retries once, then stops `blocked apple-rate-limit`.
+- Unhappy path: 409 or 422 (bad CSR or certificate cap) prints Apple's `errors[].detail`, revokes nothing, and lists lane-created certificates with expiry.
+- The run report has the redacted request and response, read-back and rollback; the CB-121 leak check (quiet, working tree and `git log -p --all`, file and line only on failure) finds no key id, issuer id, `.p8` line, JWT, CSR or certificate body.
+
+### CB-123: QA Mini: import the Apple Development certificate, unattended codesign access, CSR hygiene
+**Priority**: High
+**Rank**: after CB-122. Proposed by BA 2026-10-16.
+**Source**: same as CB-121; homelab-it 2026-10-16 11:08 CT (login keychain locked over SSH; one-shot gui launchd job refused).
+**Description**: Story US-apple-signing-automation-3. homelab-it verifies and copies the CSR from Michael's one-time step, imports the issued `.cer` into the keychain holding the key, records the identity hash in the lane workspace (not this repo), and makes `codesign` work from the gui launchd domain with no dialog (ask step 5 at most once, or the key partition list if the architect moves the key to a dedicated keychain). Owner: homelab-it; architect decides the keychain (brief open question 2).
+
+**Acceptance** (Size **S**; brief US-3 AC1 to AC6):
+- The CSR exists with mode 600, `openssl req -verify` reports OK, CN `Genkei Labs QA Mini (ContainerBar)`; it is deleted from the Mini's Desktop after issuance.
+- After import, the SHA-1 computed from the issued `.cer` is listed as a valid identity by `security find-identity -v -p codesigning` and recorded in the lane workspace; checks select by that hash and never require exactly one identity, because during renewal (CB-125) old and new coexist until the new one is validated (amended 2026-10-16, PR 77 review).
+- Signing a test bundle from the gui launchd domain exits 0 with no dialog (the second signing at the latest).
+- The same check over SSH either succeeds or fails with `errSecInternalComponent`, and the design records which.
+- Unhappy path (amended 2026-10-16, PR 77 review): before every signing attempt, a lock-state query in the signing context (`SecKeychainGetStatus` / `kSecUnlockStateStatus`, or a scripted equivalent) that fails closed (error or unknown counts as locked; `security show-keychain-info` is not a lock-state check) reports locked, then no signing is tried, the pass ends `BLOCKED keychain-locked` with one `#lucius-updates` line, and nothing types a password.
+- Amended 2026-10-16 (PR 77 review round 2): no `.p12` export exists: before the CSR is deleted, homelab-it writes a timestamp marker file in the lane's work directory (mode 600, kept until the check has run on both machines; the CSR is not the reference because AC1 deletes it), then runs `find ~ -name '*.p12' -newer <marker>` on the Mini and on the MacBook. The check passes only if `find` exits 0 **and** prints nothing; a non-zero exit (missing marker, unreadable directory) is a failure, not a pass, and empty output alone never counts. `git log -p` shows no certificate, key or CSR (CB-121 leak check).
+
+**Test cases**: TC-CB-23.
+
+### CB-124: QA lane re-signs branch builds with the QA identity, verifies the signature, and keeps the Local Network grant across rebuilds
+**Priority**: High (this is what unblocks the SSH cases of CB-116)
+**Rank**: after CB-123; lands with CB-116's recipe change. Proposed by BA 2026-10-16.
+**Source**: same as CB-121.
+**Description**: Story US-apple-signing-automation-4. On install, the lane re-signs the normal ad-hoc branch build (bundle `com.tookes.ContainerBar`, real transports; the build TC-CB-03 and TC-CB-05 run against) (nested code first, app last) with `codesign --force --sign <identity hash> --identifier com.tookes.ContainerBar`, verifies with `codesign --verify --deep --strict`, `codesign -dv --verbose=4` and `spctl --assess --type execute -vv`, and runs TC-CB-22 once per new identity. Owner: orchestrator (recipe, brief), architect (flags, nested order, bundle identifier).
+
+**Acceptance** (Size **S**; brief US-4 AC1 to AC7). Amended 2026-10-16 (PR 77 review): every criterion below applies to the normal branch build (and the released build where it says so). The hunt-mode build from `scripts/build-hunt-app.sh` (`com.tookes.ContainerBar.hunt`, `FixtureDockerAPIClient`, no real hosts) is excluded: it keeps its ad-hoc signature and its own Prowl path and is never re-signed with the QA identity.
+- `codesign -dv --verbose=4` shows `Authority=Apple Development:`, the Apple WWDR and Apple Root CA authorities, `TeamIdentifier=<team id>`, `Identifier=com.tookes.ContainerBar`, and no `Signature=adhoc`; `codesign --verify --deep --strict` exits 0.
+- `spctl --assess --type execute -vv` reports `rejected` with `origin=Apple Development: ...` (expected for a non-notarized development build; recorded, not a failure); the app launches without the quarantine attribute.
+- TC-CB-22: after one grant, a build from a different commit signed with the same identity passes TC-CB-05 with no Local Network prompt.
+- The released build's TC-CB-03 still connects with no prompt after a QA-signed run the same day; if not, branch builds move to the architect's fixed QA bundle identifier and this is re-run.
+- Unhappy path: a failed signature or verification installs nothing and ends `BLOCKED qa-signing-failed` with the first `codesign` stderr line; no TC case is marked FAIL.
+- Unhappy path: no valid identity with the recorded hash (expired, revoked, missing) ends `BLOCKED qa-identity-invalid` before install and starts CB-125; released-build cases still run.
+
+**Test cases**: TC-CB-22, TC-CB-05 (precondition), TC-CB-03.
+
+### CB-125: Renew the QA signing identity before expiry and revoke it on demand
+**Priority**: High (lands before the first identity is 11 months old; build after CB-124)
+**Rank**: after CB-124. Proposed by BA 2026-10-16.
+**Source**: same as CB-121. Apple Development certificates are valid for one year.
+**Description**: Story US-apple-signing-automation-5. CB-105's hourly check warns once a day from 30 days before expiry; the orchestrator runs renewal (new key and CSR on the Mini by the unattended path the architect chooses, CB-122 issue, CB-123 import, switch the recorded hash, TC-CB-24), then revokes the old certificate. Compromise or Mini rebuild: `apple.sh cert-revoke <id>`, delete from the keychain, lane BLOCKED until reissued. Owner: orchestrator, vendor-ops, homelab-it.
+
+**Acceptance** (Size **S**; brief US-5 AC1 to AC6):
+- 30 days or fewer before expiry, one `needs-renewal` inbox line per day with the date; the pass continues. Amended 2026-10-16 (PR 77 review round 2): the expiry is read from the certificate selected by the recorded **active** SHA-1 (export all with `security find-certificate -a -c "Apple Development" -p`, pick by `openssl x509 -fingerprint -sha1`), never from the first name match, so during the renewal window the old and new certificates are never confused; no match reports `qa-identity-invalid`.
+- Renewal completes with no step addressed to Michael, or, if the architect keeps the login keychain, the item records that renewal still needs ask step 4 once a year.
+- TC-CB-24: the first build signed with the renewed identity passes TC-CB-05 with no Local Network prompt (or the recipe records a one-time grant per renewal).
+- Amended 2026-10-16 (PR 77 review): the new identity is imported next to the old one; both stay valid while the new hash is `pending`, the lane keeps signing with the old hash, and validation is by the new certificate's SHA-1 recorded in the lane workspace (never a count of identities). Only after TC-CB-22 and TC-CB-24 pass on the new hash does the lane switch, and only then is the old certificate revoked and removed from `cert-list` and the keychain.
+- Revocation on demand returns 204, the identity is removed, the lane ends `BLOCKED qa-identity-invalid` until reissued, and release signing is unaffected.
+- Unhappy path: any failed renewal step leaves the old certificate in use until expiry, revokes nothing, and the inbox line names the step and the expiry date.
+
+**Test cases**: proposed TC-CB-24 "Local Network grant survives certificate renewal".
+
 ### CB-102: Daily released-build integrity and launch check; release-day install from the cask and the notarized zip
 **Priority**: High
 **Description**: Story US-lucius-daily-qa-3. Daily: installed version equals the latest GitHub release, `codesign`/`spctl`/`stapler` pass, launch from the console session shows the status item within 10 s. Release day (orchestrator-fired): `brew upgrade --cask containerbar`, the same checks on the extracted zip, a console launch of the zip (closes the manual step in `docs/RELEASING.md` for that release; complements CB-058), and the Sparkle offer from the previous version (no install). Owner: orchestrator (brief), Lucius (run).
