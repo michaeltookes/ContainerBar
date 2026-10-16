@@ -12,6 +12,7 @@ ContainerBar is a lightweight macOS menu bar application for monitoring and mana
   - [Local Docker (Docker Desktop)](#local-docker-docker-desktop)
   - [Local Podman](#local-podman)
   - [Adding a Remote Host](#adding-a-remote-host)
+  - [Local network permission](#local-network-permission)
 - [Using ContainerBar](#using-containerbar)
   - [Menu Bar Icon](#menu-bar-icon)
   - [Viewing Containers](#viewing-containers)
@@ -138,6 +139,17 @@ ssh user@your.host        # confirm new fingerprint, type yes
 **Suspected mismatch (potential man-in-the-middle)**
 
 If you weren't expecting the host key to change, **stop**. Don't accept the new key until you've verified out of band (console access, hosting-provider dashboard, etc.) that the change is legitimate. If anything looks off, treat it as a security incident before clearing `known_hosts`.
+
+### Local network permission
+
+macOS asks before an app connects to devices on your local network. The prompt appears the first time ContainerBar connects to a remote host on your LAN (over SSH or TCP + TLS), and reads "ContainerBar connects to the container hosts you add, including hosts on your local network, to show their containers."
+
+- **Allow**: ContainerBar connects to LAN hosts as usual.
+- **Don't Allow**, or the prompt is dismissed: LAN hosts are unreachable. Instead of a raw SSH error, the dashboard and **Test Connection** say: "ContainerBar is not allowed to reach devices on your local network. Turn it on in System Settings > Privacy & Security > Local Network, then try again."
+
+To turn it back on, click **Open Local Network Settings** next to that message (or open **System Settings > Privacy & Security > Local Network** yourself), switch ContainerBar on, then press Refresh or **Test Connection**. ContainerBar reconnects without a relaunch.
+
+Local Docker and Podman sockets, and hosts reached through an SSH `ProxyJump` or `ProxyCommand`, do not depend on this permission.
 
 ---
 
@@ -266,6 +278,7 @@ You can also set a custom global hotkey in Settings to quickly toggle the menu f
 - If the dashboard says "Docker is not running" or "Podman is not running", start the runtime (or the Podman machine) and press Refresh; ContainerBar reconnects without a relaunch. The message also names the socket path it looked for
 
 **Cannot connect to remote host**
+- If the message says ContainerBar is not allowed to reach devices on your local network, see [Local network permission](#local-network-permission)
 - Verify SSH keys are set up for passwordless authentication
 - Check that Docker or Podman is installed and the daemon is running
 - Ensure port 22 (SSH) is accessible

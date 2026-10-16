@@ -150,6 +150,7 @@ The app's argv ends in `-l cbqa-fwd -- cbqa-tunnel` (CB-072's argv shape), which
 - **What leaves the Mini.** Only the Discord summary and screenshots attached to it. Screenshots are cropped to the app's menu panel or Settings window (Peekaboo window/element capture), never full-screen: the menu bar of `<qa-mini>` also shows Sentwise and other agents' state. The Settings → Connections screenshot shows the alias `cbqa-tunnel`, never an address.
 - **Public repo rule.** Daily run evidence is never committed here (the Prowl README explains the same risk for CI artifacts). Story-level QA reports that do land in `docs/qa/runs/` contain text plus cropped app-window screenshots only, reviewed by the orchestrator before commit.
 - No end-user consent copy changes: the app sends nothing anywhere new.
+- **macOS Local Network permission (CB-115).** Connections to LAN hosts (the SSH tunnel's `ssh` child and the app's own TLS `NWConnection`) need the Local Network grant; `Distribution/Info.plist` carries `NSLocalNetworkUsageDescription`. When a connection fails with "No route to host", the app resolves the route (`ssh -G`, skipping `ProxyJump`/`ProxyCommand` routes) and runs a short `NWConnection` probe; a path unsatisfied with `localNetworkDenied` maps to the Local Network guidance and an "Open Local Network Settings" button instead of ssh's line, so the address never appears. The daily pass never turns the grant off; the denied state is covered by unit tests and TC-CB-18 (release brief or manual).
 
 ## 7. Main sequences
 

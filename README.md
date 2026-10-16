@@ -81,6 +81,10 @@ For a complete walkthrough with screenshots, see the **[Getting Started Guide](d
 
 > **Note**: SSH key-based authentication must be configured for remote connections. The correct remote socket path is set automatically based on the selected runtime.
 
+### Local network permission
+
+The first time ContainerBar connects to a host on your local network, macOS asks whether ContainerBar may find and connect to devices on your local network. Click **Allow**. If you click **Don't Allow** (or dismiss the prompt), ContainerBar cannot reach any LAN host and tells you so: "ContainerBar is not allowed to reach devices on your local network." Click **Open Local Network Settings**, turn ContainerBar on in **System Settings > Privacy & Security > Local Network**, then press Refresh or **Test Connection**; no relaunch is needed. Local Docker and Podman sockets do not need this permission.
+
 
 ## Development
 
