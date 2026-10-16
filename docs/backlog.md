@@ -269,6 +269,22 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 - Given no marker, then step 0 does not quit or relaunch the app.
 - Failure path: given a marker and an app that refuses to quit, then the run ends BLOCKED `restore-failed` and the old marker still exists afterwards.
 
+### CB-126: Hourly QA check: a real wall-clock bound on the release fetches and the webhook post (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Filed 2026-10-16 (orchestrator, review-cap leftover from PR #76, Codex P2). `scripts/qa-lane/lane_hourly.py` caps each release fetch (`_fetch_within()`) and the Discord webhook post with urllib's `timeout`, but that timeout bounds each socket operation, not the call: DNS resolution, a host with several addresses tried one after another, and a slow body read can each run past it. A stalled GitHub, appcast, tap or Discord endpoint can therefore push the hourly run past the wrapper's 55 s limit, where `device_lock.py` terminates it before the state file and the post are written. Fix: run each fetch and the post under a hard wall-clock bound taken from the shared budget (for example a worker thread joined with the remaining time, or a `curl --max-time` subprocess through `Lane.call`), and treat an expired bound as "not observed".
+**Acceptance**: Size **S**.
+- Given a fake endpoint that accepts the connection and then sends the body one byte per second, when the hourly check runs, then each fetch returns within its share of the 40 s budget and the run finishes, with the state file written, inside 55 s.
+- Given DNS resolution that stalls (an injected resolver delay), then the fetch is abandoned at the budget and the release check is "not observed", keeping its previous result.
+- Given a webhook endpoint that never answers, then the post gives up within 8 s and the pending message is kept for the next run.
+
+### CB-127: Hourly QA check: a probe cut short by the shared budget is "not observed", not a failure (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Filed 2026-10-16 (orchestrator, review-cap leftover from PR #76, Codex P2). In `scripts/qa-lane/lane_hourly.py` (around lines 176-178, the per-check loop), a probe started with less than a second of the shared budget left is capped by `Lane.call` and ends with exit 124. The check then reports that as a real result: `spctl` timing out reads as `gatekeeper-rejected`, `pgrep`/`ps` as `app-not-running`, and `cbqa-ctl status` as `qa-runtime-down`, so the hourly check posts a false failure (and later a false recovery). Fix: when a probe ends because the budget ran out (exit 124 with the deadline reached), mark the check "not observed" and keep its previous result, the same rule the loop already applies to a check that never started; apply it to the Gatekeeper, app and fixture checks alike.
+**Acceptance**: Size **S**.
+- Given a previous run with no failures and a run whose budget runs out during `spctl --assess`, then the run reports no `gatekeeper-rejected` and keeps the Gatekeeper check's previous result; the log says "not observed (out of time)".
+- The same for the app check (`pgrep`/`ps` cut short) and the fixture check (`cbqa-ctl status` cut short).
+- Given `spctl` exits non-zero well inside the budget, then `gatekeeper-rejected` is still reported.
+
 ### CB-113: Split swift-log call sites that mix host, user, path and port before OSLog privacy (CB-108 expansion)
 **Priority**: Medium
 **Description**: Codex review of PR #66, last round. CB-108 plans a bootstrap-only OSLog handler with dynamic values `.private` by default and host aliases and container names `.public`. swift-log hands a handler one already-interpolated string, so a handler cannot apply field-level privacy: a message that mixes a host alias with a user name or socket path is either all public (leaks the user and path) or all private (hides the alias the QA pass needs). Before unified logging is enabled, split those call sites so each message carries one kind of value, or move the sensitive values into swift-log metadata with a privacy key the handler maps to `.private`. Call sites found by `grep -rn "logger\.\(info\|debug\|error\|warning\)" Sources` that interpolate a host, user, path or port (2026-10-14):

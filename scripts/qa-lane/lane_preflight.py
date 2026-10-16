@@ -55,7 +55,7 @@ def spawn_holder(lane: Lane, run_id: str, timeout_s: float) -> Holder:
             "--run", run_id, "--session", run_id, "--job", "containerbar-daily-qa",
             "--timeout", str(int(max(timeout_s, 60))), "--grace", "2", "--",
             lane.python, "-B", os.path.join(HERE, "cbqa_lane.py"), "hold", "--run", run_id,
-            "--release-file", str(lane.release_file),
+            "--release-file", str(lane.release_file_for(run_id)),
             "--until", str(int(lane.clock.now() + max(timeout_s, 60)))]
     with open(str(log), "a") as out:
         proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=out,
@@ -121,8 +121,23 @@ def acquire_lock(lane: Lane, session: Dict[str, object], notes: List[str],
 
 
 def _write_release(lane: Lane, run_id: str) -> None:
-    lane.release_file.parent.mkdir(parents=True, exist_ok=True)
-    lane.release_file.write_text(run_id)
+    """Tell this run's holder (and only it) to let go."""
+    path = lane.release_file_for(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(run_id)
+
+
+def prune_release_files(lane: Lane, max_age_s: float = 2 * 3600) -> None:
+    """Drop release files of long-finished runs (a holder that never started
+    leaves its cancellation behind). Never touches a file younger than two
+    outer timeouts, so no live holder loses its own."""
+    now = lane.clock.now()
+    for path in lane.state_dir.glob(lane.release_prefix + "*"):
+        try:
+            if now - path.stat().st_mtime > max_age_s:
+                path.unlink()
+        except OSError:
+            pass
 
 
 def release_lock(lane: Lane, run_id: Optional[str] = None) -> bool:
@@ -139,7 +154,7 @@ def release_lock(lane: Lane, run_id: Optional[str] = None) -> bool:
     released = lock_owner_run(lane) != run_id
     if released:
         try:
-            lane.release_file.unlink()
+            lane.release_file_for(run_id).unlink()
         except FileNotFoundError:
             pass
     return released
@@ -153,10 +168,14 @@ def hold(lane: Lane, run_id: str, release_file: Optional[str] = None,
     holder never depends on its own environment; it exits by itself at the
     run's outer deadline even if release() is never called.
     """
-    path = Path(release_file) if release_file else lane.release_file
+    path = Path(release_file) if release_file else lane.release_file_for(run_id)
     while until is None or lane.clock.now() < until:
         try:
             if path.read_text().strip() == run_id:
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
                 return 0
         except OSError:
             pass
@@ -221,6 +240,7 @@ def preflight(lane: Lane, session_id: str,
               spawn: Callable[[Lane, str, float], Holder] = spawn_holder) -> Dict[str, object]:
     session = new_session(lane, session_id)
     run_id = str(session["session"])
+    prune_release_files(lane)
     notes: List[str] = ["deadline: waits end at T0+480s, case cut-off T0+1380s"]
     deadline = float(session["wait_deadline"])
 

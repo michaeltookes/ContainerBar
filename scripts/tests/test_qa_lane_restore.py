@@ -13,7 +13,7 @@ from qa_lane_fakes import LANE_DIR, FakeRunner, make_lane, status_json
 
 import lane_core
 from lane_prefs import drift
-from lane_restore import restore, start_forward, stop_forward
+from lane_restore import forward_argv, gui_done, is_our_forward, restore, start_forward, stop_forward
 
 FORWARD_CMD = "ssh -nNT -o ExitOnForwardFailure=yes -o StreamLocalBindUnlink=yes -L {sock}:/run/cbqa-api/podman.sock cbqa-tunnel"
 
@@ -167,14 +167,21 @@ class CodexRoundTwoTests(unittest.TestCase):
 
     def test_backstop_restore_leaves_gui_cleanup_pending(self):
         lane_core.write_json(self.lane.marker, {"t0": 1})
-        ok, notes = restore(self.lane, terminate=self.terminate, backstop=True)
+        ok, notes = restore(self.lane, terminate=self.terminate)
         self.assertTrue(ok)
         self.assertFalse(self.lane.marker.exists())
         self.assertTrue(self.lane.gui_flag.exists())
-        self.assertIn("gui-cleanup-pending recorded for the next pass", notes)
+        self.assertIn("gui-cleanup-pending recorded until the GUI step succeeds", notes)
 
-    def test_pass_restore_does_not_flag_gui_cleanup(self):
+    def test_pass_restore_flags_until_gui_done(self):
+        """Round 3 item 2: an abort between step 5's restore and GUI steps leaves the flag."""
         lane_core.write_json(self.lane.marker, {"t0": 1})
+        restore(self.lane, terminate=self.terminate)
+        self.assertTrue(self.lane.gui_flag.exists())
+        self.assertEqual(gui_done(self.lane), ["gui-cleanup-pending cleared"])
+        self.assertFalse(self.lane.gui_flag.exists())
+
+    def test_restore_without_a_marker_sets_no_flag(self):
         restore(self.lane, terminate=self.terminate)
         self.assertFalse(self.lane.gui_flag.exists())
 
@@ -193,7 +200,7 @@ class CodexRoundTwoTests(unittest.TestCase):
         self.record_forward(9100, FORWARD_CMD.format(sock=self.lane.socket))
         self.runner.costs = [("ssh", 21)]
         deadline = self.lane.clock.now() + 40
-        ok, _ = restore(self.lane, terminate=self.terminate, deadline=deadline, backstop=True)
+        ok, _ = restore(self.lane, terminate=self.terminate, deadline=deadline)
         self.assertFalse(ok)
         self.assertLessEqual(self.lane.clock.now(), deadline)
         self.assertTrue(self.lane.marker.exists())
@@ -232,6 +239,19 @@ class CodexRoundTwoTests(unittest.TestCase):
         self.record_forward(9100, "/usr/bin/" + FORWARD_CMD.format(sock=sock))
         stop_forward(self.lane, [], self.terminate)
         self.assertEqual(self.signalled, [9100])
+
+    def test_socket_path_with_a_space_is_still_our_forward(self):
+        """Round 3 item 3: ps prints argv unquoted; a space in the path must not orphan the tunnel."""
+        sock = str(self.root / "home dir" / "qa" / "podman.sock")
+        self.lane.socket = Path(sock)
+        command = " ".join(forward_argv(sock))      # what ps -o command= prints
+        self.assertTrue(is_our_forward(command, sock))
+        self.assertTrue(is_our_forward("/usr/bin/" + command, sock))
+        self.assertFalse(is_our_forward(command, sock.replace("home dir", "home")))
+        self.record_forward(9100, command, sock)
+        self.assertTrue(stop_forward(self.lane, [], self.terminate))
+        self.assertEqual(self.signalled, [9100])
+        self.assertFalse(self.lane.forward_file.exists())
 
     def test_allowlist_includes_sparkle_and_login_keys(self):
         self.assertEqual(drift({"SUSkippedVersion": "2.0.5"}, {}), ["SUSkippedVersion"])

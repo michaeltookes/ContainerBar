@@ -270,7 +270,74 @@ class CodexRoundOneTests(unittest.TestCase):
         result = preflight(lane, "queued", spawn=lambda ln, run_id, t: Waiting())
         self.assertEqual(result["reason"], "desktop-busy")
         self.assertLessEqual(clock.elapsed(), 480)
-        self.assertEqual(lane.release_file.read_text(), "queued")
+        self.assertEqual(lane.release_file_for("queued").read_text(), "queued")
+
+
+class PerRunReleaseFileTests(unittest.TestCase):
+    """PR 76 round 3 P1: a contender's cancellation survives the owner's release."""
+
+    def test_owner_release_never_touches_a_contenders_cancellation(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+
+        class Queued:
+            pid = 9999
+
+            def poll(self):
+                return None
+
+        # B times out while its holder is still queued on the lock.
+        preflight(lane, "run-B", spawn=lambda ln, run_id, t: Queued())
+        self.assertEqual(lane.release_file_for("run-B").read_text(), "run-B")
+        # A, the owner, releases.
+        lane.lock_dir.mkdir(parents=True, exist_ok=True)
+        (lane.lock_dir / "owner.json").write_text(json.dumps({"run": "run-A"}))
+        lane_core.publish_session(lane, {"session": "run-A"})
+        original = lane_preflight.lock_owner_run
+        calls = []
+
+        def owner(ln):
+            calls.append(1)
+            return "run-A" if len(calls) == 1 else None
+
+        lane_preflight.lock_owner_run = owner
+        self.addCleanup(setattr, lane_preflight, "lock_owner_run", original)
+        self.assertTrue(lane_preflight.release_lock(lane))
+        # B's holder, when it finally gets the lock, still finds its cancellation.
+        self.assertEqual(lane.release_file_for("run-B").read_text(), "run-B")
+        before = clock.now()
+        self.assertEqual(lane_preflight.hold(lane, "run-B", str(lane.release_file_for("run-B")),
+                                             before + 600), 0)
+        self.assertEqual(clock.now(), before)   # let go at once, not at the outer deadline
+        self.assertFalse(lane.release_file_for("run-B").exists())  # consumed by its holder
+
+    def test_holders_watch_only_their_own_file(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+        lane.state_dir.mkdir(parents=True, exist_ok=True)
+        lane.release_file_for("run-A").write_text("run-A")
+        start = clock.now()
+        lane_preflight.hold(lane, "run-B", None, start + 30)
+        self.assertGreaterEqual(clock.now() - start, 30)    # A's file did not release B
+        self.assertTrue(lane.release_file_for("run-A").exists())
+
+    def test_run_ids_map_to_safe_distinct_files(self):
+        lane, _ = make_lane(self)
+        a, b = lane.release_file_for("x/../y"), lane.release_file_for("x-y")
+        self.assertEqual(a.parent, lane.state_dir)
+        self.assertNotEqual(a, b)
+
+    def test_old_release_files_are_pruned_young_ones_kept(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+        old, young = lane.release_file_for("old"), lane.release_file_for("young")
+        old.write_text("old")
+        young.write_text("young")
+        os.utime(str(old), (clock.now() - 3 * 3600,) * 2)
+        os.utime(str(young), (clock.now() - 60,) * 2)
+        lane_preflight.prune_release_files(lane)
+        self.assertFalse(old.exists())
+        self.assertTrue(young.exists())
 
 
 class GuiCleanupPendingTests(unittest.TestCase):
@@ -303,6 +370,21 @@ class GuiCleanupPendingTests(unittest.TestCase):
         self.assertTrue(lane.gui_flag.exists())
         runner.quit_works = True
         self.assertEqual(normalise_after_dialogs(lane)["status"], READY)
+        self.assertFalse(lane.gui_flag.exists())
+
+    def test_pass_aborted_between_restore_and_gui_step_is_normalised_next_time(self):
+        from lane_restore import restore
+        runner = FakeRunner()
+        runner.app_pid = 4100
+        clock = FakeClock()
+        lane, _ = make_lane(self, runner, clock)
+        lane_core.write_json(lane.marker, {"t0": clock.now(), "session": "aborted"})
+        ok, _ = restore(lane)                    # step 5, then the session dies
+        self.assertTrue(ok)
+        self.assertFalse(lane.marker.exists())
+        result = preflight(lane, "next", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(result["status"], READY)
+        self.assertTrue(runner.ran("osascript"))
         self.assertFalse(lane.gui_flag.exists())
 
     def test_hourly_backstop_then_next_pass_normalises(self):
@@ -443,8 +525,7 @@ class RealLockHolderTests(unittest.TestCase):
         lane.lock_dir = root / "device.lock"
         lane.python = sys.executable
         result = preflight(lane, "real-holder-run")
-        self.addCleanup(lambda: lane.release_file.parent.mkdir(parents=True, exist_ok=True)
-                        or lane.release_file.write_text("real-holder-run"))
+        self.addCleanup(lambda: lane.release_file_for("real-holder-run").write_text("real-holder-run"))
         self.assertEqual(result["status"], READY, result["notes"])
         self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")
         time.sleep(1.5)
@@ -454,7 +535,7 @@ class RealLockHolderTests(unittest.TestCase):
         while lane.lock_dir.exists() and time.time() < deadline:
             time.sleep(0.2)
         self.assertFalse(lane.lock_dir.exists())
-        self.assertFalse(lane.release_file.exists())
+        self.assertFalse(lane.release_file_for("real-holder-run").exists())
         pid = lane_core.load_session(lane)["holder_pid"]
         try:
             os.waitpid(pid, 0)

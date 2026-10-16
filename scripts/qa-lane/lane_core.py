@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -98,7 +99,7 @@ class Lane:
         self.marker = self.state_dir / "run-active"
         self.session_file = self.state_dir / "session.json"
         self.forward_file = self.state_dir / "forward.json"
-        self.release_file = self.state_dir / "lock-release"
+        self.release_prefix = "lock-release."
         self.gui_flag = self.state_dir / "gui-cleanup-pending"
         self.lock_dir = Path(env.get("CBQA_LOCK_DIR",
                                      str(self.workspace / "artifacts" / "sentwise-qa" / "device.lock")))
@@ -125,6 +126,11 @@ class Lane:
             if timeout <= 0:
                 return OUT_OF_TIME, ""
         return self.run(argv, timeout)
+
+    def release_file_for(self, run_id: str) -> Path:
+        """One release file per run: a holder watches only its own (PR 76 P1)."""
+        safe = re.sub(r"[^A-Za-z0-9._-]", "_", run_id) or "_"
+        return self.state_dir / (self.release_prefix + safe)
 
     def setting(self, key: str, default: str = "") -> str:
         return self.settings.get(key, default)

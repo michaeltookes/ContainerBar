@@ -56,9 +56,13 @@ def is_our_forward(command: Optional[str], socket_path: str) -> bool:
     """
     if not command:
         return False
-    parts = command.split()
+    # ps prints argv joined by single spaces with no quoting, so a socket path
+    # containing a space cannot be split back reliably (str.split or shlex
+    # would both cut it). Compare the raw line instead: argv[0] (no spaces,
+    # basename ssh), one space, then exactly the rest of the lane's argv.
+    head, _, rest = command.partition(" ")
     expected = forward_argv(socket_path)
-    return bool(parts) and os.path.basename(parts[0]) == "ssh" and parts[1:] == expected[1:]
+    return os.path.basename(head) == "ssh" and rest == " ".join(expected[1:])
 
 
 def _out_of_time(lane: Lane, deadline: Optional[float]) -> bool:
@@ -122,16 +126,16 @@ def stop_forward(lane: Lane, notes: List[str],
 
 def restore(lane: Lane, keep_marker: bool = False,
             terminate: Callable[[int], None] = default_terminate,
-            deadline: Optional[float] = None,
-            backstop: bool = False) -> Tuple[bool, List[str]]:
+            deadline: Optional[float] = None) -> Tuple[bool, List[str]]:
     """No-GUI restore. Returns (ok, run-notes lines).
 
     `deadline` (absolute) caps every call, so the hourly backstop fits its run
-    budget; a restore cut short fails and keeps the marker. With `backstop`
-    (the hourly check), deleting the marker leaves the gui-cleanup-pending
-    flag behind: Settings or Sparkle windows from the aborted run can still be
-    open, and the next pass's step 0 quits and relaunches the app before it
-    clears the flag (CB-112).
+    budget; a restore cut short fails and keeps the marker. Deleting the marker
+    always leaves the gui-cleanup-pending flag behind (the pass's own step 5
+    and the hourly backstop alike): Settings or Sparkle windows can still be
+    open until the GUI step has run. The pass clears the flag with
+    `cbqa_lane.py gui-done` after its GUI restore; otherwise the next pass's
+    step 0 quits and relaunches the app before it clears the flag (CB-112).
     """
     notes: List[str] = []
     ok = True
@@ -166,15 +170,24 @@ def restore(lane: Lane, keep_marker: bool = False,
     elif keep_marker:
         notes.append("run marker kept (--keep-marker)")
     else:
-        if backstop and lane.marker.exists():
-            write_json(lane.gui_flag, {"since": lane.clock.now(), "reason": "backstop restore"})
-            notes.append("gui-cleanup-pending recorded for the next pass")
+        if lane.marker.exists():
+            write_json(lane.gui_flag, {"since": lane.clock.now(), "reason": "no-GUI restore"})
+            notes.append("gui-cleanup-pending recorded until the GUI step succeeds")
         try:
             lane.marker.unlink()
             notes.append("run marker deleted")
         except FileNotFoundError:
             pass
     return ok, notes
+
+
+def gui_done(lane: Lane) -> List[str]:
+    """The pass's GUI restore succeeded: clear the flag the restore left."""
+    try:
+        lane.gui_flag.unlink()
+        return ["gui-cleanup-pending cleared"]
+    except FileNotFoundError:
+        return ["no gui-cleanup-pending flag"]
 
 
 def is_socket(path: Path) -> bool:

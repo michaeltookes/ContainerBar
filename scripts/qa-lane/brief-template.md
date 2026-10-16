@@ -79,16 +79,20 @@ click Allow. Take a cropped screenshot, mark the run BLOCKED, post one line to
 
 1. `zsh T/containerbar-qa-restore.sh`: api-start, fixtures reset if not at baseline,
    the forward stopped by PID and its socket removed. It prints one `restore:` line per
-   action and deletes the run marker last; copy them into the run notes. On failure
-   (exit 1) it keeps the marker: post one line to `#lucius-updates` asking for help.
+   action, deletes the run marker and leaves the `gui-cleanup-pending` flag in its place,
+   so an abort before step 3 still gets the app quit and relaunched by the next pass;
+   copy the lines into the run notes. On failure (exit 1) it keeps the marker: post one
+   line to `#lucius-updates` asking for help.
 2. In the app, through the UI: baseline settings shown (refresh interval 10 s, Show stopped
    containers on, no run-created section), `QA Runtime` selected, no run-created host entry
    left, no Settings window and no Sparkle dialog open, ContainerBar left running.
    Fallback when the UI restore fails or the previous run aborted: quit through `quitApp`,
    `defaults import com.tookes.ContainerBar <workspace>/qa/containerbar/baseline.plist`,
    relaunch, record it as a finding.
-3. `python3 -B T/cbqa_lane.py release` to release the desktop lock.
-4. Run notes list every restore action above. A restore that failed posts to
+3. Only when step 2 succeeded: `python3 -B T/cbqa_lane.py gui-done` (clears the flag).
+   If step 2 failed, leave the flag; the next pass's step 0 quits and relaunches the app.
+4. `python3 -B T/cbqa_lane.py release` to release the desktop lock.
+5. Run notes list every restore action above. A restore that failed posts to
    `#lucius-updates`; the hourly check's backstop (31 minutes) and the next pass's step 0
    will retry the no-GUI part.
 
@@ -100,5 +104,5 @@ click Allow. Take a cropped screenshot, mark the run BLOCKED, post one line to
 - [ ] baseline settings restored through the UI (or fallback import, recorded as a finding)
 - [ ] `QA Runtime` selected; no run-created host entries
 - [ ] no Sparkle or Settings window open; ContainerBar running
-- [ ] run marker deleted (by the restore script)
+- [ ] run marker deleted (by the restore script); `gui-done` run after the UI restore
 - [ ] desktop lock released

@@ -5,6 +5,7 @@
   normalise                  retry the quit/relaunch after closing dialogs
   case-gate [TC-ID]          before each case: time budget and CI, no wait
   restore [--keep-marker]    the no-GUI restore (containerbar-qa-restore.sh)
+  gui-done                   step 5: the GUI restore succeeded, clear gui-cleanup-pending
   release                    release the desktop lock held for this pass
   forward-start              Unix-socket leg: start the SSH-forwarded socket
   forward-stop               stop that forward by its recorded PID
@@ -24,7 +25,7 @@ from lane_core import Lane, case_gate, ci_busy
 from lane_hourly import append_log, hourly
 from lane_preflight import hold, normalise_after_dialogs, preflight, print_result, release_lock
 from lane_prefs import drift_files
-from lane_restore import restore, start_forward, stop_forward
+from lane_restore import gui_done, restore, start_forward, stop_forward
 
 
 def main(argv=None) -> int:
@@ -38,6 +39,7 @@ def main(argv=None) -> int:
     gate.add_argument("case", nargs="?", default="")
     rest = sub.add_parser("restore")
     rest.add_argument("--keep-marker", action="store_true")
+    sub.add_parser("gui-done")
     sub.add_parser("release")
     sub.add_parser("forward-start")
     sub.add_parser("forward-stop")
@@ -70,6 +72,10 @@ def main(argv=None) -> int:
             print("restore: %s" % line)
         print("RESTORED" if ok else "RESTORE-FAILED")
         return 0 if ok else 1
+    if args.cmd == "gui-done":
+        for line in gui_done(lane):
+            print("restore: %s" % line)
+        return 0
     if args.cmd == "release":
         ok = release_lock(lane)
         print("lock released" if ok else "lock still held")

@@ -44,19 +44,24 @@ sourced.
   uses (`tools/sentwise-qa/device_lock.py`, `artifacts/sentwise-qa/device.lock`).
   `preflight` starts a detached holder under that tool, which heartbeats the
   lock until `release` or the run's outer deadline, whichever comes first.
+  Each run has its own release file (`qa/containerbar/lock-release.<run id>`);
+  a holder watches only its own, so a contender that gave up keeps its
+  cancellation even when the owner releases in between.
 - **Marker recovery first.** A marker found under the lock belongs to a run
   that did not finish, whatever its age: the restore runs with
   `--keep-marker`, ContainerBar is quit with `osascript` and relaunched
   (`windows-normalised`), and only then is the old marker replaced. Failure
   keeps the old marker and ends `BLOCKED restore-failed` with one line to
-  `#lucius-updates` (`CBQA_ALERT_TARGET`). When the hourly backstop restores an aborted run it
-  deletes the marker but leaves `qa/containerbar/gui-cleanup-pending`: the
-  next pass's step 0 quits and relaunches the app for that flag too, and
-  clears it only after that succeeds.
+  `#lucius-updates` (`CBQA_ALERT_TARGET`). Whenever the restore deletes the marker (the pass's
+  step 5 or the hourly backstop) it leaves `qa/containerbar/gui-cleanup-pending`
+  in its place; the pass clears it with `gui-done` after its UI restore, and
+  otherwise the next pass's step 0 quits and relaunches the app for that flag
+  and clears it only after that succeeds.
 - **No signals by name.** Nothing here uses `pkill`, `killall` or `kill` with a
   name or pattern. The only process ever signalled is the SSH forward the
-  lane started, by its recorded PID, and only when that PID's complete argv
-  is the lane's forward command. A forward that will not stop blocks a new
+  lane started, by its recorded PID, and only when that PID's complete command
+  line is the lane's forward command (compared as the raw line `ps` prints, so
+  a socket path with a space still matches). A forward that will not stop blocks a new
   one (`forward-failed`) rather than being orphaned.
 - **Hourly check.** No model, no AppleScript, no GUI, under 60 s. Skips while
   the lock is held; skips the app-alive and CPU check while CI is busy; posts
