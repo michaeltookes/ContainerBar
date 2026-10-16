@@ -55,6 +55,30 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("Only if step 2 succeeded", restore)
         self.assertLess(restore.index("gui-done"), restore.index("release --token"))
 
+    def test_workspace_root_comes_from_cbqa_workspace(self):
+        # Codex round 1: never hardcode the default workspace; resolve it like Lane and install.sh.
+        default = "$HOME/.openclaw/workspace"
+        fallback = '"${CBQA_WORKSPACE:-%s}"' % default
+        self.assertEqual(self.text.count(default), self.text.count(fallback))
+        cds = re.findall(r"^cd .*$", "\n".join(shell_blocks(self.text)), flags=re.M)
+        self.assertGreaterEqual(len(cds), 4)
+        for line in cds:
+            self.assertEqual(line, "cd " + fallback)
+
+    def test_authority_read_with_verbose_codesign(self):
+        self.assertIn("codesign -dv --verbose=4 \"$APP\" 2>&1 | grep '^Authority='", self.text)
+        self.assertNotRegex(self.text, r"codesign -dv \"")
+
+    def test_local_network_gate_after_launch_checks(self):
+        gate = self.text.index("**Local Network gate (CB-116).**")
+        self.assertLess(self.text.index("**TC-CB-02 Status item"), gate)
+        self.assertLess(gate, self.text.index("**TC-CB-14 Check for Updates"))
+        self.assertLess(self.text.index("## Every case"), gate)
+
+    def test_logs_fallbacks_name_button_and_row(self):
+        self.assertIn("button `Logs`", self.text)
+        self.assertIn("the row button labelled with the container name", self.text)
+
     def test_no_private_values(self):
         self.assertIsNone(re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", self.text))
         self.assertNotRegex(self.text, r"channel:\d|/Users/[a-z]")
