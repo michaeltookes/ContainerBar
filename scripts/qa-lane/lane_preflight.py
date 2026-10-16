@@ -92,7 +92,7 @@ def acquire_lock(lane: Lane, session: Dict[str, object], notes: List[str],
     once (the release file names this run), so a late acquisition never keeps
     the desktop.
     """
-    run_id = str(session["session"])
+    run_id = str(session["token"])
     deadline = float(session["wait_deadline"])
     holder: Optional[Holder] = None
     spawned = False
@@ -143,7 +143,7 @@ def prune_release_files(lane: Lane, max_age_s: float = 2 * 3600) -> None:
 def release_lock(lane: Lane, run_id: Optional[str] = None) -> bool:
     if run_id is None:
         session = load_session(lane) or {}
-        run_id = str(session.get("session", ""))
+        run_id = str(session.get("token", ""))
     if lock_owner_run(lane) != run_id:
         return True
     _write_release(lane, run_id)
@@ -215,6 +215,7 @@ def normalise_app(lane: Lane, notes: List[str]) -> bool:
 
 def _write_marker(lane: Lane, session: Dict[str, object]) -> None:
     write_json(lane.marker, {"t0": session["t0"], "session": session["session"],
+                             "token": session["token"],
                              "written": lane.clock.now()})
 
 
@@ -239,9 +240,10 @@ def _restore_failed(lane: Lane, notes: List[str]) -> Dict[str, object]:
 def preflight(lane: Lane, session_id: str,
               spawn: Callable[[Lane, str, float], Holder] = spawn_holder) -> Dict[str, object]:
     session = new_session(lane, session_id)
-    run_id = str(session["session"])
+    run_id = str(session["token"])
+    notes_token = "lock token %s" % run_id
     prune_release_files(lane)
-    notes: List[str] = ["deadline: waits end at T0+480s, case cut-off T0+1380s"]
+    notes: List[str] = ["deadline: waits end at T0+480s, case cut-off T0+1380s", notes_token]
     deadline = float(session["wait_deadline"])
 
     while True:

@@ -19,6 +19,11 @@ from lane_core import case_gate, ci_busy
 from lane_preflight import BLOCKED, NEEDS_NORMALISE, READY, normalise_after_dialogs, preflight
 
 
+def token_of(result):
+    """The per-invocation lock token preflight records in its notes."""
+    return next(n.split(" ", 2)[2] for n in result["notes"] if n.startswith("lock token "))
+
+
 class FakeLock:
     """Simulates the shared device lock: another brief holds it until `other_until`."""
 
@@ -210,7 +215,8 @@ class CodexRoundOneTests(unittest.TestCase):
         self.addCleanup(setattr, lane_preflight, "release_lock", original)
         result = preflight(lane, "s6", spawn=spawn_then_ci_starts)
         self.assertEqual((result["status"], result["reason"]), (BLOCKED, "ci-busy"))
-        self.assertEqual(released, ["s6"])
+        self.assertEqual(released, [token_of(result)])
+        self.assertTrue(token_of(result).startswith("s6."))
         self.assertFalse(runner.ran("osascript"))
         self.assertFalse(runner.ran("api-start"))
         self.assertEqual(runner.app_pid, 4100)
@@ -270,7 +276,8 @@ class CodexRoundOneTests(unittest.TestCase):
         result = preflight(lane, "queued", spawn=lambda ln, run_id, t: Waiting())
         self.assertEqual(result["reason"], "desktop-busy")
         self.assertLessEqual(clock.elapsed(), 480)
-        self.assertEqual(lane.release_file_for("queued").read_text(), "queued")
+        token = token_of(result)
+        self.assertEqual(lane.release_file_for(token).read_text(), token)
 
 
 class PerRunReleaseFileTests(unittest.TestCase):
@@ -287,29 +294,28 @@ class PerRunReleaseFileTests(unittest.TestCase):
                 return None
 
         # B times out while its holder is still queued on the lock.
-        preflight(lane, "run-B", spawn=lambda ln, run_id, t: Queued())
-        self.assertEqual(lane.release_file_for("run-B").read_text(), "run-B")
+        b = token_of(preflight(lane, "run-B", spawn=lambda ln, run_id, t: Queued()))
+        self.assertEqual(lane.release_file_for(b).read_text(), b)
         # A, the owner, releases.
         lane.lock_dir.mkdir(parents=True, exist_ok=True)
-        (lane.lock_dir / "owner.json").write_text(json.dumps({"run": "run-A"}))
-        lane_core.publish_session(lane, {"session": "run-A"})
+        (lane.lock_dir / "owner.json").write_text(json.dumps({"run": "run-A.1"}))
+        lane_core.publish_session(lane, {"session": "run-A", "token": "run-A.1"})
         original = lane_preflight.lock_owner_run
         calls = []
 
         def owner(ln):
             calls.append(1)
-            return "run-A" if len(calls) == 1 else None
+            return "run-A.1" if len(calls) == 1 else None
 
         lane_preflight.lock_owner_run = owner
         self.addCleanup(setattr, lane_preflight, "lock_owner_run", original)
         self.assertTrue(lane_preflight.release_lock(lane))
         # B's holder, when it finally gets the lock, still finds its cancellation.
-        self.assertEqual(lane.release_file_for("run-B").read_text(), "run-B")
+        self.assertEqual(lane.release_file_for(b).read_text(), b)
         before = clock.now()
-        self.assertEqual(lane_preflight.hold(lane, "run-B", str(lane.release_file_for("run-B")),
-                                             before + 600), 0)
+        self.assertEqual(lane_preflight.hold(lane, b, str(lane.release_file_for(b)), before + 600), 0)
         self.assertEqual(clock.now(), before)   # let go at once, not at the outer deadline
-        self.assertFalse(lane.release_file_for("run-B").exists())  # consumed by its holder
+        self.assertFalse(lane.release_file_for(b).exists())  # consumed by its holder
 
     def test_holders_watch_only_their_own_file(self):
         clock = FakeClock()
@@ -338,6 +344,52 @@ class PerRunReleaseFileTests(unittest.TestCase):
         lane_preflight.prune_release_files(lane)
         self.assertFalse(old.exists())
         self.assertTrue(young.exists())
+
+
+class SameSessionLabelTests(unittest.TestCase):
+    """PR 76 bot P1: two preflights with the same --session never share lock ownership."""
+
+    def test_second_preflight_with_same_session_stays_queued(self):
+        clock = FakeClock()
+        runner = FakeRunner()
+        lane, _ = make_lane(self, runner, clock)
+        holders = []
+
+        def spawn(ln, run_id, timeout_s):
+            class Holder:
+                pid = 8000 + len(holders)
+
+                def poll(self):
+                    return None   # queued on a held lock, or holding it
+
+            if not ln.lock_dir.exists():          # lock free: this holder acquires
+                ln.lock_dir.mkdir(parents=True)
+                (ln.lock_dir / "owner.json").write_text(json.dumps({"run": run_id}))
+            holders.append(run_id)
+            return Holder()
+
+        first = preflight(lane, "cbqa-daily-20261016-0705", spawn=spawn)
+        self.assertEqual(first["status"], READY)
+        owner = lane_preflight.lock_owner_run(lane)
+        self.assertEqual(owner, token_of(first))
+        marker_before = lane_core.read_json(lane.marker)
+        second = preflight(lane, "cbqa-daily-20261016-0705", spawn=spawn)
+        self.assertEqual((second["status"], second["reason"]), (BLOCKED, "desktop-busy"))
+        self.assertNotEqual(token_of(second), token_of(first))
+        self.assertEqual(holders, [token_of(first), token_of(second)])
+        self.assertEqual(lane_preflight.lock_owner_run(lane), owner)       # first still owns it
+        self.assertEqual(lane_core.load_session(lane)["token"], owner)    # its session untouched
+        self.assertEqual(lane_core.read_json(lane.marker), marker_before)
+        # The second's cancellation names only its own token; the first's holder is unaffected.
+        self.assertEqual(lane.release_file_for(token_of(second)).read_text(), token_of(second))
+        self.assertFalse(lane.release_file_for(token_of(first)).exists())
+
+    def test_tokens_are_unique_per_invocation(self):
+        lane, _ = make_lane(self)
+        a = lane_core.new_session(lane, "same")
+        b = lane_core.new_session(lane, "same")
+        self.assertEqual(a["session"], b["session"])
+        self.assertNotEqual(a["token"], b["token"])
 
 
 class GuiCleanupPendingTests(unittest.TestCase):
@@ -525,17 +577,18 @@ class RealLockHolderTests(unittest.TestCase):
         lane.lock_dir = root / "device.lock"
         lane.python = sys.executable
         result = preflight(lane, "real-holder-run")
-        self.addCleanup(lambda: lane.release_file_for("real-holder-run").write_text("real-holder-run"))
+        token = lane_core.load_session(lane)["token"] if lane.session_file.exists() else "none"
+        self.addCleanup(lambda: lane.release_file_for(token).write_text(token))
         self.assertEqual(result["status"], READY, result["notes"])
-        self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")
+        self.assertEqual(lane_preflight.lock_owner_run(lane), token)
         time.sleep(1.5)
-        self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")  # still held
+        self.assertEqual(lane_preflight.lock_owner_run(lane), token)  # still held
         self.assertTrue(lane_preflight.release_lock(lane))
         deadline = time.time() + 10
         while lane.lock_dir.exists() and time.time() < deadline:
             time.sleep(0.2)
         self.assertFalse(lane.lock_dir.exists())
-        self.assertFalse(lane.release_file_for("real-holder-run").exists())
+        self.assertFalse(lane.release_file_for(token).exists())
         pid = lane_core.load_session(lane)["holder_pid"]
         try:
             os.waitpid(pid, 0)

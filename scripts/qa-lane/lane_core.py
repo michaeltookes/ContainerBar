@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -205,6 +206,9 @@ def new_session(lane: Lane, session: str) -> Dict[str, object]:
     t0 = lane.clock.now()
     data = {
         "session": session,
+        # Unique per invocation: two preflights given the same --session label
+        # must never take each other's lock ownership or release file.
+        "token": "%s.%s" % (session, uuid.uuid4().hex[:12]),
         "t0": t0,
         "wait_deadline": t0 + WAIT_BUDGET_S,
         "case_cutoff": t0 + CASE_CUTOFF_S,

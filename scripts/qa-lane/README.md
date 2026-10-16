@@ -44,7 +44,11 @@ sourced.
   uses (`tools/sentwise-qa/device_lock.py`, `artifacts/sentwise-qa/device.lock`).
   `preflight` starts a detached holder under that tool, which heartbeats the
   lock until `release` or the run's outer deadline, whichever comes first.
-  Each run has its own release file (`qa/containerbar/lock-release.<run id>`);
+  Every preflight invocation gets a unique lock token (its `--session` label
+  plus a random suffix), used for the holder, the ownership check and the
+  release file; `--session` is only the label in reports, so two passes given
+  the same label never mistake each other's lock for their own.
+  Each run has its own release file (`qa/containerbar/lock-release.<token>`);
   a holder watches only its own, so a contender that gave up keeps its
   cancellation even when the owner releases in between.
 - **Marker recovery first.** A marker found under the lock belongs to a run
