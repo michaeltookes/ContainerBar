@@ -89,8 +89,13 @@ struct SSHRouteParserTests {
     }
 
     /// Runs the real `/usr/bin/ssh -G` against a temporary config; it evaluates
-    /// the file only and opens no connection.
-    @Test("Session-dependent Match resolves the tunnel's route, not an interactive one")
+    /// the file only and opens no connection. `Match sessiontype` exists from
+    /// OpenSSH 10.0 only (macOS 14 and 15 ship older), so the test runs only
+    /// where the installed ssh accepts it; the argv test above runs everywhere.
+    @Test(
+        "Session-dependent Match resolves the tunnel's route, not an interactive one",
+        .enabled(if: SSHCapability.supportsMatchSessionType, "installed ssh predates Match sessiontype (OpenSSH 10.0)")
+    )
     func sessionTypeMatch() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cb115-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -124,4 +129,32 @@ struct SSHRouteParserTests {
         #expect(NWLocalNetworkProbe.result(forUnsatisfiedReason: .notAvailable) == .inconclusive)
         #expect(NWLocalNetworkProbe.result(forUnsatisfiedReason: nil) == .inconclusive)
     }
+}
+
+/// Whether `/usr/bin/ssh` understands `Match sessiontype`: `ssh -G` against a
+/// one-block config exits 0 when it does and rejects the file when it does not.
+enum SSHCapability {
+    static let supportsMatchSessionType: Bool = {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cb115-cap-\(UUID().uuidString).conf")
+        defer { try? FileManager.default.removeItem(at: file) }
+        do {
+            try "Match sessiontype none\n  HostName 10.0.0.9\n".write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            return false
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = ["-G", "-nNT", "-F", file.path, "--", "cbqa-capability-probe"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return false
+        }
+        process.waitUntilExit()
+        return process.terminationReason == .exit && process.terminationStatus == 0
+    }()
 }
