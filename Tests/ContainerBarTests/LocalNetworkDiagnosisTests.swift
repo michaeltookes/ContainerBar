@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Testing
 @testable import ContainerBar
 @testable import ContainerBarCore
@@ -175,6 +176,35 @@ struct LocalNetworkDiagnosisTests {
         #expect(message == LocalNetworkGuidance.message)
         #expect(resolver.calls.isEmpty)
         #expect(prober.probed == [NetworkEndpoint(host: "10.0.0.7", port: 2376)])
+    }
+
+    @Test("TLS waiting errors from the real mapper are probed: EHOSTUNREACH and ENETDOWN", arguments: [
+        POSIXErrorCode.EHOSTUNREACH, .ENETDOWN
+    ])
+    func tlsTransportErrorsProbed(code: POSIXErrorCode) async {
+        let fixture = diagnoser(probe: .denied)
+        let error = TLSConnection.mapStateFailure(.posix(code))
+        let message = await fixture.diag.message(for: error, host: tlsHost)
+
+        #expect(fixture.prober.probed == [NetworkEndpoint(host: "10.0.0.7", port: 2376)])
+        #expect(message == LocalNetworkGuidance.message)
+    }
+
+    @Test("TLS refusal from the real mapper is not probed")
+    func tlsRefusedNotProbed() async {
+        let fixture = diagnoser(probe: .denied)
+        let error = TLSConnection.mapStateFailure(.posix(.ECONNREFUSED))
+        let message = await fixture.diag.message(for: error, host: tlsHost)
+
+        #expect(fixture.prober.probed.isEmpty)
+        #expect(message == userFriendlyConnectionErrorMessage(for: error, host: tlsHost))
+    }
+
+    @Test("ENETDOWN text triggers a probe only for TLS, not for the ssh line")
+    func enetdownOnlyForTLS() {
+        #expect(LocalNetworkDiagnoser.mayBeLocalNetworkDenial("Network is down", connectionType: .tcpTLS))
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial("Network is down", connectionType: .ssh))
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial("No route to host", connectionType: .unixSocket))
     }
 
     @Test("TCP/TLS routing failure keeps the TLS message")

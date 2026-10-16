@@ -28,8 +28,8 @@ enum LocalNetworkProbePlan: Equatable {
 }
 
 /// Decides whether a connection failure was caused by a denied macOS Local
-/// Network permission (CB-115). Only an EHOSTUNREACH-shaped failure on an SSH or
-/// TCP/TLS host is probed; the local socket path is never probed.
+/// Network permission (CB-115). Only an SSH "No route to host" or a TCP/TLS
+/// EHOSTUNREACH/ENETDOWN failure is probed; the local socket path is never probed.
 struct LocalNetworkDiagnoser: Sendable {
     let resolver: SSHRouteResolving
     let probe: LocalNetworkProbing
@@ -50,10 +50,23 @@ struct LocalNetworkDiagnoser: Sendable {
         }
     }
 
-    /// Whether the failure text reads as "No route to host" (EHOSTUNREACH), the
-    /// way both ssh and the Network framework report a Local Network denial.
-    static func indicatesHostUnreachable(_ text: String) -> Bool {
-        text.localizedCaseInsensitiveContains("no route to host")
+    /// Whether the failure text can be a Local Network denial, per transport.
+    /// ssh reports a denial as "No route to host" (EHOSTUNREACH). The Network
+    /// framework reports it through the path's `localNetworkDenied` reason,
+    /// while the connection waits with EHOSTUNREACH or ENETDOWN ("Network is
+    /// down", TN3179), so a TLS failure with either text is probed; the probe,
+    /// not the text, decides.
+    static func mayBeLocalNetworkDenial(_ text: String, connectionType: ConnectionType) -> Bool {
+        let markers: [String]
+        switch connectionType {
+        case .ssh:
+            markers = ["no route to host"]
+        case .tcpTLS:
+            markers = ["no route to host", "network is down"]
+        case .unixSocket:
+            markers = []
+        }
+        return markers.contains { text.localizedCaseInsensitiveContains($0) }
     }
 
     /// Which endpoint to probe for an SSH failure. Prefers the `ssh -G` route;
@@ -79,7 +92,7 @@ struct LocalNetworkDiagnoser: Sendable {
     func isLocalNetworkDenied(error: Error, host: DockerHost?) async -> Bool {
         guard let host,
               let text = Self.failureText(for: error, host: host),
-              Self.indicatesHostUnreachable(text) else {
+              Self.mayBeLocalNetworkDenial(text, connectionType: host.connectionType) else {
             return false
         }
 

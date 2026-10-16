@@ -49,9 +49,7 @@ final class TLSConnection: @unchecked Sendable {
                 let params = NWParameters(tls: tlsOptions, tcp: tcpOptions)
                 return NWConnection(host: nwHost, port: nwPort, using: params)
             },
-            mapStateFailure: { error in
-                DockerAPIError.tlsConnectionFailed(error.localizedDescription)
-            },
+            mapStateFailure: Self.mapStateFailure,
             adoptionFailureError: {
                 DockerAPIError.tlsConnectionFailed("Connection adoption failed")
             },
@@ -72,6 +70,15 @@ final class TLSConnection: @unchecked Sendable {
     /// `connectionTimeout`. Handshaking to a remote TLS daemon over a LAN/VPN
     /// can be slow, so 15 s is generous while still failing a wrong port or a
     /// sleeping host well before it wedges the polling refresh loop.
+    /// Maps a `.failed`/`.waiting` state error to the transport error. The
+    /// NWError text is kept, so a Local Network denial surfaces as "No route to
+    /// host" (EHOSTUNREACH) or "Network is down" (ENETDOWN) and the app can
+    /// probe it (CB-115).
+    @Sendable
+    static func mapStateFailure(_ error: NWError) -> DockerAPIError {
+        DockerAPIError.tlsConnectionFailed(error.localizedDescription)
+    }
+
     private static let connectTimeout: TimeInterval = 15
     /// App-level request deadline: comfortably above a normal Docker
     /// list/inspect round-trip while still bounding a daemon that accepts the
