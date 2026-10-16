@@ -47,7 +47,10 @@ sourced.
   Every preflight invocation gets a unique lock token (its `--session` label
   plus a random suffix), used for the holder, the ownership check and the
   release file; `--session` is only the label in reports, so two passes given
-  the same label never mistake each other's lock for their own.
+  the same label never mistake each other's lock for their own. `release` and
+  `normalise` take that token (`--token`) and refuse with "lock not owned by
+  this pass" when the lock or `session.json` belongs to another pass; there is
+  no fallback to whatever session is current.
   Each run has its own release file (`qa/containerbar/lock-release.<token>`);
   a holder watches only its own, so a contender that gave up keeps its
   cancellation even when the owner releases in between.
