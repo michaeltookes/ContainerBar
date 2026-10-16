@@ -14,9 +14,10 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
 - Session id for this run: `cbqa-daily-<YYYYMMDD>-<HHMM>`.
 - **One deadline.** `T/cbqa_lane.py preflight` records T0. CI and lock waits share
   the budget to T0 + 480 s; no case starts after T0 + 1380 s; the rest is for the restore.
-  Copy every `note:` line preflight prints into the run notes (the wait end times included).
-  One of them is `lock token <token>`: this pass's own token, needed by `normalise`,
-  `case-gate` and `release` below. Use exactly that value, never one read from `session.json`.
+  Copy every `note:` line preflight prints into the run notes (the wait end times included)
+  except `lock token <token>`: that is this pass's own token, needed by `normalise`,
+  `case-gate` and `release` below. Keep it in the session only, never in the report or Discord;
+  use exactly that value, never one read from `session.json`.
 - **Desktop lock.** Preflight takes the workspace desktop lock the Sentwise pass uses and
   holds it for the whole pass; while it is held the Sentwise and ContainerBar hourly
   checks skip. Do not wrap your own Peekaboo calls in `device_lock.py` (the pass already

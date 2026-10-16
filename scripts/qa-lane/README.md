@@ -24,7 +24,8 @@ sourced.
 | `containerbar-qa-restore.sh` | restore entry point (`--keep-marker` for step 0 recovery) |
 | `containerbar-hourly.sh` | launchd entry point; runs the checks under the shared lock, skips when it is held |
 | `com.genkeilabs.containerbar-hourly.plist.template` | launchd agent, hourly at :40 from 08:00 to 20:00 |
-| `install.sh` | copies the tools into `<workspace>/tools/containerbar-qa/`, renders and loads the agent, optionally adds the OpenClaw cron job; dry run unless `--apply` |
+| `CONTAINERBAR_QA.md` | the standing recipe the daily brief hands to the agent (CB-101): selectors, cases runnable today, evidence, restore, report; installed as `<workspace>/CONTAINERBAR_QA.md` |
+| `install.sh` | copies the tools into `<workspace>/tools/containerbar-qa/` and the recipe to `<workspace>/CONTAINERBAR_QA.md`, renders and loads the agent, optionally adds the OpenClaw cron job; dry run unless `--apply` |
 
 ## Rules the code keeps
 
@@ -89,7 +90,14 @@ sourced.
 CBQA_RUNNER_NAMES=<runner-1>,<runner-2>
 CBQA_ALERT_TARGET=channel:<lucius-updates-id>
 CBQA_DAILY_TARGET=channel:<containerbar-channel-id>
+CBQA_DEVELOPER_ID_AUTHORITY=Authority=Developer ID Application: <owner> (<team-id>)
 ```
+
+The recipe also reads `qa/containerbar/local-network-grants.log`, one line per
+Local Network grant (CB-116): `<YYYY-MM-DD> | <identity> | <build> | <who>`.
+A `developer-id` line (build `-`) covers every Developer ID release; an `adhoc`
+line covers only the `<version>-<build>` it names. Without a matching line the
+recipe marks every SSH case `blocked local-network-denied (CB-116)`.
 
 Optional: `CBQA_RUNNER_REPOS` (default `michaeltookes/ContainerBar,michaeltookes/sentwise`),
 `CBQA_WEBHOOK_KEY` (default `CONTAINERBAR_QA_WEBHOOK`).
