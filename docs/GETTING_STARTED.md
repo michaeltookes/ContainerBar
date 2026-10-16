@@ -149,7 +149,7 @@ macOS asks before an app connects to devices on your local network. The prompt a
 
 To turn it back on, click **Open Local Network Settings** next to that message (or open **System Settings > Privacy & Security > Local Network** yourself), switch ContainerBar on, then press Refresh or **Test Connection**. ContainerBar reconnects without a relaunch.
 
-Local Docker and Podman sockets, and hosts reached through an SSH `ProxyJump` or `ProxyCommand`, do not depend on this permission.
+Only local Docker and Podman sockets are exempt. Hosts reached through an SSH `ProxyJump` or `ProxyCommand` may still need the permission, because macOS counts the connections that `ssh` and its proxy helpers make as ContainerBar's own: if the bastion or proxy is on your local network, allow access. For those hosts ContainerBar cannot tell a denial from other failures, so it shows the normal SSH error; check the Local Network setting if a proxied LAN host stops connecting.
 
 ---
 
