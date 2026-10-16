@@ -27,28 +27,25 @@ brief wins. Versioned as the repo's `scripts/qa-lane/CONTAINERBAR_QA.md` and cop
 
 Read with `grep '^KEY=' qa/containerbar/lane.env | tail -n1 | cut -d= -f2-`, never `source`: `CBQA_DAILY_TARGET` (ContainerBar channel), `CBQA_ALERT_TARGET` (`#lucius-updates`),
 `CBQA_DEVELOPER_ID_AUTHORITY` (the expected `Authority=Developer ID Application: ...` line),
-`CBQA_RUNNER_NAMES`. The baseline is `qa/containerbar/baseline.plist`. Local Network grants
-are recorded in `qa/containerbar/local-network-grants.log`, one line per grant:
-`<YYYY-MM-DD> | <version or build> | <identity: developer-id or qa-apple-development> | <who>`.
+`CBQA_RUNNER_NAMES`. The baseline is `qa/containerbar/baseline.plist`. Local Network grants:
+`qa/containerbar/local-network-grants.log`, one line per grant, `<YYYY-MM-DD> | <identity> | <build> | <who>`.
+`<identity>` is `developer-id` (the release signature; one grant covers every release, `<build>` is `-`)
+or `adhoc` (an unsigned or ad-hoc build; the grant covers only the `<version>-<build>` it names).
 
 ## The app
 
 - Released app: `/Applications/ContainerBar.app`, bundle id `com.tookes.ContainerBar`. Target it
   as `--app com.tookes.ContainerBar` (or `--app "PID:<pid>"` with the PID below).
 - **Hunt build** (Prowl PR gate): bundle id `com.tookes.ContainerBar.hunt`, path containing
-  `/.prowl/DerivedData/`, the same name and status-item title. Never click, quit or screenshot it.
-  Tell them apart by command line: `pgrep -x ContainerBar | xargs -n1 ps -o pid=,command= -p`;
-  the released PID's command starts with `/Applications/ContainerBar.app/`.
+  `/.prowl/DerivedData/`, same name and title; never click, quit or screenshot it. Released PID: the one
+  whose command starts `/Applications/ContainerBar.app/` (`pgrep -x ContainerBar | xargs -n1 ps -o pid=,command= -p`).
 - **Status item.** `peekaboo menubar list --json`; pick the entry titled `ContainerBar` (from the
   release containing CB-107: identifier `containerBarStatusItem`). If two `ContainerBar` entries
   exist (hunt build left running) and the frames cannot be tied to the released PID, the step is
-  `blocked` with the list. Open it with a positional click on the frame centre:
-  `peekaboo click --at <x>,<y> --global --foreground --no-auto-focus` (y = 15), wait 0.8 s,
-  screenshot. Re-read the frame each time, never assume an index.
-- Settings panes: **General**, **Connections**, **Sections**, **About**. Open Settings from the
-  panel's gear button. Close Settings with its window close button before the restore.
-- **Selectors are release-aware.** Use identifiers only when the installed version is at or
-  above the `fixed-in` of the item that added them (table at the end); otherwise use the label.
+  `blocked` with the list. Open it by clicking the frame centre (re-read the frame each time):
+  `peekaboo click --at <x>,<y> --global --foreground --no-auto-focus` (y = 15), wait 0.8 s, screenshot.
+- Settings panes: **General**, **Connections**, **Sections**, **About**; open from the panel's gear, close with its close button.
+- **Selectors are release-aware**: identifiers only when installed >= the item's `fixed-in` (table at the end), else labels.
 
 | Element | Identifier (when released) | Label fallback (installed 2.0.4) |
 |---|---|---|
@@ -77,9 +74,8 @@ limit), `cbqa-target` (running; the only container you may stop, start or restar
 (running, TTY, prints `cbqa-tty-line-1`), `cbqa-stopped` (exited). Baseline: 6 containers,
 5 running. `ssh cbqa-ctl <verb>`, verbs `status`, `info`, `reset`, `target-stop`, `api-stop`,
 `api-start`; anything else exits 64; `status` exits 2 when Podman is unreachable.
-Host entries: `QA Runtime` (SSH, Podman, host `cbqa-tunnel`, user `cbqa-fwd`, remote socket
-`/run/cbqa-api/podman.sock`, always the selected host) and `QA Runtime (socket)` (Unix Socket,
-Podman, socket `$HOME/qa/containerbar/podman.sock` expanded).
+Hosts: `QA Runtime` (SSH, Podman, `cbqa-tunnel`, user `cbqa-fwd`, `/run/cbqa-api/podman.sock`, always selected)
+and `QA Runtime (socket)` (Unix Socket, Podman, `$HOME/qa/containerbar/podman.sock` expanded).
 
 ## Evidence
 
@@ -90,7 +86,14 @@ TC-CB-08, 10, 13, 15, 16, 17 (no other case records video; use the `peekaboo` sk
 command scoped to the ContainerBar window). Screenshot with
 `peekaboo see --app com.tookes.ContainerBar --annotate --path "<run>/assets/<TC-id>/NN-<slug>.png" --json`;
 a capture showing more than the app panel or Settings window is cropped (`sips -c`) or deleted.
-Command output, dialog text and element lists go into `report.md` verbatim.
+Command output, dialog text and element lists go into `report.md` verbatim, except that every
+connection error (Test Connection, banners, ssh lines) is redacted first; a screenshot showing an
+address is not kept (step `blocked`):
+
+```sh
+ERR='paste the error text here'
+printf '%s\n' "$ERR" | sed -E 's/([0-9]{1,3}[.]){3}[0-9]{1,3}/<address>/g; s/[[]?[0-9A-Fa-f]{0,4}(:[0-9A-Fa-f]{0,4}){2,7}(%[A-Za-z0-9]+)?[]]?/<address>/g; s#/[^ ]*[.]sock#<socket>#g'
+```
 
 ## Step 0: preflight
 
@@ -138,15 +141,14 @@ BLOCKED (reason), SKIPPED or known failure (CB id). A video case starts its reco
 
 ```sh
 APP=/Applications/ContainerBar.app
-/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist"
 codesign --verify --deep --strict "$APP"; echo "codesign=$?"
 spctl --assess --type execute "$APP"; echo "spctl=$?"
 xcrun stapler validate "$APP"; echo "stapler=$?"
 codesign -dv --verbose=4 "$APP" 2>&1 | grep '^Authority=' | head -n1
 curl -sSf https://api.github.com/repos/michaeltookes/ContainerBar/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])'
 curl -sSf https://michaeltookes.github.io/ContainerBar/appcast.xml | grep -o '<sparkle:shortVersionString>[^<]*' | head -n1 | cut -d'>' -f2
-curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Casks/containerbar.rb | grep -m1 '^ *version '
+curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Casks/containerbar.rb | sed -n 's/^ *version "\([^"]*\)".*/\1/p' | head -n1
 ```
 
 PASS: the three checks exit 0, the first Authority line equals `CBQA_DEVELOPER_ID_AUTHORITY`, and
@@ -167,9 +169,16 @@ SULastCheckTime` should report the key missing (present: finding linked to CB-07
 
 **Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is
 installed, verified and running) and before TC-CB-14 and any SSH-dependent case or step.
-**Open** when `local-network-grants.log` has a line for the installed release (`developer-id`
-covers every release on this Mac): Settings > Connections > `QA Runtime` > Test Connection must
-show success, the only accepted proof. `No route to host` or the Local Network message while
+**Open** when the grant log has a `developer-id` line and TC-CB-01 found the Developer ID
+authority (any installed version), or an `adhoc` line naming the installed `<version>-<build>`:
+
+```sh
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
+BUILD='2.0.4-7'   # installed CFBundleShortVersionString-CFBundleVersion from TC-CB-01
+awk -F' *[|] *' -v b="$BUILD" '$2=="developer-id" || ($2=="adhoc" && $3==b) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
+```
+
+Then Settings > Connections > `QA Runtime` > Test Connection must show success, the only proof. `No route to host` or the Local Network message while
 `ssh cbqa-ctl status` worked: BLOCKED `local-network-denied`, one line to `CBQA_ALERT_TARGET`, SSH
 cases `blocked local-network-denied`. Any other failure: `FAIL TC-CB-03` with the error verbatim,
 SSH cases `blocked app-cannot-connect`. **Closed** (no line; the state until CB-116 lands): do not
@@ -177,8 +186,7 @@ click Test Connection; every SSH case is `blocked local-network-denied (CB-116)`
 "Allow "ContainerBar" to find devices on local networks?" (it can appear at any launch): leave it
 untouched, note `local-network-prompt-open`; it alone does not stop the pass (CB-116).
 
-**TC-CB-14 Check for Updates when current.** First
-`curl -sSfI https://michaeltookes.github.io/ContainerBar/appcast.xml`; non-zero: `blocked
+**TC-CB-14 Check for Updates when current.** First `curl -sSfI https://michaeltookes.github.io/ContainerBar/appcast.xml`; non-zero: `blocked
 appcast-unreachable`, capture any Sparkle error text. Settings > About: `01-about.png` (version
 and build visible), press Check for Updates, `02-sparkle-result.png`. "You're up to date": PASS,
 close the dialog. Newer version offered: note `update-available <v>`, press Remind Me Later,
@@ -233,17 +241,14 @@ cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 zsh tools/containerbar-qa/containerbar-qa-restore.sh   # copy every restore: line; exit 1 = post for help
 ```
 
-1. The script runs `api-start`, resets fixtures not at baseline, stops the forward by PID,
-   removes its socket, deletes the run marker and leaves the `gui-cleanup-pending` flag.
+1. The script: `api-start`, fixture reset, forward stopped by PID, marker deleted, flag left; copy the
+   brief's restore checklist into the report, ticked; a failed restore posts to `CBQA_ALERT_TARGET`.
 2. In the UI: refresh interval 10 s, Show Stopped Containers on, no run-created section or host,
    `QA Runtime` selected, no Settings window and no Sparkle dialog open, ContainerBar running.
    Fallback when that fails or step 0 found drift: Quit, then
    `defaults import com.tookes.ContainerBar qa/containerbar/baseline.plist`, relaunch, record a finding.
-3. Only if step 2 succeeded: `python3 -B tools/containerbar-qa/cbqa_lane.py gui-done`.
-   If it failed, leave the flag; the next pass's step 0 quits and relaunches the app.
-4. `python3 -B tools/containerbar-qa/cbqa_lane.py release --token "$TOKEN"`. `lock not owned by
-   this pass` (exit 1): record it, do nothing else to the lock.
-5. Copy the brief's restore checklist into the report, ticked. A failed restore posts to `CBQA_ALERT_TARGET`.
+3. Only if step 2 succeeded: `python3 -B tools/containerbar-qa/cbqa_lane.py gui-done` (failed: leave the flag).
+4. `python3 -B tools/containerbar-qa/cbqa_lane.py release --token "$TOKEN"`; `lock not owned by this pass`: record it, stop.
 
 ## Report and post
 
@@ -254,9 +259,10 @@ failures** (CB id, fixed-in, case); **Defects and proposed backlog items** (repr
 actual, evidence path; a stale recipe goes here); **Run notes** (every `note:`, `forward:` and
 `restore:` line, the lock token, restored values, findings, the ticked restore checklist).
 
-Verdict: FAIL if any case failed that is not a known failure; BLOCKED if preflight or the run
-stopped on a reason below; else PASS. While the gate is closed the SSH cases are listed as
-`blocked local-network-denied (CB-116)` and do not by themselves turn PASS into BLOCKED.
+Verdict: FAIL if any case failed that is not a known failure. Else BLOCKED if preflight stopped
+the run or any case or step is blocked, for any reason (`forward-failed`, `ci-busy`, `time-budget`,
+a stale recipe, ...), except: `blocked local-network-denied (CB-116)` while the gate is closed, and a
+block the known-failures table predicts (CB-082). Else PASS. A case not scheduled today is SKIPPED.
 
 Your final reply is the one Discord message (the cron job announces it to `CBQA_DAILY_TARGET`):
 `QA PASS — ContainerBar <version> — <YYYY-MM-DD> <HH:MM>` (or `QA FAIL`, naming the failing TC ids,
@@ -268,20 +274,14 @@ On FAIL first attach the failing steps' screenshots (videos only under 25 MB) wi
 
 ## Failure vocabulary
 
-| Reason | Meaning |
-|---|---|
-| `ci-busy` | a runner job on this Mac (`Runner.Worker`, or the runners API says busy) |
-| `desktop-busy` | another desktop brief held the lock past T0 + 480 s |
-| `restore-failed` | the previous run's marker could not be recovered |
-| `qa-runtime-down` | `ssh cbqa-ctl status` failed or not baseline after one retry |
-| `local-network-denied` | no positive Test Connection proof of the Local Network grant |
-| `app-cannot-connect` | the grant is there, the app still cannot connect (TC-CB-03 FAIL) |
-| `forward-failed` | the Unix-socket forward did not produce its socket in 10 s |
-| `time-budget` | the case would start after T0 + 1380 s (`lock-not-owned`: hold ran out) |
-| `scope-guard` | an action was about to hit a non-`cbqa-target` / non-`cbqa-` card |
-| `appcast-unreachable` | the appcast URL did not answer |
-| `stale-install` | installed version is not the latest release |
-| `runner-api-unavailable`, `windows-normalised`, `previous run left state`, `unexpected update prompt`, `post-failed` | notes and findings, never a verdict |
+Blocked reasons: `ci-busy` (a runner job on this Mac), `desktop-busy` (lock held past T0 + 480 s),
+`restore-failed` (previous marker not recovered), `qa-runtime-down` (`cbqa-ctl status` failed or not
+baseline after one retry), `local-network-denied` (no positive Test Connection proof),
+`app-cannot-connect` (grant present, app still cannot connect: TC-CB-03 FAIL), `forward-failed`
+(no socket in 10 s), `time-budget` (case would start after T0 + 1380 s; `lock-not-owned`: hold ran
+out), `scope-guard` (action about to hit a non-`cbqa-` card), `appcast-unreachable`. FAIL reason:
+`stale-install`. Notes and findings, never a verdict: `runner-api-unavailable`, `windows-normalised`,
+`previous run left state`, `unexpected update prompt`, `post-failed`.
 
 ## Known failures (installed release below `fixed-in` stays quiet)
 
