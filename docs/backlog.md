@@ -455,3 +455,24 @@ Owner: builder. Lands before or with CB-108.
 - Every identifier in the accessibility tree that is built by the helper matches `^[A-Za-z]+(-[a-z0-9]+)*$`.
 
 **Test cases**: proposed **TC-CB-20** "Identifiers are slug-safe" (read-only; one regex check over the accessibility dump in TC-CB-02).
+
+### CB-120: Make `containerCard-<slug>` unique with the short container id, like the CB-107 quick-action and logs-row identifiers
+**Priority**: Low (P3: QA selector ambiguity; no user-visible effect)
+**Rank**: Low, next to CB-119, after CB-107 merges; ship in the same branch as CB-119 or right after it, since both change the card identifier the recipe and the Prowl hunt select by. Proposed by BA 2026-10-15.
+**Source**: CB-107 Codex fix round on PR 69 (branch `cb-107` at `bebc3e7`), 2026-10-15. That round made `containerStop-`, `containerStart-` and `logs-panel-container-` end in the 12-character short container id (`QAAccessibilityID.containerScoped`), so two containers named `Web` and `web` stay distinct. `QAAccessibilityID.containerCard` was left as `containerCard-<slug>` because it predates CB-107 and the `menu-smoke` Prowl hunt (`.prowl/hunts/menu-smoke.yml`, `id=containerCard-web`) and TC-CB-04 select by it, so it keeps the same case-only collision: `Web` and `web` both produce `containerCard-web`.
+**Description**: Give the card the same `<kind>-<slug>-<shortid>` shape and move every selector that uses it to prefix selection, as architecture §9A items 2 and 3 already describe for the other container identifiers (the daily pass cannot know container ids in advance). Owner: builder; the orchestrator updates the CB-101 recipe.
+
+**Technical tasks**:
+- [ ] `QAAccessibilityID.containerCard(name:id:)` returns `containerCard-<slug>-<shortid>` through `containerScoped`; `ContainerCardView` passes `container.id`. Update the doc comment that says the card form stays unchanged.
+- [ ] Selectors match the full shape, not a bare prefix: a bare `containerCard-web-` prefix would also match a container named `web-api` (`containerCard-web-api-<id>`). Use `containerCard-<slug>-` followed by exactly 12 lowercase hex characters (regex `^containerCard-web-[0-9a-f]{12}$`). If the Prowl selector syntax has no regex or prefix form, the architect picks the closest supported form and records it in `.prowl/README.md`.
+- [ ] `.prowl/hunts/menu-smoke.yml` and `.prowl/README.md` (line 71, `containerCard-<name-slug>`) move to the new form; architecture §9A item 2 and §9E TC-CB-04 ("six `containerCard-cbqa-*` cards") describe the suffix and the match rule; the CB-101 recipe selects cards the same way.
+- [ ] Tests: update `QAAccessibilityIDTests` ("Card identifier keeps the existing containerCard-<slug> form") and the `ContainerCardViewTests` identifier lookups (`containerCard-cbqa-target`, `containerCard-cbqa-stopped`) to the new shape; add the regression and no-name tests below (pure helper, CB-056 pattern).
+
+**Acceptance**: Size **XS**, one branch.
+- Given two containers named `Web` and `web` with ids starting `aaaaaaaaaaaa…` and `bbbbbbbbbbbb…`, when their card identifiers are built, then they are `containerCard-web-aaaaaaaaaaaa` and `containerCard-web-bbbbbbbbbbbb`, and each card's Stop/Start identifiers end in the same short id as its card.
+- Given the daily fixtures, when TC-CB-04 reads the dashboard, then it finds exactly six cards matching `^containerCard-cbqa-[a-z0-9-]+-[0-9a-f]{12}$`, and `cbqa-web`'s card is found by `^containerCard-cbqa-web-[0-9a-f]{12}$` without matching any other card.
+- Given containers named `web` and `web-api`, then the selector for `web` matches only the `web` card.
+- Unhappy path (no name): given a container whose `names` list is empty, so `displayName` falls back to the short id, when its card identifier is built, then it is `containerCard-<shortid>-<shortid>` (deterministic, no empty segment, no crash), and its Stop/Start identifiers use the same slug and id.
+- Given a PR hunt run after the change, then `menu-smoke` still finds the card and passes.
+
+**Test cases**: TC-CB-04 (selector updated); no new case.
