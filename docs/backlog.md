@@ -194,6 +194,15 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 **Technical tasks** (architect, story 7 AC4):
 - [ ] Docs builder: add a release-prep rule to `docs/RELEASING.md` and the Release Configuration table in `CLAUDE.md`: every `CHANGELOG.md` bullet ends with the CB id(s) it closes, for example `(CB-079)`; `scripts/validate-release.py` may warn on a bullet without one. Until the first release under the rule, the recipe derives each known failure's `fixed-in` from git: the `docs/resolved.md` entry names the branch, `git log origin/main --merges --grep '<branch>' --format=%H -1` gives the merge commit, and the oldest tag from `git tag --contains <merge-sha> --sort=v:refname` is `fixed-in` (`unreleased` if none).
 
+### CB-130: QA pass: a non-fixture container on the QA runtime is a scope-breach FAIL before launch, not `qa-runtime-down` (CB-101 follow-up)
+**Priority**: High
+**Description**: Filed 2026-10-16 (business-analyst, review-cap leftover from PR #78, Codex P2 at `scripts/qa-lane/CONTAINERBAR_QA.md` ~136, recorded by the orchestrator at 13:14 CT). No duplicate in this backlog or `docs/resolved.md`. The recipe's baseline step (`ssh cbqa-ctl reset && ssh cbqa-ctl status`, then "`status` not the baseline after the retry: BLOCKED `qa-runtime-down`") treats every mismatch alike. A container whose name does not start with `cbqa-` is not downtime: `docs/requirements/lucius-daily-qa.md` US-1 AC2 makes it a FAIL of the precondition that stops the pass before ContainerBar is launched. On a run with a leftover recovery marker, preflight (`lane_preflight.py` `normalise_app()`) may already have relaunched the app against the contaminated runtime. `scripts/qa-lane/lane_hourly.py` (~169) maps any bad `cbqa-ctl status` to `qa-runtime-down` the same way. Fix: a separate scope check on the status names that runs before preflight is allowed to relaunch the app, in both the daily recipe and the hourly check. Severity P2 (a safety precondition reported as an outage; the runtime is the unprivileged `cbqa` user, so no production container is reachable, CB-100 AC3). Rank: first of the CB-128 to CB-130 tickets, before the CB-105 install schedules unattended passes.
+**Acceptance**: Size **S**.
+- Given `cbqa-ctl status` lists the six fixtures plus a container named `web-prod`, when the daily pass starts, then it ends FAIL `scope-breach` naming `web-prod`, ContainerBar is not launched or relaunched (no `open` of the app in the run log, including the recovery-marker path), and no case runs.
+- Given the same status during the hourly check, then the check reports `scope-breach` (not `qa-runtime-down`) and the Discord post names it.
+- Given `cbqa-ctl status` fails to connect or lists a fixture in the wrong state, then the result is still BLOCKED `qa-runtime-down` after the reset and one retry (unchanged).
+- Given only the six `cbqa-` fixtures, then the scope check passes silently and the pass continues.
+
 ## Medium Priority
 
 Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling 2026-10-14). **Wave one resolved** (see `docs/resolved.md`): CB-069, CB-070, CB-072, CB-079, CB-080. **Next wave:** ~~CB-077 (a)~~ (resolved 2026-10-14) → CB-078 → CB-077 (b) → CB-075 (a, then b) → CB-071 (a, then b) → CB-074 → CB-073 → CB-076, with CB-100, CB-101, and CB-107 running in parallel (High). CB-077 (b) follows CB-078 so that (b) rebases on (a). Items flagged "two branches" ship as two branches under the same id, labelled (a) and (b); CB-071, CB-075, and CB-077 stay split, CB-076 is one branch. Each enriched item carries an **Acceptance** block whose QA checks use the `cbqa-` fixtures, the `ssh cbqa-ctl` verbs, and the `TC-CB` cases defined in [`docs/requirements/lucius-daily-qa.md`](requirements/lucius-daily-qa.md) section 4 and architecture §9E; design notes for CB-071..078 are in [`docs/architecture/lucius-daily-qa.md`](architecture/lucius-daily-qa.md) §13. Desktop-check findings (BA 2026-10-15): CB-118 then CB-117 follow CB-076.
@@ -371,6 +380,24 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 - Given a previous run with no failures and a run whose budget runs out during `spctl --assess`, then the run reports no `gatekeeper-rejected` and keeps the Gatekeeper check's previous result; the log says "not observed (out of time)".
 - The same for the app check (`pgrep`/`ps` cut short) and the fixture check (`cbqa-ctl status` cut short).
 - Given `spctl` exits non-zero well inside the budget, then `gatekeeper-rejected` is still reported.
+
+### CB-128: Hourly QA check: keep an undelivered failure snapshot until it is posted (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Filed 2026-10-16 (business-analyst, review-cap leftover from PR #76, Codex P2 at `scripts/qa-lane/lane_hourly.py` ~296, answered as a ticket intent by the orchestrator at 12:10 CT). No duplicate in this backlog or `docs/resolved.md`. When the webhook post fails on a red run, `state["failing"]` stays at the last delivered value but `checks` holds the red observation; if the check recovers before the next hourly run, that run overwrites the observation with green, sees current equal to previous, and posts neither the failure nor a recovery, although the log said the post would be retried. Fix: persist the undelivered failure message (and the failing set it reported) separately in the state file until a post succeeds, and post it, marked as late, before or with the next run's result. Severity P2 (a real failure can go unreported; workaround: read the hourly log). Rank: with CB-126 and CB-127, one branch on `lane_hourly.py`, after CB-130.
+**Acceptance**: Size **S**.
+- Given a run that observes `app-not-running` and a webhook that fails, and a next run in which the app is running and the webhook works, when the next run posts, then Discord receives the earlier failure (with its original time, marked "delivered late") and the recovery, in that order.
+- Given a webhook that fails on two runs in a row, then the state file still holds the first undelivered message after the second run and nothing is lost.
+- (unhappy) Given a state file whose undelivered entry is malformed, then the run logs one warning, drops that entry and still posts its own result.
+- Given every post succeeds, then behaviour is unchanged (one post on a change, none when nothing changed).
+
+### CB-129: QA lane: `gui-done`, `forward-start` and `forward-stop` require the pass's lock token (CB-105 follow-up)
+**Priority**: Medium
+**Description**: Filed 2026-10-16 (business-analyst, review-cap leftover from PR #76, reported by the orchestrator at 12:05 CT). No duplicate in this backlog or `docs/resolved.md`. `scripts/qa-lane/cbqa_lane.py` checks the lock token on `normalise`, `case-gate` and `release`, but `gui-done` (clears `gui-cleanup-pending`, `lane_restore.py` `gui_done()`), `forward-start` and `forward-stop` take no token. A pass whose hold has expired can still run them late: clear the cleanup flag another pass relies on, or start or stop a socket forward while another pass holds the desktop. Fix: `--token` required on all three, checked against the current lock owner the same way `case-gate` checks it; the recipe passes the token. Severity P2 (lock safety between passes; no data loss). Rank: after CB-130, before CB-128.
+**Acceptance**: Size **S**.
+- Given pass A's token and a lock now held by pass B, when A runs `gui-done --token A`, `forward-start --token A` or `forward-stop --token A`, then each exits non-zero with "lock held by another pass", the flag and the forward are untouched, and no token value is printed.
+- Given the current owner's token, then each command behaves as today.
+- (unhappy) Given no `--token`, then argparse refuses the command (exit 2) and nothing changes.
+- `CONTAINERBAR_QA.md` passes the token on every call of the three commands, and the token stays out of `report.md` and every asset (the recipe's whole-pass rule).
 
 ### CB-113: Split swift-log call sites that mix host, user, path and port before OSLog privacy (CB-108 expansion)
 **Priority**: Medium
