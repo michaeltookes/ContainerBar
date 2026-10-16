@@ -93,6 +93,15 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 **Test cases**: proposed **TC-CB-18** "Local Network denied shows guidance" (release brief or manual only: it needs the grant turned off, which the daily pass never does; the classifier is covered by unit tests).
 
+**Amendment (BA 2026-10-15, PR 72 review): resolve the SSH route before probing.** `DockerHost.host` is often an OpenSSH alias (`cbqa-tunnel`), and NWConnection does not read `~/.ssh/config` (`HostName`, `Port`, `ProxyJump`, `ProxyCommand`), so probing the alias string can report a name-resolution failure instead of the Local Network denial.
+- [ ] Before the probe, resolve the effective endpoint with `ssh -G [-p <port>] [-l <user>] -- <host>` (same argv options the tunnel uses) and read its `hostname` and `port` fields; probe that address and port. When `ssh -G` fails, fall back to the address ssh itself printed in the failing stderr line (`connect to host <address> port <n>`), and if neither yields an address, skip the probe.
+- [ ] When `ssh -G` reports a `proxycommand` or `proxyjump` value other than `none`, skip the probe (the LAN hop is not the app's direct connection) and show the normal SSH failure message (CB-118).
+- [ ] TCP/TLS hosts probe their configured host and port directly (no alias resolution).
+- [ ] Unit tests on the pure parts: parsing `ssh -G` output (alias with `HostName` and `Port`, an IPv6 hostname, `proxyjump` set, `proxycommand` set, `ssh -G` failure), with the probe result injected; no network in tests.
+- Given host `cbqa-tunnel` whose `~/.ssh/config` entry sets `HostName` to a LAN address and Local Network is denied, when Test Connection runs, then the probe targets the resolved address and port 22 and the Local Network message appears (not "No route to host", not a resolution error).
+- Unhappy path: given an alias whose config sets `ProxyJump`, when the connection fails with "No route to host", then no probe runs and the normal SSH failure message (alias, no address) appears.
+- Unhappy path: given `ssh -G` fails and the stderr carries no address, then no probe runs and the normal SSH failure message appears.
+
 ### CB-102: Daily released-build integrity and launch check; release-day install from the cask and the notarized zip
 **Priority**: High
 **Description**: Story US-lucius-daily-qa-3. Daily: installed version equals the latest GitHub release, `codesign`/`spctl`/`stapler` pass, launch from the console session shows the status item within 10 s. Release day (orchestrator-fired): `brew upgrade --cask containerbar`, the same checks on the extracted zip, a console launch of the zip (closes the manual step in `docs/RELEASING.md` for that release; complements CB-058), and the Sparkle offer from the previous version (no install). Owner: orchestrator (brief), Lucius (run).
@@ -336,6 +345,12 @@ Owner: builder. Lands before or with CB-108.
 
 **Test cases**: proposed **TC-CB-21** "SSH failure names the alias, not the address" (needs a third, unreachable alias in the QA Mini's ssh config and a temporary host entry added and removed in the case; mutating, prefs only).
 
+**Amendment (BA 2026-10-15, PR 72 review): redact every endpoint-bearing diagnostic, not one phrase.** The `connect to host <X>` replacement above misses other OpenSSH lines that embed the address (`Connection closed by <ip> port 22`, `Connection reset by <ip> port 22`, `kex_exchange_identification: read: Connection reset by peer` followed by `Connection reset by <ip>`, `Connection timed out during banner exchange` with `Connection to <ip> port 22 timed out`, `Bad owner or permissions…` is address-free). Generic rule replacing that task:
+- [ ] Resolve the endpoint once with `ssh -G` (same helper as CB-115's amendment: `hostname`, `port`). In every stderr line the app displays, replace each token that equals the resolved `hostname` (IPv4, IPv6 with or without brackets, or DNS name, compared case-insensitively) with the host string the user typed. If `ssh -G` is unavailable, replace every IPv4 and IPv6 literal in the displayed line with the typed host when the typed host is not itself an address. When the typed host is an IP address, nothing is replaced.
+- [ ] Unit test table on the pure redaction function, one row per common OpenSSH shape with the alias `cbqa-tunnel` and resolved endpoints `10.0.0.5`, `fd00::5` and `nas.lan`: `ssh: connect to host <e> port 22: No route to host`, `…: Connection refused`, `…: Operation timed out`, `Connection closed by <e> port 22`, `Connection reset by <e> port 22`, `kex_exchange_identification: Connection closed by remote host` + `Connection closed by <e> port 22`, `Connection timed out during banner exchange` + `Connection to <e> port 22 timed out`, `ssh: Could not resolve hostname cbqa-tunnel: …` (unchanged), and one address-free line (unchanged).
+- Given each row of the table, when `sshFailureMessage` builds the banner for host `cbqa-tunnel`, then the output contains `cbqa-tunnel` where the endpoint was and contains none of `10.0.0.5`, `fd00::5`, `nas.lan`.
+- Unhappy path: given a host typed as `10.0.0.5`, then `Connection closed by 10.0.0.5 port 22` is shown unchanged.
+
 ### CB-117: Dashboard hosts panel labels every Unix-socket host "Local Docker", even a Podman or forwarded socket
 **Priority**: Medium (P2: names the wrong runtime)
 **Rank**: Medium, after CB-118. Proposed by BA 2026-10-15.
@@ -436,6 +451,10 @@ Owner: builder. Lands before or with CB-108.
 - Every identifier in the accessibility tree that is built by the helper matches `^[A-Za-z]+(-[a-z0-9]+)*$`.
 
 **Test cases**: proposed **TC-CB-20** "Identifiers are slug-safe" (read-only; one regex check over the accessibility dump in TC-CB-02).
+
+**Amendment (BA 2026-10-15, PR 72 review): keep each surface's prefix.** CB-119 changes only the slug segment; it renames no prefix. The dashboard hosts panel (`HostPanelView`) uses `hostPanelRow-<slug>-<uuid>`, the Settings > Connections list (`ConnectionSettingsSupport`) uses `hostRow-<slug>-<uuid>`, and the dashboard host pills use `hostPill-<slug>-<uuid>`. The first acceptance criterion above is replaced by:
+- Given host `QA Runtime (socket)`, then the dashboard host pill is `hostPill-qa-runtime-socket-<uuid>`, the dashboard hosts panel row is `hostPanelRow-qa-runtime-socket-<uuid>`, and the Settings > Connections row is `hostRow-qa-runtime-socket-<uuid>`.
+- Given the change, then no identifier prefix differs from before (`hostPill`, `hostPanelRow`, `hostRow`, `containerCard`, `containerStop`, `containerStart`, `logs-panel-container`, `sectionRow` all unchanged); only the slug segment changes.
 
 ### CB-120: Make `containerCard-<slug>` unique with the short container id, like the CB-107 quick-action and logs-row identifiers
 **Priority**: Low (P3: QA selector ambiguity; no user-visible effect)
