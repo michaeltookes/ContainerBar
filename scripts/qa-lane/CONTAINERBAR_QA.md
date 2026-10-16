@@ -1,15 +1,14 @@
 # ContainerBar QA recipe (CB-101)
 
-The standing recipe for the ContainerBar daily pass on the QA Mini. The daily brief
-(`tasks/<date>-containerbar-daily.md`, from `brief-template.md`) sets the run's session id,
-evidence root and schedule and hands you this file. Follow both exactly; where they differ,
-the brief wins. Versioned in the ContainerBar repo as `scripts/qa-lane/CONTAINERBAR_QA.md`
-and copied here by `install.sh`: never edit the workspace copy, it is overwritten on install.
+The standing recipe for the ContainerBar daily pass on the QA Mini. The daily brief (from
+`brief-template.md`) sets the session id, evidence root and schedule; where the two differ, the
+brief wins. Versioned as the repo's `scripts/qa-lane/CONTAINERBAR_QA.md` and copied by
+`install.sh`; never edit the workspace copy.
 
 ## Rules for the whole pass
 
-- **Run every command from the workspace root**: start each shell call with
-  `cd "$HOME/.openclaw/workspace"`. `cbqa_lane.py` means `tools/containerbar-qa/cbqa_lane.py`.
+- **Run every command from the workspace root** the lane tools use: start each shell call with
+  `cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"` (`cbqa_lane.py` is in `tools/containerbar-qa/`).
 - **Lock token.** `preflight` prints `note: lock token <token>`. Copy that exact value into
   the run notes and pass it to every `normalise`, `case-gate` and `release` call as
   `--token "<token>"`. Never read a token from `session.json` or reuse an older run's token.
@@ -56,7 +55,9 @@ are recorded in `qa/containerbar/local-network-grants.log`, one line per grant:
 | Settings / Quit / Refresh buttons | `openSettings` / `quitApp` / `refreshContainers` | help text `Settings` / `Quit ContainerBar` / `Refresh` |
 | Container card | `containerCard-<slug>` | card text `cbqa-...` |
 | Stop / Start quick action | `containerStop-<slug>-<short-id>` / `containerStart-<slug>-<short-id>` | `Stop container cbqa-target` / `Start container cbqa-target`, after hovering the card |
-| Logs row / text / refresh / close | `logs-panel-container-<slug>-` prefix / `logsPanelText` / `refreshLogs` / `logs-panel-close` | `View Logs`; close: `logs-panel-close` (in 2.0.4) |
+| Logs button (action bar) | `actionBar-logs` | button `Logs` (the panel's `View Logs` is a heading, never click it) |
+| Logs row for a fixture | `logs-panel-container-<slug>-` prefix | the row button labelled with the container name, e.g. `cbqa-logs` (2.0.4 id `logs-panel-container-<full id>`) |
+| Log text / refresh / close | `logsPanelText` / `refreshLogs` / `logs-panel-close` | the log text area / `Refresh` / `logs-panel-close` (in 2.0.4) |
 | Connection state / error dismiss | `connectionStatus` / `dismissActionError` | header text / `Close` |
 | Refresh interval / show stopped | `refreshIntervalPicker` / `showStoppedToggle` | `Refresh Interval` / `Show Stopped Containers` |
 | Test connection / version / update | `testConnection` / `aboutVersion` / `checkForUpdates-about` | `Test Connection` / `Version <v> (<build>)` / `Check for Updates...` |
@@ -94,7 +95,7 @@ Command output, dialog text and element lists go into `report.md` verbatim.
 ## Step 0: preflight
 
 ```sh
-cd "$HOME/.openclaw/workspace"
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 SESSION='cbqa-daily-YYYYMMDD-HHMM'   # from the brief
 python3 -B tools/containerbar-qa/cbqa_lane.py preflight --session "$SESSION"
 ```
@@ -105,7 +106,7 @@ close the Settings window or press Remind Me Later in the Sparkle dialog, then
 `python3 -B tools/containerbar-qa/cbqa_lane.py normalise --token "$TOKEN"`. Copy every `note:` line.
 
 ```sh
-cd "$HOME/.openclaw/workspace"
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 TOKEN='lock-token-from-preflight'; RUN='artifacts/containerbar-qa/runs/YYYY-MM-DD-daily-HHMM'
 mkdir -p "$RUN/assets"
 ssh cbqa-ctl reset && ssh cbqa-ctl status          # baseline? else wait 60 s, retry once
@@ -113,25 +114,14 @@ defaults export com.tookes.ContainerBar "$RUN/defaults-before.plist"
 python3 -B tools/containerbar-qa/cbqa_lane.py prefs-drift "$RUN/defaults-before.plist" qa/containerbar/baseline.plist
 ```
 
-- `status` not the baseline after the retry: BLOCKED `qa-runtime-down` (first stderr line in the
-  notes); product cases are not FAIL. Go to the restore.
-- `drift:` other than `none`: finding "previous run left state"; fallback restore (Restore step 2)
-  before the first case.
-- **Local Network gate (CB-116).** Open: `local-network-grants.log` has a line for the installed
-  release (`developer-id` covers every release on this Mac). Then Settings > Connections > `QA Runtime`
-  > Test Connection must show success, the only accepted proof. Failure with
-  `No route to host` or the Local Network message while `ssh cbqa-ctl status` worked: BLOCKED
-  `local-network-denied`, one line to `CBQA_ALERT_TARGET`, SSH cases `blocked local-network-denied`.
-  Any other failure: `FAIL TC-CB-03` with the error verbatim, SSH cases `blocked app-cannot-connect`.
-  **Closed** (no line; the state until CB-116 lands): do not click Test Connection; mark every SSH
-  case `blocked local-network-denied (CB-116)`. If the system dialog "Allow "ContainerBar" to find
-  devices on local networks?" is on screen, leave it untouched and note `local-network-prompt-open`;
-  this one dialog does not stop the pass (CB-116), every other system prompt does (Stop and ask).
+`status` not the baseline after the retry: BLOCKED `qa-runtime-down` (first stderr line in the
+notes), no case is FAIL, go to the restore. `drift:` other than `none`: finding "previous run left
+state"; do the fallback restore (Restore step 2) before the first case.
 
 ## Every case
 
 ```sh
-cd "$HOME/.openclaw/workspace"
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 python3 -B tools/containerbar-qa/cbqa_lane.py case-gate --token "$TOKEN" TC-CB-01
 ```
 
@@ -153,7 +143,7 @@ APP=/Applications/ContainerBar.app
 codesign --verify --deep --strict "$APP"; echo "codesign=$?"
 spctl --assess --type execute "$APP"; echo "spctl=$?"
 xcrun stapler validate "$APP"; echo "stapler=$?"
-codesign -dv "$APP" 2>&1 | grep '^Authority=' | head -n1
+codesign -dv --verbose=4 "$APP" 2>&1 | grep '^Authority=' | head -n1
 curl -sSf https://api.github.com/repos/michaeltookes/ContainerBar/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])'
 curl -sSf https://michaeltookes.github.io/ContainerBar/appcast.xml | grep -o '<sparkle:shortVersionString>[^<]*' | head -n1 | cut -d'>' -f2
 curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Casks/containerbar.rb | grep -m1 '^ *version '
@@ -174,6 +164,18 @@ Hunt build checks (recorded under TC-CB-02): the released panel never shows the 
 Docker` or `fixture log line` text (seeing it is `FAIL P1`: hunt mode in a release, CB-090);
 note whether a hunt-build process was running; `defaults read com.tookes.ContainerBar.hunt
 SULastCheckTime` should report the key missing (present: finding linked to CB-074).
+
+**Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is
+installed, verified and running) and before TC-CB-14 and any SSH-dependent case or step.
+**Open** when `local-network-grants.log` has a line for the installed release (`developer-id`
+covers every release on this Mac): Settings > Connections > `QA Runtime` > Test Connection must
+show success, the only accepted proof. `No route to host` or the Local Network message while
+`ssh cbqa-ctl status` worked: BLOCKED `local-network-denied`, one line to `CBQA_ALERT_TARGET`, SSH
+cases `blocked local-network-denied`. Any other failure: `FAIL TC-CB-03` with the error verbatim,
+SSH cases `blocked app-cannot-connect`. **Closed** (no line; the state until CB-116 lands): do not
+click Test Connection; every SSH case is `blocked local-network-denied (CB-116)`. The system dialog
+"Allow "ContainerBar" to find devices on local networks?" (it can appear at any launch): leave it
+untouched, note `local-network-prompt-open`; it alone does not stop the pass (CB-116).
 
 **TC-CB-14 Check for Updates when current.** First
 `curl -sSfI https://michaeltookes.github.io/ContainerBar/appcast.xml`; non-zero: `blocked
@@ -209,7 +211,7 @@ Run these only with the gate open, selecting `QA Runtime`; read the runtime with
 - TC-CB-04 baseline list: six `cbqa-` cards, Running 5, `cbqa-stopped` stopped.
 - TC-CB-05 remote socket at a custom path: host detail shows `cbqa-fwd` and `/run/cbqa-api/podman.sock`; Test Connection green.
 - TC-CB-06 ports and memory: one `18080` pill on `cbqa-web`, details list tcp and udp rows; RAM denominator = `ssh cbqa-ctl info` `memTotal` ±0.1 GB (CB-069, CB-079 known).
-- TC-CB-07 logs: `cbqa-logs` shows `cbqa-line-1..3`, `cbqa-err-1` in order, each line starting `cbqa-`; `cbqa-tty` shows `cbqa-tty-line-1` (CB-070 known).
+- TC-CB-07 logs (open with the Logs button, then the `cbqa-logs` row): `cbqa-logs` shows `cbqa-line-1..3`, `cbqa-err-1` in order, each line starting `cbqa-`; `cbqa-tty` shows `cbqa-tty-line-1` (CB-070 known).
 - TC-CB-09 external change: `ssh cbqa-ctl reset`, list matches within one interval, icon leaves the refresh glyph.
 - TC-CB-10 stop and start `cbqa-target` (video): stopped within 10 s and `status` agrees; Start, running.
 - TC-CB-15 restart (video): `startedAt` later within 30 s; no Restart control: `blocked` with the element list, propose a defect (CB-082).
@@ -227,7 +229,7 @@ response for 30 s: `FAIL P1` with the newest `.ips` file name, relaunch once to 
 ## Restore and release (always, whatever happened)
 
 ```sh
-cd "$HOME/.openclaw/workspace"
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 zsh tools/containerbar-qa/containerbar-qa-restore.sh   # copy every restore: line; exit 1 = post for help
 ```
 
