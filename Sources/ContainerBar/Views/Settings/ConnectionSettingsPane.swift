@@ -148,7 +148,10 @@ struct ConnectionSettingsPane: View {
                 try await fetcher.testConnection()
                 result = .success
             } catch {
-                result = .failure(error.localizedDescription)
+                // A Local Network denial gets the System Settings guidance
+                // instead of ssh's "No route to host" line (CB-115).
+                let denied = await LocalNetworkDiagnoser.live.isLocalNetworkDenied(error: error, host: host)
+                result = .failure(denied ? LocalNetworkGuidance.message : error.localizedDescription)
             }
             connectionTests.finish(hostId: host.id, token: token, result: result)
         }
@@ -273,13 +276,19 @@ struct HostDetailsView: View {
                     .foregroundStyle(.green)
             }
         case .failure(let message):
-            HStack(spacing: 4) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .accessibilityHidden(true)
-                Text(message)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .accessibilityHidden(true)
+                    Text(message)
+                        .foregroundStyle(.red)
+                        .lineLimit(LocalNetworkGuidance.isGuidance(message) ? nil : 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if LocalNetworkGuidance.isGuidance(message) {
+                    OpenLocalNetworkSettingsButton()
+                }
             }
         }
     }

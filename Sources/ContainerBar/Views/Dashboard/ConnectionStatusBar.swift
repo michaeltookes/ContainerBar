@@ -12,32 +12,41 @@ struct ConnectionStatusBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Connection indicator
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(presentation.indicatorColor)
-                        .frame(width: 8, height: 8)
-                        .shadow(color: presentation.indicatorShadowColor, radius: 3)
+            // Connection indicator, plus the settings button when the failure
+            // is a denied Local Network permission (CB-115). The button sits
+            // outside the combined status element so automation can reach it.
+            VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(presentation.indicatorColor)
+                            .frame(width: 8, height: 8)
+                            .shadow(color: presentation.indicatorShadowColor, radius: 3)
 
-                    Text(presentation.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.primary.opacity(0.9))
-                        .lineLimit(1)
+                        Text(presentation.title)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary.opacity(0.9))
+                            .lineLimit(1)
+                    }
+
+                    if let detail = presentation.detail {
+                        Text(detail)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(presentation.showsLocalNetworkSettingsButton ? 4 : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(presentation.accessibilityLabel)
+                .accessibilityIdentifier(QAAccessibilityID.connectionStatus)
 
-                if let detail = presentation.detail {
-                    Text(detail)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                if presentation.showsLocalNetworkSettingsButton {
+                    OpenLocalNetworkSettingsButton()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(presentation.accessibilityLabel)
-            .accessibilityIdentifier(QAAccessibilityID.connectionStatus)
 
             // Status badges
             if isConnected {
