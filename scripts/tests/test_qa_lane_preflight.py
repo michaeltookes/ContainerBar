@@ -273,6 +273,54 @@ class CodexRoundOneTests(unittest.TestCase):
         self.assertEqual(lane.release_file.read_text(), "queued")
 
 
+class GuiCleanupPendingTests(unittest.TestCase):
+    """PR 76 Codex round 2 item 1: the backstop's GUI flag is honoured by step 0."""
+
+    def flagged(self, runner):
+        clock = FakeClock()
+        lane, _ = make_lane(self, runner, clock)
+        lane_core.write_json(lane.gui_flag, {"since": 1.0})
+        return lane, clock
+
+    def test_flag_alone_quits_and_relaunches_then_clears(self):
+        runner = FakeRunner()
+        runner.app_pid = 4100
+        lane, clock = self.flagged(runner)
+        result = preflight(lane, "g1", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(result["status"], READY)
+        self.assertTrue(runner.ran("osascript"))
+        self.assertNotEqual(runner.app_pid, 4100)
+        self.assertFalse(lane.gui_flag.exists())
+        self.assertFalse(runner.ran("api-start"))   # the no-GUI part already ran
+
+    def test_flag_kept_until_a_normalise_succeeds(self):
+        runner = FakeRunner()
+        runner.app_pid = 4100
+        runner.quit_works = False
+        lane, clock = self.flagged(runner)
+        result = preflight(lane, "g2", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(result["status"], NEEDS_NORMALISE)
+        self.assertTrue(lane.gui_flag.exists())
+        runner.quit_works = True
+        self.assertEqual(normalise_after_dialogs(lane)["status"], READY)
+        self.assertFalse(lane.gui_flag.exists())
+
+    def test_hourly_backstop_then_next_pass_normalises(self):
+        from lane_hourly import hourly
+        runner = FakeRunner()
+        runner.app_pid = 4100
+        clock = FakeClock(1800028800.0)   # 10:00 Central
+        lane, _ = make_lane(self, runner, clock)
+        lane_core.write_json(lane.marker, {"t0": clock.now() - 40 * 60})
+        hourly(lane, fetch=lambda url, timeout: None, post=lambda url, text: True)
+        self.assertFalse(lane.marker.exists())
+        self.assertTrue(lane.gui_flag.exists())
+        result = preflight(lane, "g3", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(result["status"], READY)
+        self.assertTrue(any("windows-normalised" in n for n in result["notes"]))
+        self.assertFalse(lane.gui_flag.exists())
+
+
 class MarkerRecoveryTests(unittest.TestCase):
     def test_leftover_marker_is_recovered_and_app_normalised_before_new_marker(self):
         runner = FakeRunner()

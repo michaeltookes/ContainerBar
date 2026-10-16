@@ -11,7 +11,9 @@ preflight():
      session.json written (a waiting pass never touches the holder's), and CI
      is checked once more: busy -> release the lock, BLOCKED ci-busy.
   0  marker recovery under the lock: any marker present belongs to a run that
-     did not finish, so containerbar-qa-restore.sh runs with --keep-marker;
+     did not finish, so containerbar-qa-restore.sh runs with --keep-marker
+     (a gui-cleanup-pending flag left by the hourly backstop needs only the
+     GUI part below);
      then ContainerBar is quit (osascript, never a signal) and relaunched to
      close any Settings window or Sparkle dialog (windows-normalised); only
      then is the old marker deleted and the new one written. Failure keeps
@@ -197,6 +199,17 @@ def _write_marker(lane: Lane, session: Dict[str, object]) -> None:
                              "written": lane.clock.now()})
 
 
+def _clear_recovery(lane: Lane, notes: List[str]) -> None:
+    """After a successful quit and relaunch: drop the old marker and the GUI flag."""
+    for path, label in ((lane.marker, "old run marker deleted"),
+                        (lane.gui_flag, "gui-cleanup-pending cleared")):
+        try:
+            path.unlink()
+            notes.append(label)
+        except FileNotFoundError:
+            pass
+
+
 def _restore_failed(lane: Lane, notes: List[str]) -> Dict[str, object]:
     release_lock(lane)
     notify(lane, "ContainerBar QA BLOCKED restore-failed: recovery of the previous run's "
@@ -236,17 +249,21 @@ def preflight(lane: Lane, session_id: str,
         notes.append("CI busy after the lock was acquired (%s); lock released" % ", ".join(why))
         return {"status": BLOCKED, "reason": "ci-busy", "notes": notes}
 
-    if lane.marker.exists():
+    marker_left = lane.marker.exists()
+    gui_pending = lane.gui_flag.exists()
+    if marker_left:
         notes.append("previous run left a marker; recovering")
         ok, restore_notes = restore(lane, keep_marker=True)
         notes.extend(restore_notes)
         if not ok:
             return _restore_failed(lane, notes)
+    elif gui_pending:
+        notes.append("gui-cleanup-pending: the hourly backstop restored an aborted run without a GUI")
+    if marker_left or gui_pending:
         if not normalise_app(lane, notes):
             return {"status": NEEDS_NORMALISE, "reason": "close-dialogs-then-normalise",
                     "notes": notes}
-        lane.marker.unlink()
-        notes.append("old run marker deleted")
+        _clear_recovery(lane, notes)
     _write_marker(lane, session)
     notes.append("run marker written")
     return {"status": READY, "reason": "", "notes": notes}
@@ -260,11 +277,7 @@ def normalise_after_dialogs(lane: Lane) -> Dict[str, object]:
         return {"status": BLOCKED, "reason": "no-session", "notes": notes}
     if not normalise_app(lane, notes):
         return _restore_failed(lane, notes)
-    try:
-        lane.marker.unlink()
-        notes.append("old run marker deleted")
-    except FileNotFoundError:
-        pass
+    _clear_recovery(lane, notes)
     _write_marker(lane, session)
     notes.append("run marker written")
     return {"status": READY, "reason": "", "notes": notes}

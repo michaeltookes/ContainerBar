@@ -35,6 +35,8 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
    - `BLOCKED restore-failed` (exit 2): the previous run's marker could not be recovered.
      The tool has kept the old marker and released the lock; post the printed line to
      `#lucius-updates` if it says `POST TO`. Stop.
+   - A left-over marker, or the `gui-cleanup-pending` flag the hourly backstop leaves,
+     makes preflight quit and relaunch ContainerBar before the first case.
    - `NEEDS-NORMALISE` (exit 3): ContainerBar would not quit, usually because a Settings
      window or a Sparkle dialog is open. Close it by its accessibility identifier (Settings
      window close button; Sparkle **Remind Me Later**, never Skip or Install), then run

@@ -99,6 +99,7 @@ class Lane:
         self.session_file = self.state_dir / "session.json"
         self.forward_file = self.state_dir / "forward.json"
         self.release_file = self.state_dir / "lock-release"
+        self.gui_flag = self.state_dir / "gui-cleanup-pending"
         self.lock_dir = Path(env.get("CBQA_LOCK_DIR",
                                      str(self.workspace / "artifacts" / "sentwise-qa" / "device.lock")))
         self.lock_tool = Path(env.get("CBQA_LOCK_TOOL",

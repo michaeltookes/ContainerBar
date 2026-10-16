@@ -145,6 +145,103 @@ class ForwardTests(unittest.TestCase):
         self.assertEqual(self.signalled, [9100])
 
 
+class CodexRoundTwoTests(unittest.TestCase):
+    """PR 76 Codex round 2, items 1-5 (restore, forward, preferences)."""
+
+    def setUp(self):
+        self.runner = FakeRunner()
+        self.lane, self.root = make_lane(self, self.runner)
+        self.signalled = []
+
+    def terminate(self, pid):
+        self.signalled.append(pid)
+        self.runner.processes.pop(pid, None)
+
+    def stubborn(self, pid):
+        self.signalled.append(pid)       # the process ignores the signal
+
+    def record_forward(self, pid, command, sock=None):
+        sock = str(sock or self.lane.socket)
+        self.runner.processes[pid] = command
+        lane_core.write_json(self.lane.forward_file, {"pid": pid, "socket": sock})
+
+    def test_backstop_restore_leaves_gui_cleanup_pending(self):
+        lane_core.write_json(self.lane.marker, {"t0": 1})
+        ok, notes = restore(self.lane, terminate=self.terminate, backstop=True)
+        self.assertTrue(ok)
+        self.assertFalse(self.lane.marker.exists())
+        self.assertTrue(self.lane.gui_flag.exists())
+        self.assertIn("gui-cleanup-pending recorded for the next pass", notes)
+
+    def test_pass_restore_does_not_flag_gui_cleanup(self):
+        lane_core.write_json(self.lane.marker, {"t0": 1})
+        restore(self.lane, terminate=self.terminate)
+        self.assertFalse(self.lane.gui_flag.exists())
+
+    def test_stop_forward_respects_the_deadline_and_keeps_the_record(self):
+        self.record_forward(9100, FORWARD_CMD.format(sock=self.lane.socket))
+        self.runner.costs = [("ps -o command=", 4)]
+        deadline = self.lane.clock.now() + 3
+        notes = []
+        self.assertFalse(stop_forward(self.lane, notes, self.terminate, deadline))
+        self.assertLessEqual(self.lane.clock.now(), deadline)
+        self.assertEqual(self.signalled, [])
+        self.assertEqual(lane_core.read_json(self.lane.forward_file)["pid"], 9100)
+
+    def test_restore_with_spent_budget_keeps_forward_and_marker(self):
+        lane_core.write_json(self.lane.marker, {"t0": 1})
+        self.record_forward(9100, FORWARD_CMD.format(sock=self.lane.socket))
+        self.runner.costs = [("ssh", 21)]
+        deadline = self.lane.clock.now() + 40
+        ok, _ = restore(self.lane, terminate=self.terminate, deadline=deadline, backstop=True)
+        self.assertFalse(ok)
+        self.assertLessEqual(self.lane.clock.now(), deadline)
+        self.assertTrue(self.lane.marker.exists())
+        self.assertTrue(self.lane.forward_file.exists())
+        self.assertFalse(self.lane.gui_flag.exists())
+
+    def test_stubborn_forward_waits_are_capped(self):
+        self.record_forward(9100, FORWARD_CMD.format(sock=self.lane.socket))
+        deadline = self.lane.clock.now() + 2
+        self.assertFalse(stop_forward(self.lane, [], self.stubborn, deadline))
+        self.assertLessEqual(self.lane.clock.now(), deadline)
+
+    def test_live_leftover_forward_blocks_a_new_tunnel(self):
+        self.record_forward(9100, FORWARD_CMD.format(sock=self.lane.socket))
+        spawned = []
+        ok, notes = start_forward(self.lane, spawn=lambda argv: spawned.append(argv) or 9999,
+                                  terminate=self.stubborn)
+        self.assertFalse(ok)
+        self.assertEqual(spawned, [])
+        self.assertEqual(lane_core.read_json(self.lane.forward_file)["pid"], 9100)
+        self.assertTrue(any("forward-failed" in n for n in notes))
+
+    def test_only_the_exact_forward_argv_is_signalled(self):
+        sock = str(self.lane.socket)
+        lookalikes = [
+            "ssh -nNT -L %s:/run/cbqa-api/podman.sock somewhere-else" % sock,
+            "ssh -v -nNT -o ExitOnForwardFailure=yes -o StreamLocalBindUnlink=yes -L %s:/run/cbqa-api/podman.sock cbqa-tunnel" % sock,
+            "ssh cbqa-ctl status %s /run/cbqa-api/podman.sock" % sock,
+            "/usr/bin/vim %s /run/cbqa-api/podman.sock" % sock,
+        ]
+        for command in lookalikes:
+            self.signalled = []
+            self.record_forward(9100, command)
+            stop_forward(self.lane, [], self.terminate)
+            self.assertEqual(self.signalled, [], command)
+        self.record_forward(9100, "/usr/bin/" + FORWARD_CMD.format(sock=sock))
+        stop_forward(self.lane, [], self.terminate)
+        self.assertEqual(self.signalled, [9100])
+
+    def test_allowlist_includes_sparkle_and_login_keys(self):
+        self.assertEqual(drift({"SUSkippedVersion": "2.0.5"}, {}), ["SUSkippedVersion"])
+        self.assertEqual(drift({"SUHasLaunchedBefore": False}, {"SUHasLaunchedBefore": True}),
+                         ["SUHasLaunchedBefore"])
+        self.assertEqual(drift({"launchAtLogin": True}, {}), ["launchAtLogin"])
+        self.assertEqual(drift({"launchAtLogin": False, "SUHasLaunchedBefore": True},
+                               {"SUHasLaunchedBefore": True}), [])
+
+
 class PrefsDriftTests(unittest.TestCase):
     HOSTS_A = b'[{"id":"A","name":"QA Runtime","sshUser":"cbqa-fwd","port":22}]'
     HOSTS_B = b'[{"port":22,"sshUser":"cbqa-fwd","name":"QA Runtime","id":"A"}]'

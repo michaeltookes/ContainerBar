@@ -49,10 +49,15 @@ sourced.
   `--keep-marker`, ContainerBar is quit with `osascript` and relaunched
   (`windows-normalised`), and only then is the old marker replaced. Failure
   keeps the old marker and ends `BLOCKED restore-failed` with one line to
-  `#lucius-updates` (`CBQA_ALERT_TARGET`).
+  `#lucius-updates` (`CBQA_ALERT_TARGET`). When the hourly backstop restores an aborted run it
+  deletes the marker but leaves `qa/containerbar/gui-cleanup-pending`: the
+  next pass's step 0 quits and relaunches the app for that flag too, and
+  clears it only after that succeeds.
 - **No signals by name.** Nothing here uses `pkill`, `killall` or `kill` with a
   name or pattern. The only process ever signalled is the SSH forward the
-  lane started, by its recorded PID, after its command line is checked.
+  lane started, by its recorded PID, and only when that PID's complete argv
+  is the lane's forward command. A forward that will not stop blocks a new
+  one (`forward-failed`) rather than being orphaned.
 - **Hourly check.** No model, no AppleScript, no GUI, under 60 s. Skips while
   the lock is held; skips the app-alive and CPU check while CI is busy; posts
   only when the set of failing checks changes, or when the stale-marker

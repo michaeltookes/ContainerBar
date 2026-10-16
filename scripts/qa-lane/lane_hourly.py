@@ -241,7 +241,7 @@ def hourly(lane: Lane, fetch: Fetch = http_get,
 
     age = marker_age(lane)
     if age is not None and age > STALE_MARKER_S:
-        ok, notes = restore(lane, deadline=deadline)
+        ok, notes = restore(lane, deadline=deadline, backstop=True)
         pending.append("restore-backstop-ran" if ok else "restore-backstop-failed")
         details.append("backstop: %s" % "; ".join(notes))
         results["backstop"] = None if ok else "restore-backstop-failed"

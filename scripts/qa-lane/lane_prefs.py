@@ -5,8 +5,9 @@ with the private baseline plist. JSON-encoded values (dockerHosts,
 containerSections) are compared decoded, so key order inside the stored JSON
 never reads as drift; a key missing from either side compares as the app's
 default (refreshInterval "10s", show stopped on, icon style containerCount),
-matching SettingsStore's fallbacks. launchAtLogin is not compared: the app
-reads it from the login-item service, not from its defaults.
+matching SettingsStore's fallbacks, and launchAtLogin off. A key with no
+default (SUSkippedVersion, SUHasLaunchedBefore) is drift when present on
+one side only: a stray Skip This Version hides future updates.
 """
 from __future__ import annotations
 
@@ -18,12 +19,14 @@ DEFAULTS: Dict[str, object] = {
     "refreshInterval": "10s",
     "showStoppedContainers": True,
     "iconStyle": "containerCount",
+    "launchAtLogin": False,
     "containerSections": [],
 }
 JSON_KEYS = ("dockerHosts", "containerSections")
-COMPARED = ("refreshInterval", "showStoppedContainers", "iconStyle",
+# The architecture's allowlist (section 4); everything else in the domain is volatile.
+COMPARED = ("refreshInterval", "showStoppedContainers", "launchAtLogin", "iconStyle",
             "dockerHosts", "selectedHostId", "containerSections",
-            "SUEnableAutomaticChecks")
+            "SUEnableAutomaticChecks", "SUHasLaunchedBefore", "SUSkippedVersion")
 
 
 def _value(prefs: Dict[str, object], key: str) -> object:
