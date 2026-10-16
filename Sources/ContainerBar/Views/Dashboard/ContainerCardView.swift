@@ -94,9 +94,10 @@ struct ContainerCardView: View {
                     .opacity(quickActionIsVisible ? 0 : 1)
                     .accessibilityHidden(true)
 
+                // Visibility is applied inside each control's label (not to the control),
+                // so the quick action stays in the accessibility tree while visually hidden
+                // and UI automation can press it without hovering (CB-107, CB-081).
                 quickActionButton
-                    .opacity(quickActionIsVisible ? 1 : 0)
-                    .animation(.easeOut(duration: 0.15), value: quickActionIsVisible)
             }
             .frame(width: 24, height: 24)
         }
@@ -122,16 +123,18 @@ struct ContainerCardView: View {
         .popover(isPresented: $showDetailPopover, arrowEdge: .trailing) {
             ContainerDetailPopover(container: container, stats: stats)
         }
-        .accessibilityIdentifier(cardAccessibilityIdentifier)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(QAAccessibilityID.containerCard(container.displayName))
     }
 
     private var quickActionIsVisible: Bool {
         isHovered || isQuickActionFocused
     }
 
-    private var cardAccessibilityIdentifier: String {
-        "containerCard-" + container.displayName.accessibilitySlug
-            .replacingOccurrences(of: "/", with: "-")
+    private func revealedOnHover(_ view: some View) -> some View {
+        view
+            .opacity(quickActionIsVisible ? 1 : 0)
+            .animation(.easeOut(duration: 0.15), value: quickActionIsVisible)
     }
 
     // MARK: - Ports Label
@@ -168,55 +171,65 @@ struct ContainerCardView: View {
             Button {
                 onAction(.stop(container.id))
             } label: {
-                Image(systemName: "stop.fill")
-                    .font(.system(size: 10))
-                    .frame(width: 24, height: 24)
-                    .background(Color.red.opacity(0.15))
-                    .foregroundStyle(.red)
-                    .clipShape(Circle())
+                revealedOnHover(
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 10))
+                        .frame(width: 24, height: 24)
+                        .background(Color.red.opacity(0.15))
+                        .foregroundStyle(.red)
+                        .clipShape(Circle())
+                )
             }
             .buttonStyle(.plain)
             .help("Stop container")
             .focused($isQuickActionFocused)
             .accessibilityLabel("Stop container \(container.displayName)")
+            .accessibilityIdentifier(QAAccessibilityID.containerStop(name: container.displayName, id: container.id))
 
         case .paused:
             // Paused containers need unpause - show disabled button until unpause is implemented
-            Image(systemName: "playpause.fill")
-                .font(.system(size: 10))
-                .frame(width: 24, height: 24)
-                .background(Color.yellow.opacity(0.15))
-                .foregroundStyle(.yellow.opacity(0.5))
-                .clipShape(Circle())
-                .help("Container is paused")
-                .accessibilityLabel("Container \(container.displayName) is paused")
+            revealedOnHover(
+                Image(systemName: "playpause.fill")
+                    .font(.system(size: 10))
+                    .frame(width: 24, height: 24)
+                    .background(Color.yellow.opacity(0.15))
+                    .foregroundStyle(.yellow.opacity(0.5))
+                    .clipShape(Circle())
+            )
+            .help("Container is paused")
+            .accessibilityLabel("Container \(container.displayName) is paused")
 
         case .restarting:
             // Container is restarting - show loading indicator
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: 10))
-                .frame(width: 24, height: 24)
-                .background(Color.orange.opacity(0.15))
-                .foregroundStyle(.orange.opacity(0.5))
-                .clipShape(Circle())
-                .help("Container is restarting")
-                .accessibilityLabel("Container \(container.displayName) is restarting")
+            revealedOnHover(
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 10))
+                    .frame(width: 24, height: 24)
+                    .background(Color.orange.opacity(0.15))
+                    .foregroundStyle(.orange.opacity(0.5))
+                    .clipShape(Circle())
+            )
+            .help("Container is restarting")
+            .accessibilityLabel("Container \(container.displayName) is restarting")
 
         case .exited, .dead, .created, .removing:
             Button {
                 onAction(.start(container.id))
             } label: {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10))
-                    .frame(width: 24, height: 24)
-                    .background(Color.green.opacity(0.15))
-                    .foregroundStyle(.green)
-                    .clipShape(Circle())
+                revealedOnHover(
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .frame(width: 24, height: 24)
+                        .background(Color.green.opacity(0.15))
+                        .foregroundStyle(.green)
+                        .clipShape(Circle())
+                )
             }
             .buttonStyle(.plain)
             .help("Start container")
             .focused($isQuickActionFocused)
             .accessibilityLabel("Start container \(container.displayName)")
+            .accessibilityIdentifier(QAAccessibilityID.containerStart(name: container.displayName, id: container.id))
         }
     }
 

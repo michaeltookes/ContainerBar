@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds one
 
 ### Changed
+- The Stop and Start quick actions on a container card are now reachable by
+  VoiceOver and other assistive tools without hovering the card, and the
+  status item, connection status, logs list, and Settings controls carry
+  stable accessibility identifiers for UI automation
 - Release validation now checks the uploaded GitHub ZIP and DMG, deployed Sparkle
   appcast, and published Homebrew cask metadata instead of trusting local
   release files

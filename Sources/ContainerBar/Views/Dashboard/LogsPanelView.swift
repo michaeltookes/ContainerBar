@@ -123,7 +123,7 @@ struct LogsContainerRowView: View {
         .accessibilityLabel(container.displayName)
         .accessibilityValue(container.status.isEmpty ? container.state.rawValue.capitalized : container.status)
         .accessibilityHint("Opens this container's logs")
-        .accessibilityIdentifier("logs-panel-container-\(container.id)")
+        .accessibilityIdentifier(QAAccessibilityID.logsPanelRow(name: container.displayName, id: container.id))
         .onHover { hovering in
             isHovered = hovering
         }
