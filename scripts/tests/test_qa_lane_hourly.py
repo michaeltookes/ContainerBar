@@ -246,6 +246,14 @@ class LaunchdEntryPointTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("dry-run:", done.stdout)
         self.assertFalse(Path(root, "home", "Library", "LaunchAgents").exists())
+        out = root / "rendered.plist"
+        done = subprocess.run(["/bin/zsh", os.path.join(LANE_DIR, "install.sh"), "--render", str(out)],
+                              env=env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        agent = plistlib.loads(out.read_bytes())
+        self.assertEqual(agent["Label"], "com.genkeilabs.containerbar-hourly")
+        self.assertEqual([i["Hour"] for i in agent["StartCalendarInterval"]], list(range(8, 21)))
+        self.assertTrue(agent["ProgramArguments"][1].endswith("tools/containerbar-qa/containerbar-hourly.sh"))
 
 
 if __name__ == "__main__":

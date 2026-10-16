@@ -109,9 +109,18 @@ class DeadlineTests(unittest.TestCase):
     def test_ci_rechecks_once_a_minute(self):
         runner = FakeRunner()
         runner.worker = True
-        run_preflight(self, runner)
-        worker_checks = [c for c in runner.calls if c[:2] == ["pgrep", "-x"]]
-        self.assertEqual(len(worker_checks), 8)  # T0, +60 ... +420
+        clock = FakeClock()
+        seen = []
+        original = runner.__call__
+
+        def record(argv, timeout):
+            if argv[:2] == ["pgrep", "-x"]:
+                seen.append(clock.elapsed())
+            return original(argv, timeout)
+
+        lane, _ = make_lane(self, record, clock)
+        preflight(lane, "s0", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(seen, [60.0 * i for i in range(9)])  # T0, T0+60 ... T0+480
 
     def test_lock_wait_gets_only_what_is_left_of_the_shared_budget(self):
         clock = FakeClock()

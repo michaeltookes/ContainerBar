@@ -3,6 +3,7 @@
 # Dry run by default: prints every action. --apply performs them.
 #
 #   install.sh [--apply] [--with-cron --brief tasks/<date>-containerbar-daily.md]
+#   install.sh --render <path>   write the rendered launchd plist and stop
 #
 # Private values are read from $WS/qa/containerbar/lane.env, never from this repo:
 #   CBQA_RUNNER_NAMES   runner names registered on this host (comma separated)
@@ -14,12 +15,13 @@ here=${0:A:h}
 ws=${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}
 tools=$ws/tools/containerbar-qa
 agent=$HOME/Library/LaunchAgents/com.genkeilabs.containerbar-hourly.plist
-apply=0; with_cron=0; brief=""
+apply=0; with_cron=0; brief=""; render_to=""
 while [ $# -gt 0 ]; do
   case $1 in
     --apply) apply=1 ;;
     --with-cron) with_cron=1 ;;
     --brief) shift; brief=$1 ;;
+    --render) shift; render_to=$1 ;;
     *) echo "unknown option $1" >&2; exit 64 ;;
   esac
   shift
@@ -32,9 +34,13 @@ for h in {8..20}; do
   intervals+="    <dict><key>Hour</key><integer>$h</integer><key>Minute</key><integer>40</integer></dict>"$'\n'
 done
 rendered=$(mktemp -t containerbar-hourly)
-sed -e "s|__TOOLS__|$tools|g" -e "s|__HOME__|$HOME|g" "$here/com.genkeilabs.containerbar-hourly.plist.template" \
-  | awk -v iv="$intervals" '{ if ($0 == "__INTERVALS__") printf "%s", iv; else print }' > "$rendered"
+tpl=$(<"$here/com.genkeilabs.containerbar-hourly.plist.template")
+tpl=${tpl//__TOOLS__/$tools}
+tpl=${tpl//__HOME__/$HOME}
+tpl=${tpl/__INTERVALS__/${intervals%$'\n'}}
+print -r -- "$tpl" > "$rendered"
 plutil -lint "$rendered" >/dev/null
+if [ -n "$render_to" ]; then mv "$rendered" "$render_to"; exit 0; fi
 
 doit mkdir -p "$tools" "$ws/qa/containerbar" "$ws/artifacts/containerbar-qa" "$HOME/Library/Logs/containerbar-qa"
 for f in cbqa_lane.py lane_core.py lane_restore.py lane_preflight.py lane_hourly.py lane_prefs.py \

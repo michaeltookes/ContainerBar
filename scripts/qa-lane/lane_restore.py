@@ -119,16 +119,16 @@ def restore(lane: Lane, keep_marker: bool = False,
     if not stop_forward(lane, notes, terminate):
         ok = False
 
-    if ok and not keep_marker:
+    if not ok:
+        notes.append("run marker kept: restore failed")
+    elif keep_marker:
+        notes.append("run marker kept (--keep-marker)")
+    else:
         try:
             lane.marker.unlink()
             notes.append("run marker deleted")
         except FileNotFoundError:
             pass
-    elif keep_marker:
-        notes.append("run marker kept (--keep-marker)")
-    else:
-        notes.append("run marker kept: restore failed")
     return ok, notes
 
 
