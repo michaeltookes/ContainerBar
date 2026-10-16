@@ -6,7 +6,7 @@ Item ids are stable `CB-NNN` numbers and are never reused. Completed items move 
 
 ## High Priority
 
-Build order (BA 2026-10-14, project-manager ruling 2026-10-14): **CB-100, CB-101, and CB-107 run in parallel with the next bug wave** (wave one, CB-069, CB-070, CB-072, CB-079, CB-080, is resolved; CB-077 (a) is resolved; next: CB-078 → CB-077 (b) → CB-075 → CB-071 → CB-074 → CB-073 → CB-076, see the Medium order). Then CB-102 → CB-103 → CB-104 → CB-105 → CB-106, each landing as the fixes it checks merge. **No bug ticket waits for a QA item**: a case whose fix has not merged runs as a known failure linked to its CB id. The first runs after CB-101 are fired by the orchestrator by hand; CB-105 turns on the schedule once the cases have passed a fired run.
+Build order (BA 2026-10-14, project-manager ruling 2026-10-14): **CB-100, CB-101, and CB-107 run in parallel with the next bug wave** (wave one, CB-069, CB-070, CB-072, CB-079, CB-080, is resolved; CB-077 (a) is resolved; next: CB-078 → CB-077 (b) → CB-075 → CB-071 → CB-074 → CB-073 → CB-076, see the Medium order). Then CB-102 → CB-103 → CB-104 → CB-105 → CB-106, each landing as the fixes it checks merge. **No bug ticket waits for a QA item**: a case whose fix has not merged runs as a known failure linked to its CB id. The first runs after CB-101 are fired by the orchestrator by hand; CB-105 turns on the schedule once the cases have passed a fired run. **Desktop-check findings (BA 2026-10-15):** CB-116 (Local Network grant for the QA lane) runs next, before CB-102 and CB-103, because every SSH case is blocked without it; CB-115 (product handling of a denied Local Network permission) follows CB-107.
 
 QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unprivileged user `cbqa` on the homelab container host, reached from the Mini over SSH (host alias `cbqa-tunnel`); no container runtime on any Mac. A pass reads or changes the runtime only through `ssh cbqa-ctl <verb>` (`status`, `info`, `reset`, `target-stop`, `api-stop`, `api-start`); there is no `podman` CLI on the Mini. Every fixture is named `cbqa-*` and labelled `com.tookes.containerbar.qa=1`. Test cases are `TC-CB-<n>` (architecture §9E). CB-100..106 are delivered as homelab configuration and Lucius workspace briefs, CB-107 as app code; stories and acceptance criteria live in [`docs/requirements/lucius-daily-qa.md`](requirements/lucius-daily-qa.md), the design in [`docs/architecture/lucius-daily-qa.md`](architecture/lucius-daily-qa.md).
 
@@ -34,6 +34,64 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 - [ ] Orchestrator: after the TC-CB-05 setup run (CB-100), set the Sparkle preferences in the baseline (`SUEnableAutomaticChecks = false`, `SUHasLaunchedBefore = true`) and export `baseline.plist`; it is the fallback restore only (story 6 AC4), normal restores go through the UI.
 - [ ] Docs (project-planner or a docs builder, this repo): `docs/qa/test-cases.md` with TC-CB-01..17 in the project-planner format and `docs/qa/seed-data.md` with the fixture table, the baseline, and the host entries, all with placeholders (architecture §9E, §4).
 - [ ] Builder: CB-107 (QA-hooks accessibility identifiers); the recipe can start before it merges.
+
+
+### CB-116: QA lane: grant macOS Local Network access to ContainerBar once per signing identity; baseline and comparison fixes (CB-100 follow-up)
+**Priority**: High (P1 for the QA lane: blocks every SSH-transport case)
+**Rank**: next in the High lane, before CB-102 and CB-103; nothing in the daily pass that uses SSH can pass until it lands. Proposed by BA 2026-10-15; project-manager to confirm.
+**Source**: builder desktop-check runs 69 and 71 against the CB-100 QA runtime on the QA Mini, 2026-10-15 (evidence local only, never committed: `containerbar-desktop-checks/69/TC-CB-05/03-host-detail-test-connection.png` shows the prompt; `71/CB-078-A/02-hosts-panel.png` shows the resulting error and contains the container host's address).
+**Description**: On macOS 15 and later, the `ssh` process ContainerBar spawns for an SSH host is attributed to ContainerBar for Local Network privacy. Until someone clicks Allow on "Allow "ContainerBar" to find devices on local networks?", every connection to the LAN container host fails with `ssh: connect to host <address> port 22: No route to host`, so TC-CB-05 Test Connection fails and TC-CB-03 to TC-CB-10 and TC-CB-15 to TC-CB-17 cannot run. The grant is stored per code identity: the notarized release (Developer ID, `com.tookes.ContainerBar`) needs it once per machine and keeps it across updates, but a branch build signed ad hoc (`codesign --sign -`, as `scripts/build-hunt-app.sh` does) has a cdhash-based identity, so each new branch build can prompt again. Architecture §6 does not mention Local Network, and the §7 failure-path row "System prompt (Keychain, TCC, Gatekeeper): BLOCKED, never grant a permission" (requirements story 6 AC5) leaves no way to grant it. Owner: solution architect (design doc), orchestrator (recipe, brief, baseline), homelab-it (installs the Apple-issued signing identity on the QA Mini, if option A). Product-side handling of the denied state is CB-115.
+
+**Steps to reproduce**: (1) On a Mac where ContainerBar has never been granted Local Network, add the `QA Runtime` SSH host (alias `cbqa-tunnel`, user `cbqa-fwd`) in Settings > Connections. (2) Click Test Connection. **Expected**: Connected. **Actual**: the Local Network prompt appears; until Allow is clicked the test and the dashboard report `Can't reach QA Runtime over SSH. ssh: connect to host <address> port 22: No route to host`.
+
+**Technical tasks**:
+- [ ] Architect: add Local Network privacy to architecture §6 (what triggers it, that it covers the spawned `ssh` and the app's own NWConnection for TCP/TLS hosts, per-identity storage) and a §7 failure row `BLOCKED local-network-denied` detected in preflight, so product cases are not marked FAIL for a missing grant.
+- [ ] Architect + homelab-it: choose how a branch build keeps the grant. Apple's TN3179 (Understanding local network privacy) says the grant follows the code-signing identity only for code signed with an **Apple-issued** identity; for ad-hoc or self-signed code it falls back to the main executable's UUID, which changes on every build, so a self-signed certificate does not give a persistent grant. **Option A (proposed)**: re-sign every desktop-check branch build on the QA Mini with an Apple-issued **Apple Development** certificate from Michael's developer account (team-signed, same team as the release), keeping the bundle identifier `com.tookes.ContainerBar` (or one fixed QA bundle identifier used for every branch build), so the TCC grant keys to a stable team-signed identity and one grant covers all branch builds. A Developer ID Application certificate also qualifies, but Apple Development is preferred because it cannot sign software for distribution; the release's Developer ID key stays where it is. What Michael provides, one of: (a) the certificate and its private key exported as a password-protected `.p12` and imported into the QA Mini's login keychain by homelab-it, or (b) preferred, a certificate signing request generated on the QA Mini (private key never leaves it) that Michael signs in his developer account, after which the issued certificate is installed there. Neither the `.p12`, the key, the CSR nor the password is ever committed to this repo, a brief, a report or Discord. **Option B (fallback)**: branch builds stay ad hoc and Michael clicks Allow by hand once per new build, recorded in the recipe with the date and build. **Probe before adopting option A**: grant once for a build signed with the Apple Development identity, install a second branch build from a different commit signed with the same identity, and Test Connection succeeds with no prompt; if a prompt appears, fall back to option B and record why.
+- [ ] Architect: amend the §7 / story 6 AC5 rule with one narrow exception: the ContainerBar Local Network dialog for the released build or a build signed with the QA identity is granted by Michael (assumption, see open question), never by Lucius; every other system prompt stays BLOCKED as today. Record each grant (date, identity, who) in the recipe.
+- [ ] Orchestrator: CB-101 recipe and brief preflight gain a check that requires a **positive** signal that the grant is present: after `ssh cbqa-ctl status` from the shell has succeeded (host reachable), TC-CB-05 Test Connection on `QA Runtime` in the app must report success. The absence of a denial message is never accepted as proof. If Test Connection fails with CB-115's Local Network message, or (before CB-115 ships) with a `No route to host` error while the shell `ssh` to the same alias succeeds, the pass ends `BLOCKED local-network-denied` and posts one line to `#lucius-updates`. Any other failure is recorded as `FAIL TC-CB-03` with the verbatim error (architecture §7 "App cannot connect while preflight passed") and the SSH-dependent cases are marked `blocked` with reason `app-cannot-connect`, not run.
+- [ ] Orchestrator: `baseline.plist` has no `refreshInterval` key, because the refresh-interval picker could not be set by script during the setup run; the app default (10 s) applies. Either set the picker once through the UI and re-export, or have the comparison treat a missing `refreshInterval` as 10 s. Update architecture §4 and the seed-data note to say which.
+- [ ] Orchestrator: the step-0e comparison script must decode `dockerHosts` and `containerSections` as JSON and compare the decoded values (key order inside the stored JSON differs between exports); a raw byte or string comparison reports false drift. Update architecture §4 wording to say "compared as decoded JSON".
+
+**Acceptance**: Size **S**, docs, recipe and Mini configuration only (no app code).
+- Given the QA Mini with the grant recorded for a build signed with the Apple Development identity (option A), when a new branch build from a different commit, signed with the same identity and bundle identifier, is installed and TC-CB-05 Test Connection runs on `QA Runtime`, then it reports success and no Local Network prompt appears.
+- Option B path: given branch builds stay ad hoc, when a new branch build is installed, then the pass does not assume the grant: preflight ends `BLOCKED local-network-denied` until Michael has clicked Allow for that build, and the recipe records the build, date and who granted it; after the grant, TC-CB-05 Test Connection reports success.
+- Given `git log -p` over this repo and the recipe, then no certificate, private key, `.p12`, CSR or password appears.
+- Given the released build with the grant recorded, when the daily pass runs TC-CB-03, then the dashboard connects to `QA Runtime` with no prompt.
+- Unhappy path: given the grant is missing or was turned off in System Settings > Privacy & Security > Local Network (and the shell `ssh cbqa-ctl status` succeeds), when the daily pass preflight runs, then Test Connection does not report success and the pass ends `BLOCKED local-network-denied` before any product case, posts one line to `#lucius-updates`, marks no TC case FAIL, and Lucius clicks nothing in the dialog.
+- Unhappy path: given any other system prompt (Keychain, Gatekeeper, a different TCC prompt) appears, then the pass still ends BLOCKED as story 6 AC5 says; the exception covers only the ContainerBar Local Network dialog.
+- Given a baseline export without `refreshInterval` and an app at its default 10 s, when step 0e compares, then it reports no drift; given `refreshInterval = 30`, then it reports `refreshInterval` as drift.
+- Given two exports whose `dockerHosts` JSON holds the same hosts with keys in a different order, when step 0e compares, then it reports no drift; given a host whose `sshUser` differs, then it reports `dockerHosts` as drift.
+- `grep -n "Local Network" docs/architecture/lucius-daily-qa.md` returns the §6 paragraph and the §7 row.
+
+**Test cases**: TC-CB-05 (gains the precondition "Local Network granted for this build identity"); proposed **TC-CB-22** "Local Network grant persists across branch builds" (QA lane check, run once per new signing setup, not daily).
+
+- Unhappy path (other failure): given the grant is present but Test Connection fails for another reason (for example authentication), then the preflight does not report `local-network-denied`; it records `FAIL TC-CB-03` with the verbatim error and marks the SSH-dependent cases `blocked` `app-cannot-connect`.
+
+**Decisions for Michael**: (1) option A needs an Apple-issued signing identity from your developer account on the QA Mini: will you sign a CSR generated on the Mini for an Apple Development certificate (preferred), export an existing Apple Development certificate and key as a `.p12`, or stay on option B (a manual Allow per branch build)? Assumption taken: a Mini-generated CSR you sign; option B until it is installed. (2) May Lucius click Allow on exactly this one dialog during the TC-CB-05 setup run, or must you click it? Assumption taken: you click it, once per identity; Lucius never grants.
+
+### CB-115: Detect a denied macOS Local Network permission and tell the user how to fix it
+**Priority**: High (P1: a user who clicks Don't Allow, or dismisses the prompt, cannot reach any LAN host and the app gives no hint why)
+**Rank**: in the High lane after CB-116 and CB-107, before CB-102; one builder branch. Proposed by BA 2026-10-15; project-manager to confirm.
+**Source**: same desktop-check runs as CB-116 (2026-10-15). Real users of the notarized release will see the prompt once on first connection to a LAN host.
+**Description**: When Local Network access is denied, the spawned `ssh` (SSH hosts) and the app's own NWConnection (TCP/TLS hosts) fail with "No route to host". `sshFailureMessage` (`Sources/ContainerBar/Stores/ConnectionErrorMessage.swift`) classifies that as `.other` and echoes the raw stderr line, so the user reads `Can't reach <host> over SSH. ssh: connect to host <address> port 22: No route to host` and checks their network, not System Settings. `Distribution/Info.plist` has no `NSLocalNetworkUsageDescription`, so the prompt shows only the system's generic text. The user docs (README, `docs/GETTING_STARTED.md`) do not mention the permission. Design hint for the architect: macOS offers no query API for this grant; a short NWConnection probe to the same host and port from the app process reports the path as unsatisfied with reason `localNetworkDenied` (Network framework, available on the app's macOS 14 floor), which distinguishes a denial from a real routing failure. Owner: builder; architect reviews the detection approach.
+
+**Technical tasks**:
+- [ ] Add `NSLocalNetworkUsageDescription` to `Distribution/Info.plist` (and the hunt build's plist if it is separate). Proposed copy: "ContainerBar connects to the container hosts you add, including hosts on your local network, to show their containers."
+- [ ] On an SSH or TCP/TLS connection failure whose cause is "No route to host" (EHOSTUNREACH), run the probe; when it reports `localNetworkDenied`, map the failure to a new message class instead of echoing stderr.
+- [ ] Message copy (dashboard banner, `connectionStatus`, Settings Test Connection result): "ContainerBar is not allowed to reach devices on your local network. Turn it on in System Settings > Privacy & Security > Local Network, then try again." Plus a button "Open Local Network Settings" that opens `x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork` (architect confirms the URL on macOS 14 to 26; if it does not deep-link, the button opens Privacy & Security).
+- [ ] Unit tests on the pure classifier (stderr + probe result → message class), CB-056 pattern; no network in tests.
+- [ ] README and `docs/GETTING_STARTED.md`: a short "Local network permission" section (when the prompt appears, what Allow does, how to turn it back on). Architecture doc: cross-reference from the CB-116 §6 paragraph.
+
+**Acceptance**: Size **S**, one branch.
+- Given an SSH host on the local network and Local Network denied for ContainerBar in System Settings, when the user clicks Test Connection or the dashboard refreshes, then the result reads "ContainerBar is not allowed to reach devices on your local network. Turn it on in System Settings > Privacy & Security > Local Network, then try again." and does not contain "No route to host" or any IP address.
+- Given the same state, when the user clicks "Open Local Network Settings", then System Settings opens on the Local Network list (or on Privacy & Security if deep linking is unavailable).
+- Given the user then turns the toggle on, when they click Test Connection again, then it reports success without relaunching the app.
+- Given a TCP/TLS host on the local network with access denied, then the same message appears.
+- Unhappy path (real routing failure): given Local Network allowed and an SSH alias whose address does not route (for example a TEST-NET address such as `192.0.2.1` behind an alias), when Test Connection runs, then the message is the normal SSH failure (see CB-118 for its wording), not the Local Network message.
+- Unhappy path (first prompt): given the prompt is showing and the user has not answered, when the connection attempt fails, then the app shows the Local Network message rather than a raw ssh error, and a refresh after Allow connects.
+- Given a fresh install of the release build, when the prompt appears, then its body shows the `NSLocalNetworkUsageDescription` copy above.
+
+**Test cases**: proposed **TC-CB-18** "Local Network denied shows guidance" (release brief or manual only: it needs the grant turned off, which the daily pass never does; the classifier is covered by unit tests).
 
 ### CB-102: Daily released-build integrity and launch check; release-day install from the cask and the notarized zip
 **Priority**: High
@@ -73,7 +131,7 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 ## Medium Priority
 
-Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling 2026-10-14). **Wave one resolved** (see `docs/resolved.md`): CB-069, CB-070, CB-072, CB-079, CB-080. **Next wave:** ~~CB-077 (a)~~ (resolved 2026-10-14) → CB-078 → CB-077 (b) → CB-075 (a, then b) → CB-071 (a, then b) → CB-074 → CB-073 → CB-076, with CB-100, CB-101, and CB-107 running in parallel (High). CB-077 (b) follows CB-078 so that (b) rebases on (a). Items flagged "two branches" ship as two branches under the same id, labelled (a) and (b); CB-071, CB-075, and CB-077 stay split, CB-076 is one branch. Each enriched item carries an **Acceptance** block whose QA checks use the `cbqa-` fixtures, the `ssh cbqa-ctl` verbs, and the `TC-CB` cases defined in [`docs/requirements/lucius-daily-qa.md`](requirements/lucius-daily-qa.md) section 4 and architecture §9E; design notes for CB-071..078 are in [`docs/architecture/lucius-daily-qa.md`](architecture/lucius-daily-qa.md) §13.
+Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling 2026-10-14). **Wave one resolved** (see `docs/resolved.md`): CB-069, CB-070, CB-072, CB-079, CB-080. **Next wave:** ~~CB-077 (a)~~ (resolved 2026-10-14) → CB-078 → CB-077 (b) → CB-075 (a, then b) → CB-071 (a, then b) → CB-074 → CB-073 → CB-076, with CB-100, CB-101, and CB-107 running in parallel (High). CB-077 (b) follows CB-078 so that (b) rebases on (a). Items flagged "two branches" ship as two branches under the same id, labelled (a) and (b); CB-071, CB-075, and CB-077 stay split, CB-076 is one branch. Each enriched item carries an **Acceptance** block whose QA checks use the `cbqa-` fixtures, the `ssh cbqa-ctl` verbs, and the `TC-CB` cases defined in [`docs/requirements/lucius-daily-qa.md`](requirements/lucius-daily-qa.md) section 4 and architecture §9E; design notes for CB-071..078 are in [`docs/architecture/lucius-daily-qa.md`](architecture/lucius-daily-qa.md) §13. Desktop-check findings (BA 2026-10-15): CB-118 then CB-117 follow CB-076.
 
 ### CB-071: Peer-closed keep-alive connection surfaces as non-retryable `invalidResponse`; transport-neutral error taxonomy
 **Priority**: Medium
@@ -257,6 +315,46 @@ Owner: builder. Lands before or with CB-108.
 - Upgrade: a legacy hosts JSON without the new key decodes with every host intact and the designation false (unit test).
 - No behaviour change: existing tests pass; the grep above returns no line that interpolates a user, path or port into a public message.
 
+### CB-118: SSH error banner shows the resolved IP address instead of the host alias the user typed
+**Priority**: Medium (P2: wrong information with a workaround; leaks a LAN address into screenshots)
+**Rank**: Medium, after CB-076 in the next wave and before CB-117; ship after CB-115 (both touch `ConnectionErrorMessage.swift`). Proposed by BA 2026-10-15.
+**Source**: builder desktop-check runs 69 and 71, 2026-10-15 (`71/CB-078-A/02-hosts-panel.png`; local only, contains the address, never commit or post it).
+**Description**: For an SSH host whose `host` is an `~/.ssh/config` alias (`cbqa-tunnel`), `sshFailureMessage` appends ssh's first stderr line verbatim, and ssh prints the resolved `HostName`: `Can't reach QA Runtime over SSH. ssh: connect to host <address> port 22: No route to host`. Architecture §6 expects screenshots to show only the alias, and a user who typed an alias did not ask to see the address. Decision proposed: the UI names the host the way the user typed it; the resolved address never appears in the banner, `connectionStatus`, or the Test Connection result. Related: CB-113 (log privacy for host and address), CB-115 (Local Network message replaces this line when access is denied). Owner: builder.
+
+**Technical tasks**:
+- [ ] Add SSH failure classes for the common unreachable cases, matched on any stderr line: "No route to host", "Connection timed out" / "Operation timed out", "Could not resolve hostname", each with its own copy naming the typed host: "Can't reach QA Runtime over SSH: no route to cbqa-tunnel (port 22)." / "…: cbqa-tunnel did not answer (timed out)." / "…: cbqa-tunnel could not be resolved; check the name or your ~/.ssh/config."
+- [ ] For the remaining `.other` case, replace any `connect to host <X>` value in the echoed line with the typed `host` value before display.
+- [ ] Unit tests on `sshFailureMessage` with stderr that names an IPv4, IPv6 or DNS address while the configured host is an alias.
+- [ ] QA doc note (architecture §6): evidence screenshots from builds before this fix may contain the address; they stay local, are never committed or posted, and cropped Discord screenshots of an SSH error are checked for an address before posting.
+
+**Acceptance**: Size **S**, one branch.
+- Given an SSH host with host `cbqa-unreachable` (an alias whose HostName is the TEST-NET address `192.0.2.1`), when Test Connection runs, then the result names `cbqa-unreachable` and port 22 and does not contain `192.0.2.1`; the dashboard banner and `connectionStatus` say the same.
+- Given an SSH host configured directly by IP address, then the message shows that IP (it is what the user typed).
+- Given an alias that does not resolve, then the message says the name could not be resolved and names the alias.
+- Unhappy path (unknown stderr): given ssh stderr of an unmatched shape that contains `connect to host 10.0.0.5`, while the configured host is `cbqa-tunnel`, then the displayed line shows `cbqa-tunnel` in place of `10.0.0.5`.
+- Authentication, host-key and refused failures keep today's copy (no regression in the existing `sshFailureMessage` tests).
+
+**Test cases**: proposed **TC-CB-21** "SSH failure names the alias, not the address" (needs a third, unreachable alias in the QA Mini's ssh config and a temporary host entry added and removed in the case; mutating, prefs only).
+
+### CB-117: Dashboard hosts panel labels every Unix-socket host "Local Docker", even a Podman or forwarded socket
+**Priority**: Medium (P2: names the wrong runtime)
+**Rank**: Medium, after CB-118. Proposed by BA 2026-10-15.
+**Source**: builder desktop-check runs 69 and 71, 2026-10-15, seen on both builds (`71/CB-078-A/02-hosts-panel.png`, `QA Runtime (socket)` row).
+**Description**: `HostPanelView.hostDescription` (`Sources/ContainerBar/Views/Dashboard/HostPanelView.swift`, `case .unixSocket`) returns the literal "Local Docker" for every Unix-socket host, so `QA Runtime (socket)` (runtime Podman, socket forwarded over SSH from a remote host) reads "Local Docker". The SSH and TCP rows already show their endpoint. Owner: builder.
+
+**Technical tasks**:
+- [ ] Unix-socket subtitle shows the runtime and the socket path, for example `Podman · ~/qa/containerbar/podman.sock` (home directory abbreviated to `~` for display only; middle-truncated when long), and `Docker · /var/run/docker.sock` for the default local host.
+- [ ] Check the other "Local Docker" literals (`DashboardMenuView.swift:197`, `ConnectionStatusBar.swift:83`, `HostPickerView.swift:94`, `ContainerStore.swift:203`) and change any that is shown for a non-Docker or non-default host; leave the default host's name alone.
+- [ ] Unit test on the subtitle helper for Docker and Podman socket hosts.
+
+**Acceptance**: Size **XS**, one branch.
+- Given `QA Runtime (socket)` (Unix Socket, runtime Podman), when the dashboard hosts panel opens, then its subtitle starts with `Podman` and shows the socket path, and the word `Docker` does not appear in it.
+- Given the default local Docker host, then its subtitle starts with `Docker` and shows `/var/run/docker.sock` (or the configured path).
+- Unhappy path: given a Unix-socket host with an empty or missing socket path, then the subtitle shows the runtime and `socket not set`, not a blank or "Local Docker".
+- The Settings > Connections list (already "Unix Socket (Local)") is unchanged.
+
+**Test cases**: proposed **TC-CB-19** "Socket host subtitle names its runtime" (read-only; fold into TC-CB-11 on its Wed/Sat run).
+
 ## Low Priority
 
 ### CB-093: Core minor correctness: `getContainer` cannot decode a real inspect payload, CPU% fallback ignores `percpu_usage`, cert loader passphrase lifetime
@@ -319,3 +417,43 @@ Owner: builder. Lands before or with CB-108.
 - Given a Claude call that stalls, then the describe step is cancelled at 10 minutes, publish is skipped, the check is green, and the PR body is unchanged.
 - Given a normal run, then the description is published as before; given a PR that already has an authored description (`should_suggest` false), then describe and publish are skipped as today.
 - `actionlint .github/workflows/claude-pr-description.yml` reports nothing.
+
+### CB-119: Accessibility identifier slugs keep punctuation, e.g. `hostRow-qa-runtime-(socket)-<uuid>`
+**Priority**: Low (P3: cosmetic for users; costs QA selector escaping)
+**Rank**: Low, after CB-107 merges (it changes the same helper). Proposed by BA 2026-10-15.
+**Source**: builder desktop-check runs 69 and 71, 2026-10-15 (accessibility dumps under `69/TC-CB-02/` and `71/CB-078-A/`).
+**Description**: `String.accessibilitySlug` (`Sources/ContainerBar/Views/Components/AccessibilitySlug.swift`) only lowercases and replaces spaces, so host `QA Runtime (socket)` yields `hostRow-qa-runtime-(socket)-<uuid>` and `hostPill-qa-runtime-(socket)-<uuid>`; container or section names with `_`, `.`, `/` or non-ASCII characters keep them too. Identifiers should be slug-safe so selectors need no escaping. CB-107's slug failure path covers consistency between a card and its buttons, not the alphabet. Owner: builder.
+
+**Technical tasks**:
+- [ ] Slug = lowercase; every run of characters outside `[a-z0-9]` becomes one `-`; leading and trailing `-` trimmed; an empty result becomes `item`. Applies to every identifier built through the helper (host rows and pills, container cards and quick actions, sections, logs rows).
+- [ ] Update `.prowl/config.yml` and any hunt or recipe selector that relied on the old form; the `cbqa-*` container identifiers do not change.
+- [ ] Unit tests on the pure helper (CB-056 pattern).
+
+**Acceptance**: Size **XS**, one branch.
+- Given host `QA Runtime (socket)`, when the dashboard host pills and hosts panel are read, then the identifiers are `hostPill-qa-runtime-socket-<uuid>` and `hostRow-qa-runtime-socket-<uuid>`.
+- Given a container named `cbqa_Odd.Name`, then the slug helper returns `cbqa-odd-name` (tested directly on the helper), and the slug segment of its card and quick-action identifiers is `cbqa-odd-name`. Combined expectation with CB-120 (they are meant to ship together): the card is `containerCard-cbqa-odd-name-<12 hex>` and Stop/Start are `containerStop-cbqa-odd-name-<12 hex>` / `containerStart-cbqa-odd-name-<12 hex>` with the same short id. If CB-119 ships before CB-120, the card is `containerCard-cbqa-odd-name` until CB-120 lands.
+- Unhappy path: given a name made only of punctuation or non-ASCII characters (for example `()` or `コンテナ`), then the slug is `item` and two such hosts still differ by their UUID suffix.
+- Every identifier in the accessibility tree that is built by the helper matches `^[A-Za-z]+(-[a-z0-9]+)*$`.
+
+**Test cases**: proposed **TC-CB-20** "Identifiers are slug-safe" (read-only; one regex check over the accessibility dump in TC-CB-02).
+
+### CB-120: Make `containerCard-<slug>` unique with the short container id, like the CB-107 quick-action and logs-row identifiers
+**Priority**: Low (P3: QA selector ambiguity; no user-visible effect)
+**Rank**: Low, next to CB-119, after CB-107 merges; ship in the same branch as CB-119 or right after it, since both change the card identifier the recipe and the Prowl hunt select by. Proposed by BA 2026-10-15.
+**Source**: CB-107 Codex fix round on PR 69 (branch `cb-107` at `bebc3e7`), 2026-10-15. That round made `containerStop-`, `containerStart-` and `logs-panel-container-` end in the 12-character short container id (`QAAccessibilityID.containerScoped`), so two containers named `Web` and `web` stay distinct. `QAAccessibilityID.containerCard` was left as `containerCard-<slug>` because it predates CB-107 and the `menu-smoke` Prowl hunt (`.prowl/hunts/menu-smoke.yml`, `id=containerCard-web`) and TC-CB-04 select by it, so it keeps the same case-only collision: `Web` and `web` both produce `containerCard-web`.
+**Description**: Give the card the same `<kind>-<slug>-<shortid>` shape and move every selector that uses it to prefix selection, as architecture §9A items 2 and 3 already describe for the other container identifiers (the daily pass cannot know container ids in advance). Owner: builder; the orchestrator updates the CB-101 recipe.
+
+**Technical tasks**:
+- [ ] `QAAccessibilityID.containerCard(name:id:)` returns `containerCard-<slug>-<shortid>` through `containerScoped`; `ContainerCardView` passes `container.id`. Update the doc comment that says the card form stays unchanged.
+- [ ] Selectors match the full shape, not a bare prefix: a bare `containerCard-web-` prefix would also match a container named `web-api` (`containerCard-web-api-<id>`). Use `containerCard-<slug>-` followed by exactly 12 lowercase hex characters (regex `^containerCard-web-[0-9a-f]{12}$`). If the Prowl selector syntax has no regex or prefix form, the architect picks the closest supported form and records it in `.prowl/README.md`.
+- [ ] `.prowl/hunts/menu-smoke.yml` and `.prowl/README.md` (line 71, `containerCard-<name-slug>`) move to the new form; architecture §9A item 2 and §9E TC-CB-04 ("six `containerCard-cbqa-*` cards") describe the suffix and the match rule; the CB-101 recipe selects cards the same way.
+- [ ] Tests: update `QAAccessibilityIDTests` ("Card identifier keeps the existing containerCard-<slug> form") and the `ContainerCardViewTests` identifier lookups (`containerCard-cbqa-target`, `containerCard-cbqa-stopped`) to the new shape; add the regression and no-name tests below (pure helper, CB-056 pattern).
+
+**Acceptance**: Size **XS**, one branch.
+- Given two containers named `Web` and `web` with ids starting `aaaaaaaaaaaa…` and `bbbbbbbbbbbb…`, when their card identifiers are built, then they are `containerCard-web-aaaaaaaaaaaa` and `containerCard-web-bbbbbbbbbbbb`, and each card's Stop/Start identifiers end in the same short id as its card.
+- Given the daily fixtures, when TC-CB-04 reads the dashboard, then it finds exactly six cards matching `^containerCard-cbqa-[a-z0-9-]+-[0-9a-f]{12}$`, and `cbqa-web`'s card is found by `^containerCard-cbqa-web-[0-9a-f]{12}$` without matching any other card.
+- Given containers named `web` and `web-api`, then the selector for `web` matches only the `web` card.
+- Unhappy path (no name): given a container whose `names` list is empty, so `displayName` falls back to the short id, when its card identifier is built, then it is `containerCard-<shortid>-<shortid>` (deterministic, no empty segment, no crash), and its Stop/Start identifiers use the same slug and id.
+- Given a PR hunt run after the change, then `menu-smoke` still finds the card and passes.
+
+**Test cases**: TC-CB-04 (selector updated); no new case.
