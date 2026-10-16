@@ -30,7 +30,8 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
 1. `python3 -B T/cbqa_lane.py preflight --session <session id>`
    - `READY` (exit 0): continue.
    - `BLOCKED ci-busy` / `BLOCKED desktop-busy` (exit 2): no case runs. Report the run as
-     BLOCKED with that reason and stop (the lock was never taken; nothing to restore).
+     BLOCKED with that reason and stop (no lock is held and nothing was touched; a
+     `ci-busy` found right after the lock was taken has already released it).
    - `BLOCKED restore-failed` (exit 2): the previous run's marker could not be recovered.
      The tool has kept the old marker and released the lock; post the printed line to
      `#lucius-updates` if it says `POST TO`. Stop.
