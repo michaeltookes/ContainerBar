@@ -161,6 +161,18 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("skipped after `signature-failed`", restore)
         self.assertIn("`signature-failed`", self.text.split("Blocked reasons:", 1)[1])
 
+    def test_launch_is_gated_on_the_authority_too(self):
+        # Final round (bot P1): a valid signature by another Developer ID must not launch.
+        case = " ".join(self.text.split("**TC-CB-01", 1)[1].split("**TC-CB-02", 1)[0].split())
+        self.assertIn("or the first Authority line is not exactly `CBQA_DEVELOPER_ID_AUTHORITY`", case)
+        self.assertIn("`authority-mismatch`", case)
+        self.assertIn("naming the check or the mismatch", case)
+        self.assertIn("start only after all three signature checks passed and the Authority line matched",
+                      case)
+        failure = case.split("**A codesign, spctl or stapler check fails", 1)[1]
+        self.assertIn("Launch nothing", failure)
+        self.assertIn("`blocked signature-failed`", failure)
+
     def test_lock_not_owned_skips_the_restore(self):
         # Round 3 (bot P1): without the lock the pass must not touch the desktop.
         gate = self.text.split("`BLOCKED time-budget lock-not-owned`", 1)[1].split("### Runnable", 1)[0]
@@ -175,6 +187,11 @@ class RecipeTests(unittest.TestCase):
         case = self.text.split("**TC-CB-12", 1)[1].split("**TC-CB-11", 1)[0]
         self.assertIn("no screenshot", case)
         self.assertNotIn(".png", case)
+        # Final round (bot P2): the redacted text is the step's asset.
+        self.assertIn("`assets/TC-CB-12/01-socket-error.txt`", case)
+        self.assertIn("accepted evidence", case)
+        evidence = " ".join(self.text.split("## Evidence", 1)[1].split("## Step 0", 1)[0].split())
+        self.assertIn("cannot be kept for privacy, the step's asset is `NN-<slug>.txt`", evidence)
 
     def test_log_window_close_is_separate_from_panel_close(self):
         # Round 3 (Codex P2): the log viewer is its own window.

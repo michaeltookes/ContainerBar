@@ -30,8 +30,7 @@ or `adhoc` (an unsigned or ad-hoc build; the grant covers only the `<version>-<b
 
 ## The app
 
-- Released app: `/Applications/ContainerBar.app`, bundle id `com.tookes.ContainerBar`. Target it
-  as `--app com.tookes.ContainerBar` (or `--app "PID:<pid>"` with the PID below).
+- Released app: `/Applications/ContainerBar.app`; target `--app com.tookes.ContainerBar` (or `--app "PID:<pid>"`).
 - **Hunt build** (Prowl PR gate): bundle id `com.tookes.ContainerBar.hunt`, path containing
   `/.prowl/DerivedData/`, same name and title; never click, quit or screenshot it. Released PID: the one
   whose command starts `/Applications/ContainerBar.app/` (`pgrep -x ContainerBar | xargs -n1 ps -o pid=,command= -p`).
@@ -77,12 +76,12 @@ and `QA Runtime (socket)` (Unix Socket, Podman, `$HOME/qa/containerbar/podman.so
 ## Evidence
 
 Root: `artifacts/containerbar-qa/runs/<YYYY-MM-DD>-daily-<HHMM>/` (`<run>` below). It holds
-`report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png` (one per step, NN from 01,
-slug in lower-case words such as `01-status-item.png`), and `assets/<TC-id>.mp4` for exactly
-TC-CB-08, 10, 13, 15, 16, 17 (no other case records video; use the `peekaboo` skill's recording
-command scoped to the ContainerBar window). Screenshot with
+`report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png` (one per step, e.g.
+`01-status-item.png`), and `assets/<TC-id>.mp4` for exactly TC-CB-08, 10, 13, 15, 16, 17 (no other
+video; the `peekaboo` skill's recording command, scoped to the ContainerBar window). Screenshot with
 `peekaboo see --app com.tookes.ContainerBar --annotate --path "<run>/assets/<TC-id>/NN-<slug>.png" --json`;
-a capture showing more than the app panel or Settings window is cropped (`sips -c`) or deleted.
+a capture showing more than the app panel or Settings window is cropped (`sips -c`) or deleted. Where
+a capture cannot be kept for privacy, the step's asset is `NN-<slug>.txt` with the redacted text.
 Command output, dialog text and element lists go into `report.md` verbatim, except that every
 connection error (Test Connection, banners, ssh lines) is redacted first (addresses, host names,
 key files, socket and home paths); a screenshot showing one is not kept (step `blocked`):
@@ -153,10 +152,12 @@ curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Cask
 PASS: the three checks exit 0, the first Authority line equals `CBQA_DEVELOPER_ID_AUTHORITY`, and
 tag (without `v`) = appcast = cask = installed. Installed differs: FAIL `stale-install`, continue
 against the installed build. Versions disagree: `FAIL TC-CB-01` with the four values.
-**A codesign, spctl or stapler check fails:** FAIL quoting the output, verdict FAIL, message `QA FAIL`
-naming the check. Launch nothing and click nothing in the app: TC-CB-02 and every later case are
-`blocked signature-failed` (the gate is not run); the restore runs the script and `release` only.
-TC-CB-02 and later start only after all three signature checks passed.
+**A codesign, spctl or stapler check fails, or the first Authority line is not exactly
+`CBQA_DEVELOPER_ID_AUTHORITY`** (a valid signature by another Developer ID): FAIL quoting the output
+(`authority-mismatch`, the observed line in report.md only), verdict FAIL, message `QA FAIL` naming
+the check or the mismatch. Launch nothing and click nothing in the app: TC-CB-02 and every later case
+are `blocked signature-failed` (no gate); the restore runs the script and `release` only. TC-CB-02
+and later start only after all three signature checks passed and the Authority line matched.
 
 **TC-CB-02 Status item present and named.** If `pgrep -x ContainerBar` has no released PID:
 `open /Applications/ContainerBar.app`; within 10 s the status item shows. Then:
@@ -203,12 +204,11 @@ Dashboard hides `cbqa-stopped`: run it only with the gate open, else that step i
 `blocked local-network-denied (CB-116)` and the case verdict comes from the other steps.
 Restore: 10 seconds, show stopped on, Quit, relaunch, `05-restored.png`; note the restored values.
 
-**Unix-socket leg (Wednesday and Saturday only; runs with the gate closed: the forward is the
-lane's own shell `ssh`, the app only opens a local socket).**
+**Unix-socket leg (Wed and Sat only; runs with the gate closed: the forward is the lane's shell `ssh`).**
 - **TC-CB-12 Missing socket shows a useful error.** `python3 -B tools/containerbar-qa/cbqa_lane.py
   forward-stop`; select `QA Runtime (socket)` (host pill or Settings > Connections > Set as Active
-  Host); after one refresh, record the redacted error text only (no screenshot: it shows the expanded
-  socket path with the account name). PASS: it names the socket or the runtime. "Docker connection not configured": known failure CB-077.
+  Host); after one refresh, save the redacted error text as `assets/TC-CB-12/01-socket-error.txt`, this
+  step's accepted evidence (no screenshot: it shows the socket path with the account name). PASS: it names the socket or the runtime. "Docker connection not configured": known failure CB-077.
 - **TC-CB-11 Unix-socket transport.** `python3 -B tools/containerbar-qa/cbqa_lane.py forward-start`;
   `BLOCKED forward-failed`: case `blocked forward-failed`. `FORWARD-READY`: within one refresh
   interval the panel shows six `cbqa-` cards, Running 5, `cbqa-stopped` stopped, no error banner
