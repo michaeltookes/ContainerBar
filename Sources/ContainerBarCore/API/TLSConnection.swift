@@ -70,13 +70,16 @@ final class TLSConnection: @unchecked Sendable {
     /// `connectionTimeout`. Handshaking to a remote TLS daemon over a LAN/VPN
     /// can be slow, so 15 s is generous while still failing a wrong port or a
     /// sleeping host well before it wedges the polling refresh loop.
-    /// Maps a `.failed`/`.waiting` state error to the transport error. The
-    /// NWError text is kept, so a Local Network denial surfaces as "No route to
-    /// host" (EHOSTUNREACH) or "Network is down" (ENETDOWN) and the app can
-    /// probe it (CB-115).
+    /// Maps a `.failed`/`.waiting` state error to the transport error. The POSIX
+    /// code rides along, so a Local Network denial (EHOSTUNREACH or ENETDOWN)
+    /// is recognized by code on any locale and the app can probe it (CB-115).
     @Sendable
     static func mapStateFailure(_ error: NWError) -> DockerAPIError {
-        DockerAPIError.tlsConnectionFailed(error.localizedDescription)
+        var posixCode: Int32?
+        if case .posix(let code) = error {
+            posixCode = code.rawValue
+        }
+        return DockerAPIError.tlsConnectionFailed(error.localizedDescription, posixCode: posixCode)
     }
 
     private static let connectTimeout: TimeInterval = 15

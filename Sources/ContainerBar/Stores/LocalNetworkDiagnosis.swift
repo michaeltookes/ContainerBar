@@ -29,44 +29,43 @@ enum LocalNetworkProbePlan: Equatable {
 
 /// Decides whether a connection failure was caused by a denied macOS Local
 /// Network permission (CB-115). Only an SSH "No route to host" or a TCP/TLS
-/// EHOSTUNREACH/ENETDOWN failure is probed; the local socket path is never probed.
+/// failure with POSIX code EHOSTUNREACH or ENETDOWN is probed; the local socket
+/// path is never probed.
 struct LocalNetworkDiagnoser: Sendable {
     let resolver: SSHRouteResolving
     let probe: LocalNetworkProbing
 
     static let live = LocalNetworkDiagnoser(resolver: SSHConfigRouteResolver(), probe: NWLocalNetworkProbe())
 
-    /// The failure text worth inspecting, per transport, or `nil` when the
-    /// error cannot be a Local Network denial.
-    static func failureText(for error: Error, host: DockerHost) -> String? {
-        guard let dockerError = error as? DockerAPIError else { return nil }
-        switch (host.connectionType, dockerError) {
-        case (.ssh, .sshConnectionFailed(let stderr)):
-            return stderr
-        case (.tcpTLS, .tlsConnectionFailed(let message)):
-            return message
-        default:
+    /// POSIX codes the Network framework reports while a connection waits on a
+    /// path denied by Local Network privacy (TN3179).
+    static let tlsDenialCodes: Set<Int32> = [POSIXErrorCode.EHOSTUNREACH.rawValue, POSIXErrorCode.ENETDOWN.rawValue]
+
+    /// The ssh stderr worth inspecting, or `nil` when the error is not an SSH
+    /// failure on an SSH host.
+    static func sshStderr(for error: Error, host: DockerHost) -> String? {
+        guard host.connectionType == .ssh,
+              case .sshConnectionFailed(let stderr)? = error as? DockerAPIError else {
             return nil
         }
+        return stderr
     }
 
-    /// Whether the failure text can be a Local Network denial, per transport.
-    /// ssh reports a denial as "No route to host" (EHOSTUNREACH). The Network
-    /// framework reports it through the path's `localNetworkDenied` reason,
-    /// while the connection waits with EHOSTUNREACH or ENETDOWN ("Network is
-    /// down", TN3179), so a TLS failure with either text is probed; the probe,
-    /// not the text, decides.
-    static func mayBeLocalNetworkDenial(_ text: String, connectionType: ConnectionType) -> Bool {
-        let markers: [String]
-        switch connectionType {
-        case .ssh:
-            markers = ["no route to host"]
-        case .tcpTLS:
-            markers = ["no route to host", "network is down"]
-        case .unixSocket:
-            markers = []
+    /// Whether the failure can be a Local Network denial and is worth probing.
+    /// SSH: ssh's stderr reads "No route to host" (ssh prints English on every
+    /// locale). TCP/TLS: the structured POSIX code is EHOSTUNREACH or ENETDOWN;
+    /// the localized NWError text is never parsed. The probe, not this check,
+    /// decides.
+    static func mayBeLocalNetworkDenial(_ error: Error, host: DockerHost) -> Bool {
+        guard let dockerError = error as? DockerAPIError else { return false }
+        switch (host.connectionType, dockerError) {
+        case (.ssh, .sshConnectionFailed(let stderr)):
+            return stderr.localizedCaseInsensitiveContains("no route to host")
+        case (.tcpTLS, .tlsConnectionFailed(_, let posixCode?)):
+            return tlsDenialCodes.contains(posixCode)
+        default:
+            return false
         }
-        return markers.contains { text.localizedCaseInsensitiveContains($0) }
     }
 
     /// Which endpoint to probe for an SSH failure. Prefers the `ssh -G` route;
@@ -90,9 +89,7 @@ struct LocalNetworkDiagnoser: Sendable {
 
     /// Whether `error` on `host` is a Local Network denial, confirmed by the probe.
     func isLocalNetworkDenied(error: Error, host: DockerHost?) async -> Bool {
-        guard let host,
-              let text = Self.failureText(for: error, host: host),
-              Self.mayBeLocalNetworkDenial(text, connectionType: host.connectionType) else {
+        guard let host, Self.mayBeLocalNetworkDenial(error, host: host) else {
             return false
         }
 
@@ -101,7 +98,7 @@ struct LocalNetworkDiagnoser: Sendable {
         case .ssh:
             guard let address = host.host, !address.isEmpty else { return false }
             let route = await resolver.resolve(host: address, user: host.sshUser, port: host.sshPort)
-            plan = Self.sshPlan(route: route, stderr: text)
+            plan = Self.sshPlan(route: route, stderr: Self.sshStderr(for: error, host: host) ?? "")
         case .tcpTLS:
             plan = Self.tlsPlan(host: host)
         case .unixSocket:

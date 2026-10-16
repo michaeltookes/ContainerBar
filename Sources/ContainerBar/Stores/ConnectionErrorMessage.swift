@@ -27,7 +27,7 @@ func userFriendlyConnectionErrorMessage(for error: Error, host: DockerHost? = ni
             return "Access denied. Check \(runtime) permissions."
         case .sshConnectionFailed(let message):
             return sshFailureMessage(hostName: host.name, stderr: message)
-        case .tlsConnectionFailed(let message):
+        case .tlsConnectionFailed(let message, _):
             return "TLS connection failed: \(message)"
         case .invalidResponse:
             return "Invalid response from \(runtime). Check if \(runtime) is running on the selected host."

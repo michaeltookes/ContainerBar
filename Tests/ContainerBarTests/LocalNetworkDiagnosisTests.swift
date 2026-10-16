@@ -170,7 +170,10 @@ struct LocalNetworkDiagnosisTests {
     func tlsDenied() async {
         let fixture = diagnoser(probe: .denied)
         let diag = fixture.diag, resolver = fixture.resolver, prober = fixture.prober
-        let error = DockerAPIError.tlsConnectionFailed("The operation couldn’t be completed. (Network.NWError error 65 - No route to host)")
+        let error = DockerAPIError.tlsConnectionFailed(
+            "The operation couldn’t be completed. (Network.NWError error 65 - No route to host)",
+            posixCode: POSIXErrorCode.EHOSTUNREACH.rawValue
+        )
         let message = await diag.message(for: error, host: tlsHost)
 
         #expect(message == LocalNetworkGuidance.message)
@@ -200,18 +203,51 @@ struct LocalNetworkDiagnosisTests {
         #expect(message == userFriendlyConnectionErrorMessage(for: error, host: tlsHost))
     }
 
-    @Test("ENETDOWN text triggers a probe only for TLS, not for the ssh line")
-    func enetdownOnlyForTLS() {
-        #expect(LocalNetworkDiagnoser.mayBeLocalNetworkDenial("Network is down", connectionType: .tcpTLS))
-        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial("Network is down", connectionType: .ssh))
-        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial("No route to host", connectionType: .unixSocket))
+    @Test("The real mapper carries the POSIX code; non-POSIX errors carry none")
+    func mapperCarriesCode() {
+        guard case .tlsConnectionFailed(_, let code) = TLSConnection.mapStateFailure(.posix(.ENETDOWN)) else {
+            Issue.record("expected tlsConnectionFailed")
+            return
+        }
+        #expect(code == POSIXErrorCode.ENETDOWN.rawValue)
+
+        guard case .tlsConnectionFailed(_, let none) = TLSConnection.mapStateFailure(.dns(-65554)) else {
+            Issue.record("expected tlsConnectionFailed")
+            return
+        }
+        #expect(none == nil)
+    }
+
+    @Test("TLS classifies by POSIX code, whatever the (localized) description says", arguments: [
+        "La operación no pudo completarse. (Network.NWError error 50 - La red no funciona)",
+        "Der Vorgang konnte nicht abgeschlossen werden.",
+        "arbitrary text"
+    ])
+    func tlsClassifiesByCode(description: String) async {
+        let fixture = diagnoser(probe: .denied)
+        for code in [POSIXErrorCode.EHOSTUNREACH, .ENETDOWN] {
+            let error = DockerAPIError.tlsConnectionFailed(description, posixCode: code.rawValue)
+            #expect(LocalNetworkDiagnoser.mayBeLocalNetworkDenial(error, host: tlsHost))
+            #expect(await fixture.diag.message(for: error, host: tlsHost) == LocalNetworkGuidance.message)
+        }
+    }
+
+    @Test("TLS text alone never triggers a probe; ssh uses its stderr text", arguments: [
+        "No route to host", "Network is down"
+    ])
+    func tlsTextAloneNotProbed(text: String) {
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(DockerAPIError.tlsConnectionFailed(text), host: tlsHost))
+        let refused = DockerAPIError.tlsConnectionFailed(text, posixCode: POSIXErrorCode.ECONNREFUSED.rawValue)
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(refused, host: tlsHost))
+        #expect(LocalNetworkDiagnoser.mayBeLocalNetworkDenial(DockerAPIError.sshConnectionFailed(Self.noRoute), host: sshHost))
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(DockerAPIError.sshConnectionFailed("ssh: Network is down"), host: sshHost))
     }
 
     @Test("TCP/TLS routing failure keeps the TLS message")
     func tlsRoutingFailure() async {
         let fixture = diagnoser(probe: .inconclusive)
         let diag = fixture.diag
-        let error = DockerAPIError.tlsConnectionFailed("No route to host")
+        let error = DockerAPIError.tlsConnectionFailed("No route to host", posixCode: POSIXErrorCode.EHOSTUNREACH.rawValue)
         let message = await diag.message(for: error, host: tlsHost)
         #expect(message == "TLS connection failed: No route to host")
     }
@@ -237,9 +273,11 @@ struct LocalNetworkDiagnosisTests {
 
     @Test("Mismatched transport and error is not probed")
     func mismatchedTransport() {
-        #expect(LocalNetworkDiagnoser.failureText(for: DockerAPIError.tlsConnectionFailed("x"), host: sshHost) == nil)
-        #expect(LocalNetworkDiagnoser.failureText(for: DockerAPIError.sshConnectionFailed("x"), host: tlsHost) == nil)
-        #expect(LocalNetworkDiagnoser.failureText(for: DockerAPIError.connectionFailed, host: sshHost) == nil)
+        let tlsError = DockerAPIError.tlsConnectionFailed("x", posixCode: POSIXErrorCode.EHOSTUNREACH.rawValue)
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(tlsError, host: sshHost))
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(DockerAPIError.sshConnectionFailed(Self.noRoute), host: tlsHost))
+        #expect(!LocalNetworkDiagnoser.mayBeLocalNetworkDenial(DockerAPIError.connectionFailed, host: sshHost))
+        #expect(LocalNetworkDiagnoser.sshStderr(for: DockerAPIError.sshConnectionFailed("x"), host: tlsHost) == nil)
     }
 
     @Test("Guidance detection tolerates surrounding whitespace only")
