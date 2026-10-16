@@ -62,6 +62,9 @@ jobs:
       - name: Release Validator Tests
         run: python3 scripts/tests/test_validate_release.py
 
+      - name: QA Lane Tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_qa_lane*.py' -v
+
   lint:
     name: SwiftLint
     runs-on: macos-15
