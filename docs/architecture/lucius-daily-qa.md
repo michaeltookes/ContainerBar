@@ -161,10 +161,13 @@ The app's argv ends in `-l cbqa-fwd -- cbqa-tunnel` (CB-072's argv shape), which
 ```
 cron fires → isolated session reads tasks/<date>-containerbar-daily.md (Environment preamble + this pass)
  0 Preflight (shell, no GUI)
-   a CI-idle check (the CI-busy predicate below); while busy, re-check every minute for up to
-     10 min → still busy: BLOCKED ci-busy, stop
+   (deadline = T0 + 480 s, computed once; both waits end at it, CB-110)
+   a CI-idle check (the CI-busy predicate below); while busy, re-check every minute until the
+     deadline → still busy: BLOCKED ci-busy, stop (the lock wait never starts)
    b acquire the desktop lock (the same workspace lock the Sentwise daily pass takes, described in the
-     brief's Environment preamble); held by another brief: wait up to 10 min → else BLOCKED desktop-busy
+     brief's Environment preamble) with whatever is left of the budget → else BLOCKED desktop-busy;
+     then recover any left-over run marker (restore --keep-marker, quit and relaunch ContainerBar:
+     windows-normalised, CB-112) and only then write this run's marker
    c pause the hourly monitors (the Sentwise and ContainerBar launchd checks skip while the lock is held)
    d ssh cbqa-ctl reset; ssh cbqa-ctl status == baseline → else retry once after 60 s → BLOCKED qa-runtime-down
    e defaults export → defaults-before.plist; diff vs baseline (finding if drifted; fallback restore)
@@ -198,14 +201,14 @@ Every case re-runs check 0a first without waiting: a runner job that starts mid-
 
 | Case | Detected by | User-visible (Discord) | Logged | Retry |
 |---|---|---|---|---|
-| CI job on the Mini's runners | the CI-busy predicate (`pgrep -x Runner.Worker`, or the runners API reports a runner on this host `busy: true`) before the pass (10 min wait) and before each case (no wait) | `BLOCKED ci-busy: <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
+| CI job on the Mini's runners | the CI-busy predicate (`pgrep -x Runner.Worker`, or the runners API reports a runner on this host `busy: true`) before the pass (wait until T0 + 480 s) and before each case (no wait) | `BLOCKED ci-busy: <n>/<m> cases not run` | report.md lists unrun cases | none that day; the hourly check does not re-fire it. The orchestrator may fire the job manually once CI is idle |
 | Fixture host down / SSH refused / `cbqa-ctl status` exit 2 | preflight 0d | `BLOCKED qa-runtime-down` | ssh stderr (first line) | one retry after 60 s, then BLOCKED. Product cases are **not** marked FAIL when preflight fails |
 | App cannot connect while preflight passed | TC-CB-03 | `FAIL TC-CB-03` + cropped screenshot of the error text | app error text verbatim, the status item's accessibility value | none; this is a product finding for triage |
 | Release drift (tag ≠ appcast ≠ cask ≠ installed) | 0f | `FAIL TC-CB-01` with the four versions | versions | none |
 | Sparkle shows an update when none is expected | any leg | finding "unexpected update prompt"; dismiss with **Remind Me Later**, never **Skip This Version** (that persists) | dialog text | none |
 | App crash or hang | process gone / AX tree unresponsive for 30 s | `FAIL P1` + newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips` filename | crash report path (file stays local) | relaunch once to finish read-only legs |
 | Pass aborted mid-way | next pass step 0e | finding "previous run left state" | the diff | baseline restored automatically |
-| Desktop lock held past 10 min | 0b | `BLOCKED desktop-busy` | lock holder | none |
+| Desktop lock still held at T0 + 480 s | 0b | `BLOCKED desktop-busy` | lock holder | none |
 | Action about to hit a non-`cbqa-target` card | every click (brief story 4 AC9) | `BLOCKED scope-guard` | the card name | none |
 | Recipe element not found (UI changed) | any step | step `blocked`, recipe named stale (brief story 2 AC5) | `peekaboo see` element list as text | none; never improvise a path |
 | System prompt (Keychain, TCC, Gatekeeper) | any step | `BLOCKED` + one line to `#lucius-updates` (brief story 6 AC5) | cropped screenshot | none; never type a password or grant a permission |
@@ -227,6 +230,8 @@ Either way the passes take the same desktop lock as Sentwise and run the same CI
 4. Gatekeeper: `spctl --assess` on the installed app (cheap, catches a revoked certificate).
 
 It posts to Discord through the webhook in `~/.openclaw/.env` **only on a state change** (green→red, red→green), plus nothing at all when green. Its log goes to `~/.openclaw/workspace/artifacts/containerbar-qa/hourly.log`, rotated weekly.
+
+**As built (CB-105).** The Mini-side tooling is versioned in this repo under [`scripts/qa-lane/`](../../scripts/qa-lane/README.md) and installed into `<workspace>/tools/containerbar-qa/` by its `install.sh` (dry run unless `--apply`); the brief's preamble and restore checklist are `scripts/qa-lane/brief-template.md`. Private values (this host's runner names, Discord targets) come from `<workspace>/qa/containerbar/lane.env`, the webhook from `CONTAINERBAR_QA_WEBHOOK` in `~/.openclaw/.env`; neither file is sourced. Details the sections above leave open: the pass holds the shared lock through a detached holder started under `tools/sentwise-qa/device_lock.py` (heartbeats included), released by `cbqa_lane.py release` or at T0 + 1800 s at the latest; the hourly agent runs at minute 40 (clear of the Sentwise hourly check at minute 10) and takes the same lock for its whole run, so a held lock (exit 75) is a skip; the stale-marker backstop runs before the fixture check, so a successful backstop is reported as `restore-backstop-ran` rather than as `fixture-drift`; "state change" means the set of failing checks changed, and a post that fails leaves the stored state alone so the next run posts again; the release check also fails as `release-unreadable` when any of the four versions cannot be read. Step 0e's comparison (`cbqa_lane.py prefs-drift`) compares `dockerHosts` and `containerSections` as decoded JSON and treats a missing key as the app's default (`refreshInterval` `10s`, show stopped on, icon style `containerCount`).
 
 **Weekly rotation** so both transports are covered every week: SSH tunnel every pass; the SSH-forwarded Unix socket on Wednesday and Saturday; and Thursday, if Q2 is approved, the Docker leg against `cbqa-docker`. The Sparkle offer-from-previous-release case (TC-CB-13) runs only in the orchestrator-fired release brief, never in a scheduled pass (brief story 3 AC6: daily passes never install).
 
@@ -277,7 +282,7 @@ Asset: a screenshot per step (cropped to the app) for every case, plus one MP4 v
 
 - **Budget:** outer timeout 1800 s per pass: shared CI and lock wait ≤ 480 s, last case starts by T0 + 1380 s, 420 s reserved for restore (target pass time 12 min, restore under 3 min); hourly ≤ 60 s, zero tokens.
 - **Isolation:** QA can mutate only `cbqa-*` under `cbqa`, enforced by the host. On the Mini it mutates only ContainerBar's preferences domain and its app bundle, and always restores the baseline.
-- **Desktop exclusivity:** shared desktop lock with the Sentwise pass (10 min wait, then `desktop-busy`); the CI-busy predicate (section 7: `Runner.Worker` process or a busy runner on this host in the runners API) before the pass (10 min wait, then `ci-busy`) and before every case (no wait); the hourly script does no GUI work.
+- **Desktop exclusivity:** shared desktop lock with the Sentwise pass (the lock wait gets what the CI wait left of the 480 s budget, then `desktop-busy`); the CI-busy predicate (section 7: `Runner.Worker` process or a busy runner on this host in the runners API) before the pass (wait until T0 + 480 s, then `ci-busy`) and before every case (no wait); the hourly script does no GUI work.
 - **Network:** the LAN only; GitHub, the appcast, and the tap for version checks. No pulls from container registries during a pass.
 - **Observability:** report.md per run (case table PASS/FAIL/BLOCKED/SKIPPED, versions, durations, findings); `hourly.log`; one Discord message per daily run; inbox line only on FAIL or BLOCKED (`ContainerBar#qa | lucius | qa-found|blocked | artifacts/containerbar-qa/runs/<date> | …`).
 - **Evidence layout (brief section 4 and story 2 AC2):** `~/.openclaw/workspace/artifacts/containerbar-qa/runs/<YYYY-MM-DD>-<kind>-<HHMM>/` with `<kind>` = `daily`, `hourly` or `release`, containing `report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png` for every step, and `assets/<TC-id>.mp4` for the video cases listed in §9E; retained 30 days.

@@ -18,7 +18,7 @@ swiftlint lint           # lint (config: .swiftlint.yml; CI runs it)
 - `Sources/ContainerBarCore/` — business logic library (API, models, services)
 - `Tests/` — unit tests (Swift Testing): `ContainerBarTests/` (app) and `ContainerBarCoreTests/` (core)
 - `Distribution/` — Info.plist, entitlements, app icon
-- `scripts/` — release build, DMG, notarize, appcast, release validation (`validate-release.py` + `tests/`), Prowl hunt build (`build-hunt-app.sh`), clean-machine smoke launch (`smoke-launch-mini.sh`)
+- `scripts/` — release build, DMG, notarize, appcast, release validation (`validate-release.py` + `tests/`), Prowl hunt build (`build-hunt-app.sh`), clean-machine smoke launch (`smoke-launch-mini.sh`), QA lane tooling for the agent Mini's daily pass and hourly check (`qa-lane/`, CB-105)
 - `docs/` — user guide (`GETTING_STARTED.md`), release runbook (`RELEASING.md`), backlog (`backlog.md`, `resolved.md`), images, appcast.xml (GitHub Pages)
 - `.prowl/` — Prowl end-to-end hunts run against a hunt-mode Debug build (see `.prowl/README.md`)
 - `.github/workflows/` — Swift CI (build, test, SwiftLint), Prowl QA gate, Claude review workflows
