@@ -93,10 +93,11 @@ CBQA_DAILY_TARGET=channel:<containerbar-channel-id>
 CBQA_DEVELOPER_ID_AUTHORITY=Authority=Developer ID Application: <owner> (<team-id>)
 ```
 
-The recipe also reads `qa/containerbar/local-network-grants.log` (one line per
-Local Network grant: date, version or build, identity, who; CB-116). Until it
-holds a line for the installed release, the recipe marks every SSH case
-`blocked local-network-denied (CB-116)`.
+The recipe also reads `qa/containerbar/local-network-grants.log`, one line per
+Local Network grant (CB-116): `<YYYY-MM-DD> | <identity> | <build> | <who>`.
+A `developer-id` line (build `-`) covers every Developer ID release; an `adhoc`
+line covers only the `<version>-<build>` it names. Without a matching line the
+recipe marks every SSH case `blocked local-network-denied (CB-116)`.
 
 Optional: `CBQA_RUNNER_REPOS` (default `michaeltookes/ContainerBar,michaeltookes/sentwise`),
 `CBQA_WEBHOOK_KEY` (default `CONTAINERBAR_QA_WEBHOOK`).
