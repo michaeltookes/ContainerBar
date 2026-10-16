@@ -154,6 +154,7 @@ struct LogViewerView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.primary)
                     .textSelection(.enabled)
+                    .accessibilityIdentifier(QAAccessibilityID.logsPanelText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
                     .id("logBottom")

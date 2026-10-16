@@ -35,6 +35,9 @@ struct ConnectionStatusBar: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(presentation.accessibilityLabel)
+            .accessibilityIdentifier(QAAccessibilityID.connectionStatus)
 
             // Status badges
             if isConnected {

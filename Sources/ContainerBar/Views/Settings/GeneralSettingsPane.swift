@@ -32,6 +32,7 @@ struct GeneralSettingsPane: View {
                 .accessibilityIdentifier("refreshIntervalPicker")
 
                 Toggle("Show Stopped Containers", isOn: $settings.showStoppedContainers)
+                    .accessibilityIdentifier(QAAccessibilityID.showStoppedToggle)
             } header: {
                 Text("Display")
             }
@@ -76,10 +77,12 @@ struct GeneralSettingsPane: View {
                     get: { UpdaterController.shared.automaticallyChecksForUpdates },
                     set: { UpdaterController.shared.automaticallyChecksForUpdates = $0 }
                 ))
+                .accessibilityIdentifier(QAAccessibilityID.autoCheckUpdatesToggle)
 
                 Button("Check for Updates...") {
                     UpdaterController.shared.checkForUpdates()
                 }
+                .accessibilityIdentifier(QAAccessibilityID.checkForUpdatesGeneral)
             } header: {
                 Text("Startup")
             } footer: {

@@ -31,6 +31,7 @@ struct SectionsSettingsPane: View {
                 } label: {
                     Label("Add Section", systemImage: "plus")
                 }
+                .accessibilityIdentifier(QAAccessibilityID.addSectionButton)
 
                 Spacer()
 
@@ -149,6 +150,8 @@ struct SectionRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(QAAccessibilityID.sectionRow(name: section.name, id: section.id))
         .onHover { hovering in
             isHovered = hovering
         }

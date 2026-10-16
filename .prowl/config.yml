@@ -37,6 +37,8 @@ guardrails:
     # Container lifecycle (fixture-only in hunt mode, still open-and-assert).
     - "Stop container"
     - "Start container"
+    - "containerStop-"
+    - "containerStart-"
     - "Restart"
     - "restart"
     - "Remove"
@@ -55,6 +57,8 @@ guardrails:
     - "Launch at Login"
     - "Check for Updates"
     - "Automatically Check"
+    - "checkForUpdates"
+    - "autoCheckUpdatesToggle"
     - "quitApp"
     - "Quit"
     - "Record Shortcut"
