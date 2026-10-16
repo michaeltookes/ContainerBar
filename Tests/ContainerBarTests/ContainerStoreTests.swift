@@ -240,7 +240,9 @@ struct ContainerStoreTests {
 
         await store.startContainer(id: "c1")
 
-        #expect(store.lastActionError?.message.contains("Docker connection is not configured") == true)
+        let message = store.lastActionError?.message ?? ""
+        #expect(message.hasPrefix("Unable to start container: Docker is not running."))
+        #expect(!message.contains("not configured"))
         #expect(store.actionInProgress.isEmpty)
     }
 

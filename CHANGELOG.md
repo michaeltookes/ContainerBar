@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the required clean-machine smoke launch for distributed artifacts
 
 ### Fixed
+- When the local Docker or Podman socket is missing, the dashboard now says
+  which runtime is not running and names the socket ("Podman is not running.
+  Start the Podman machine and try again."), instead of "Docker connection not
+  configured", and Podman users are no longer told to start Docker Desktop.
+  Starting the runtime and pressing Refresh (or running a container action)
+  reconnects without relaunching the app. SSH failures name the host and say
+  whether authentication, the host key, or the connection was refused, and a
+  socket the user may not open reports "Access denied"
 - The dashboard RAM tile, menu-bar memory gauge, and memory warning now measure
   aggregate memory against the host's total memory when any container has no
   memory limit, instead of adding the host's memory once per container (three
