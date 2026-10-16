@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds one
 
 ### Changed
+- When macOS has denied (or not yet granted) Local Network access, a remote
+  host that fails with "No route to host" now shows "ContainerBar is not
+  allowed to reach devices on your local network. Turn it on in System
+  Settings > Privacy & Security > Local Network, then try again." with an
+  **Open Local Network Settings** button, in the dashboard and in Test
+  Connection, instead of the raw ssh error. The macOS prompt now explains why
+  ContainerBar asks
 - The Stop and Start quick actions on a container card are now reachable by
   VoiceOver and other assistive tools without hovering the card, and the
   status item, connection status, logs list, and Settings controls carry
