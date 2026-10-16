@@ -68,9 +68,11 @@ public struct SSHConfigRouteResolver: SSHRouteResolving {
             return data
         }.value
 
-        guard process.terminationReason == .exit, process.terminationStatus == 0 else {
+        guard process.terminationReason == .exit,
+              process.terminationStatus == 0,
+              let text = String(bytes: data, encoding: .utf8) else {
             return nil
         }
-        return SSHRouteParser.parse(sshConfigOutput: String(decoding: data, as: UTF8.self))
+        return SSHRouteParser.parse(sshConfigOutput: text)
     }
 }
