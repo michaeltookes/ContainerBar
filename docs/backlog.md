@@ -69,39 +69,6 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 **Decisions for Michael**: (1) option A needs an Apple-issued signing identity from your developer account on the QA Mini: will you sign a CSR generated on the Mini for an Apple Development certificate (preferred), export an existing Apple Development certificate and key as a `.p12`, or stay on option B (a manual Allow per branch build)? Assumption taken: a Mini-generated CSR you sign; option B until it is installed. (2) May Lucius click Allow on exactly this one dialog during the TC-CB-05 setup run, or must you click it? Assumption taken: you click it, once per identity; Lucius never grants.
 
-### CB-115: Detect a denied macOS Local Network permission and tell the user how to fix it
-**Priority**: High (P1: a user who clicks Don't Allow, or dismisses the prompt, cannot reach any LAN host and the app gives no hint why)
-**Rank**: in the High lane after CB-116 and CB-107, before CB-102; one builder branch. Proposed by BA 2026-10-15; project-manager to confirm.
-**Source**: same desktop-check runs as CB-116 (2026-10-15). Real users of the notarized release will see the prompt once on first connection to a LAN host.
-**Description**: When Local Network access is denied, the spawned `ssh` (SSH hosts) and the app's own NWConnection (TCP/TLS hosts) fail with "No route to host". `sshFailureMessage` (`Sources/ContainerBar/Stores/ConnectionErrorMessage.swift`) classifies that as `.other` and echoes the raw stderr line, so the user reads `Can't reach <host> over SSH. ssh: connect to host <address> port 22: No route to host` and checks their network, not System Settings. `Distribution/Info.plist` has no `NSLocalNetworkUsageDescription`, so the prompt shows only the system's generic text. The user docs (README, `docs/GETTING_STARTED.md`) do not mention the permission. Design hint for the architect: macOS offers no query API for this grant; a short NWConnection probe to the same host and port from the app process reports the path as unsatisfied with reason `localNetworkDenied` (Network framework, available on the app's macOS 14 floor), which distinguishes a denial from a real routing failure. Owner: builder; architect reviews the detection approach.
-
-**Technical tasks**:
-- [ ] Add `NSLocalNetworkUsageDescription` to `Distribution/Info.plist` (and the hunt build's plist if it is separate). Proposed copy: "ContainerBar connects to the container hosts you add, including hosts on your local network, to show their containers."
-- [ ] On an SSH or TCP/TLS connection failure whose cause is "No route to host" (EHOSTUNREACH), run the probe; when it reports `localNetworkDenied`, map the failure to a new message class instead of echoing stderr.
-- [ ] Message copy (dashboard banner, `connectionStatus`, Settings Test Connection result): "ContainerBar is not allowed to reach devices on your local network. Turn it on in System Settings > Privacy & Security > Local Network, then try again." Plus a button "Open Local Network Settings" that opens `x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork` (architect confirms the URL on macOS 14 to 26; if it does not deep-link, the button opens Privacy & Security).
-- [ ] Unit tests on the pure classifier (stderr + probe result → message class), CB-056 pattern; no network in tests.
-- [ ] README and `docs/GETTING_STARTED.md`: a short "Local network permission" section (when the prompt appears, what Allow does, how to turn it back on). Architecture doc: cross-reference from the CB-116 §6 paragraph.
-
-**Acceptance**: Size **S**, one branch.
-- Given an SSH host on the local network and Local Network denied for ContainerBar in System Settings, when the user clicks Test Connection or the dashboard refreshes, then the result reads "ContainerBar is not allowed to reach devices on your local network. Turn it on in System Settings > Privacy & Security > Local Network, then try again." and does not contain "No route to host" or any IP address.
-- Given the same state, when the user clicks "Open Local Network Settings", then System Settings opens on the Local Network list (or on Privacy & Security if deep linking is unavailable).
-- Given the user then turns the toggle on, when they click Test Connection again, then it reports success without relaunching the app.
-- Given a TCP/TLS host on the local network with access denied, then the same message appears.
-- Unhappy path (real routing failure): given Local Network allowed and an SSH alias whose address does not route (for example a TEST-NET address such as `192.0.2.1` behind an alias), when Test Connection runs, then the message is the normal SSH failure (see CB-118 for its wording), not the Local Network message.
-- Unhappy path (first prompt): given the prompt is showing and the user has not answered, when the connection attempt fails, then the app shows the Local Network message rather than a raw ssh error, and a refresh after Allow connects.
-- Given a fresh install of the release build, when the prompt appears, then its body shows the `NSLocalNetworkUsageDescription` copy above.
-
-**Test cases**: proposed **TC-CB-18** "Local Network denied shows guidance" (release brief or manual only: it needs the grant turned off, which the daily pass never does; the classifier is covered by unit tests).
-
-**Amendment (BA 2026-10-15, PR 72 review): resolve the SSH route before probing.** `DockerHost.host` is often an OpenSSH alias (`cbqa-tunnel`), and NWConnection does not read `~/.ssh/config` (`HostName`, `Port`, `ProxyJump`, `ProxyCommand`), so probing the alias string can report a name-resolution failure instead of the Local Network denial.
-- [ ] Before the probe, resolve the effective endpoint with `ssh -G [-p <port>] [-l <user>] -- <host>` (same argv options the tunnel uses) and read its `hostname` and `port` fields; probe that address and port. When `ssh -G` fails, fall back to the address ssh itself printed in the failing stderr line (`connect to host <address> port <n>`), and if neither yields an address, skip the probe.
-- [ ] When `ssh -G` reports a `proxycommand` or `proxyjump` value other than `none`, skip the probe (the LAN hop is not the app's direct connection) and show the normal SSH failure message (CB-118).
-- [ ] TCP/TLS hosts probe their configured host and port directly (no alias resolution).
-- [ ] Unit tests on the pure parts: parsing `ssh -G` output (alias with `HostName` and `Port`, an IPv6 hostname, `proxyjump` set, `proxycommand` set, `ssh -G` failure), with the probe result injected; no network in tests.
-- Given host `cbqa-tunnel` whose `~/.ssh/config` entry sets `HostName` to a LAN address and Local Network is denied, when Test Connection runs, then the probe targets the resolved address and port 22 and the Local Network message appears (not "No route to host", not a resolution error).
-- Unhappy path: given an alias whose config sets `ProxyJump`, when the connection fails with "No route to host", then no probe runs and the normal SSH failure message (alias, no address) appears.
-- Unhappy path: given `ssh -G` fails and the stderr carries no address, then no probe runs and the normal SSH failure message appears.
-
 ### CB-102: Daily released-build integrity and launch check; release-day install from the cask and the notarized zip
 **Priority**: High
 **Description**: Story US-lucius-daily-qa-3. Daily: installed version equals the latest GitHub release, `codesign`/`spctl`/`stapler` pass, launch from the console session shows the status item within 10 s. Release day (orchestrator-fired): `brew upgrade --cask containerbar`, the same checks on the extracted zip, a console launch of the zip (closes the manual step in `docs/RELEASING.md` for that release; complements CB-058), and the Sparkle offer from the previous version (no install). Owner: orchestrator (brief), Lucius (run).

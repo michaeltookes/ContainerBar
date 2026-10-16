@@ -20,6 +20,12 @@ struct ConnectionStatusPresentation: Equatable {
         return "\(title). \(detail)"
     }
 
+    /// Whether the detail is the Local Network guidance, so the bar offers the
+    /// "Open Local Network Settings" button under it (CB-115).
+    var showsLocalNetworkSettingsButton: Bool {
+        state == .failed && LocalNetworkGuidance.isGuidance(detail)
+    }
+
     var indicatorColor: Color {
         switch state {
         case .connecting:

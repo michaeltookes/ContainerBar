@@ -43,7 +43,7 @@ struct IncrementalHTTPResponseParserLimitTests {
     }
 
     private func isConnectionFailed(_ error: DockerAPIError?, containing text: String) -> Bool {
-        if case .tlsConnectionFailed(let message) = error {
+        if case .tlsConnectionFailed(let message, _) = error {
             return message.contains(text)
         }
         return false

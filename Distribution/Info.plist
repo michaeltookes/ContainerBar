@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ContainerBar connects to the container hosts you add, including hosts on your local network, to show their containers.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Michael Tookes. All rights reserved.</string>
 	<key>NSPrincipalClass</key>

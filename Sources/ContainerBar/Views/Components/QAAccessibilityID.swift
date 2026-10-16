@@ -20,6 +20,7 @@ enum QAAccessibilityID {
     static let autoCheckUpdatesToggle = "autoCheckUpdatesToggle"
     static let showStoppedToggle = "showStoppedToggle"
     static let addSectionButton = "addSectionButton"
+    static let openLocalNetworkSettings = "openLocalNetworkSettings"
 
     // MARK: Container-scoped identifiers
 

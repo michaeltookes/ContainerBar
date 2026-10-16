@@ -16,7 +16,10 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
     case decodingError(String)
     case socketNotFound(String)
     case sshConnectionFailed(String)
-    case tlsConnectionFailed(String)
+    /// A TLS transport failure. `posixCode` carries the POSIX error behind a
+    /// Network.framework connection failure (EHOSTUNREACH, ENETDOWN, …) so callers
+    /// can classify it without parsing the localized text (CB-115).
+    case tlsConnectionFailed(String, posixCode: Int32? = nil)
 
     public var errorDescription: String? {
         switch self {
@@ -48,7 +51,7 @@ public enum DockerAPIError: Error, LocalizedError, Sendable {
             return "Docker socket not found at \(path)"
         case .sshConnectionFailed(let message):
             return "SSH connection failed: \(message)"
-        case .tlsConnectionFailed(let message):
+        case .tlsConnectionFailed(let message, _):
             return "TLS connection failed: \(message)"
         }
     }

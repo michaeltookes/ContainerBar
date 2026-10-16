@@ -174,8 +174,14 @@ extension ContainerStore {
         } catch {
             guard isCurrentRefresh(generation) else { return }
             logger.error("Refresh failed: \(error.localizedDescription)")
-            self.connectionError = userFriendlyConnectionErrorMessage(for: error, host: settings.selectedHost)
             self.isConnected = false
+            // A "No route to host" from an SSH or TLS host is probed for a
+            // denied Local Network permission before it is shown (CB-115).
+            // The refresh stays in flight meanwhile, so the bar reads
+            // "Connecting" rather than flashing the raw ssh error.
+            let message = await connectionDiagnoser.message(for: error, host: settings.selectedHost)
+            guard isCurrentRefresh(generation) else { return }
+            self.connectionError = message
         }
 
         finishRefresh(generation)
