@@ -70,3 +70,18 @@ struct HostRowView: View {
         }
     }
 }
+
+// MARK: - Saving an added host
+
+extension ConnectionSettingsPane {
+    /// Persists a host from the Add Host sheet. With `activate`, it also
+    /// becomes the active host, so a host added through the dashboard's Add
+    /// Remote Host is the one the dashboard shows next (CB-078); the store
+    /// observes `selectedHostId` and reinitializes the fetcher (CB-065).
+    static func saveAddedHost(_ host: DockerHost, in settings: SettingsStore, activate: Bool) {
+        settings.addHost(host)
+        if activate {
+            settings.selectedHostId = host.id
+        }
+    }
+}

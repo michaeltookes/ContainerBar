@@ -75,6 +75,8 @@ To monitor containers on a remote server:
 
 1. Open **Settings** (or press `Cmd + ,`) and switch to the **Connections** tab
 2. Click **Add Host**
+
+   From the dashboard, **Hosts** > **Add Remote Host** does both steps for you: it closes the menu and opens Settings on **Connections** with the Add Host sheet already showing.
 3. Select the **Runtime** (Docker or Podman)
 4. Fill in your server details:
    - **Name**: A friendly name for this host (e.g., "My Server")

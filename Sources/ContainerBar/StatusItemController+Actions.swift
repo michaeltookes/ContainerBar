@@ -69,12 +69,20 @@ extension StatusItemController {
         }
     }
 
-    func openSettings() {
+    func openSettings(route: SettingsRoute? = nil) {
         logger.info("Opening settings")
         SettingsWindowController.shared.showSettings(
             settings: settingsStore,
             containerStore: containerStore,
-            fetcherFactory: fetcherFactory
+            fetcherFactory: fetcherFactory,
+            route: route
         )
+    }
+
+    /// The dashboard's Add Remote Host: close the menu, then open Settings on
+    /// Connections with the Add Host sheet presented (CB-078).
+    func openAddRemoteHost() {
+        closeMenuIfOpen()
+        openSettings(route: .dashboardAddRemoteHost)
     }
 }

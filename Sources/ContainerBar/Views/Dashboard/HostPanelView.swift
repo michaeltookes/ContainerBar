@@ -1,22 +1,20 @@
 import SwiftUI
 import ContainerBarCore
-import Logging
 
-/// Host selection and management panel
+/// Host selection panel in the dashboard.
+///
+/// The panel lists hosts and switches between them; it has no host-entry
+/// form of its own. **Add Remote Host** hands off to Settings > Connections,
+/// whose `AddHostSheet` is the single place a host is entered, so the runtime
+/// picker, remote socket path and SSH target validation cannot drift between
+/// two forms, and closing the panel cannot discard a half-typed host (CB-078).
 @MainActor
 struct HostPanelView: View {
     @Environment(SettingsStore.self) private var settings
-    private let logger = Logger(label: "com.containerbar.ui.host-panel")
 
     let onSelectHost: (UUID) -> Void
+    let onAddHost: () -> Void
     let onClose: () -> Void
-
-    @State private var isAddingHost = false
-    @State private var newHostName = ""
-    @State private var newHostAddress = ""
-    @State private var newHostUser = "root"
-    @State private var newHostPort = ""
-    @State private var validationError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,13 +42,7 @@ struct HostPanelView: View {
 
             Divider()
 
-            if isAddingHost {
-                // Add host form
-                addHostForm
-            } else {
-                // Host list
-                hostList
-            }
+            hostList
         }
         .background(Color.primary.opacity(0.03))
     }
@@ -75,12 +67,8 @@ struct HostPanelView: View {
             Divider()
                 .padding(.vertical, 4)
 
-            // Add host button
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isAddingHost = true
-                }
-            } label: {
+            // Opens Settings > Connections with the Add Host sheet (CB-078).
+            Button(action: onAddHost) {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 14))
@@ -97,135 +85,10 @@ struct HostPanelView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add remote host")
+            .accessibilityHint("Opens Settings to add a host")
             .accessibilityIdentifier("addRemoteHost")
         }
         .padding(.vertical, 4)
-    }
-
-    private var addHostForm: some View {
-        ScrollView {
-        VStack(spacing: 12) {
-            // Name field
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Name")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                TextField("My Server", text: $newHostName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-            }
-
-            // Host/IP field
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Host (IP or hostname)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                TextField("192.168.1.100", text: $newHostAddress)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .help("You can optionally include a port, for example host.example.com:2222.")
-            }
-
-            // SSH User and Port
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("SSH User")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    TextField("root", text: $newHostUser)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Port")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    TextField("22", text: $newHostPort)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 12))
-                        .frame(width: 60)
-                }
-            }
-
-            // Action buttons
-            HStack(spacing: 12) {
-                Button("Cancel") {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        validationError = nil
-                        resetForm()
-                        isAddingHost = false
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("hostPanelCancel")
-
-                Spacer()
-
-                Button("Save") {
-                    saveNewHost()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(!isNewHostValid)
-                .accessibilityIdentifier("hostPanelSave")
-            }
-
-            if let message = validationError
-                ?? RemoteHostDraftBuilder.sshTargetMessage(hostInput: newHostAddress, userInput: newHostUser) {
-                Text(message)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(16)
-        }
-    }
-
-    private var isNewHostValid: Bool {
-        RemoteHostDraftBuilder.isValid(
-            nameInput: newHostName,
-            hostInput: newHostAddress,
-            userInput: newHostUser,
-            portInput: newHostPort
-        )
-    }
-
-    private func saveNewHost() {
-        do {
-            let hostDraft = try RemoteHostDraftBuilder.build(
-                nameInput: newHostName,
-                hostInput: newHostAddress,
-                userInput: newHostUser,
-                portInput: newHostPort
-            )
-
-            let newHost = hostDraft.makeDockerHost()
-            validationError = nil
-
-            settings.addHost(newHost)
-
-            withAnimation(.easeInOut(duration: 0.2)) {
-                resetForm()
-                isAddingHost = false
-            }
-
-            onSelectHost(newHost.id)
-        } catch {
-            logger.warning("Failed to save remote host from dashboard panel")
-            validationError = error.localizedDescription
-        }
-    }
-
-    private func resetForm() {
-        newHostName = ""
-        newHostAddress = ""
-        newHostUser = "root"
-        newHostPort = ""
-        validationError = nil
     }
 }
 

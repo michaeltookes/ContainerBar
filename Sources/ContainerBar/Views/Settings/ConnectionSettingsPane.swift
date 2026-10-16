@@ -4,11 +4,17 @@ import ContainerBarCore
 /// Connection settings pane for managing Docker hosts
 struct ConnectionSettingsPane: View {
     @Environment(SettingsStore.self) private var settings
+    /// Optional so the pane still renders where no settings window hosts it
+    /// (previews, view tests); the controller always injects one (CB-078).
+    @Environment(SettingsNavigation.self) private var navigation: SettingsNavigation?
 
     private let fetcherFactory: ContainerStore.FetcherFactory
 
     @State private var selectedHostId: UUID?
     @State private var isAddingHost = false
+    /// True while the sheet was opened by a route that activates the saved
+    /// host (the dashboard's Add Remote Host, CB-078); false for the + button.
+    @State private var activateAddedHost = false
     @State private var connectionTests = ConnectionTestTracker()
 
     init(fetcherFactory: @escaping ContainerStore.FetcherFactory = ContainerStore.defaultFetcherFactory) {
@@ -29,6 +35,19 @@ struct ConnectionSettingsPane: View {
         .sheet(isPresented: $isAddingHost) {
             AddHostSheet(onSave: addHost)
         }
+        // The dashboard's Add Remote Host routes here (CB-078): consume the
+        // request when the pane appears, or when it arrives while showing.
+        .onAppear(perform: presentRequestedAddHost)
+        .onChange(of: navigation?.pendingAddHost) { _, pending in
+            if pending != nil { presentRequestedAddHost() }
+        }
+    }
+
+    private func presentRequestedAddHost() {
+        if let request = navigation?.consumeAddHostRequest() {
+            activateAddedHost = request.activateOnSave
+            isAddingHost = true
+        }
     }
 
     // MARK: - Host List
@@ -46,7 +65,10 @@ struct ConnectionSettingsPane: View {
 
             // Add/Remove buttons
             HStack(spacing: 4) {
-                Button(action: { isAddingHost = true }) {
+                Button(action: {
+                    activateAddedHost = false
+                    isAddingHost = true
+                }) {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
@@ -96,7 +118,8 @@ struct ConnectionSettingsPane: View {
     // MARK: - Actions
 
     private func addHost(_ host: DockerHost) {
-        settings.addHost(host)
+        Self.saveAddedHost(host, in: settings, activate: activateAddedHost)
+        activateAddedHost = false
         selectedHostId = host.id
     }
 

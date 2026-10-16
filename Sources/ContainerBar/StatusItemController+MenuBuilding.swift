@@ -25,6 +25,9 @@ extension StatusItemController {
             onSettings: { [weak self] in
                 self?.openSettings()
             },
+            onAddRemoteHost: { [weak self] in
+                self?.openAddRemoteHost()
+            },
             onQuit: {
                 NSApp.terminate(nil)
             },
