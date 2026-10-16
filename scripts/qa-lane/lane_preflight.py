@@ -29,7 +29,8 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 from lane_core import (APP_NAME, CI_RECHECK_S, LOCK_RECHECK_S, Lane, ci_busy, load_session,
-                       new_session, publish_session, read_json, write_json)
+                       lock_owner_run,
+                       new_session, publish_session, write_json)
 from lane_restore import restore
 
 READY, BLOCKED, NEEDS_NORMALISE = "ready", "blocked", "needs-normalise"
@@ -61,12 +62,6 @@ def spawn_holder(lane: Lane, run_id: str, timeout_s: float) -> Holder:
         proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=out,
                                 start_new_session=True)
     return Holder(proc)
-
-
-def lock_owner_run(lane: Lane) -> Optional[str]:
-    owner = read_json(lane.lock_dir / "owner.json") or {}
-    run = owner.get("run")
-    return run if isinstance(run, str) else None
 
 
 def notify(lane: Lane, text: str) -> None:

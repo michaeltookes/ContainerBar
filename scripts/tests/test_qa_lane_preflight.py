@@ -163,14 +163,14 @@ class DeadlineTests(unittest.TestCase):
     def test_case_gate_blocks_after_cutoff_and_on_ci_without_waiting(self):
         result, lane, runner, clock, _ = run_preflight(self)
         self.assertEqual(result["status"], READY)
-        self.assertEqual(case_gate(lane), (True, "ok"))
+        self.assertEqual(case_gate(lane, token_of(result)), (True, "ok"))
         runner.worker = True
         before = clock.now()
-        self.assertEqual(case_gate(lane), (False, "ci-busy"))
+        self.assertEqual(case_gate(lane, token_of(result)), (False, "ci-busy"))
         self.assertEqual(clock.now(), before)
         runner.worker = False
         clock.t = lane_core.load_session(lane)["t0"] + 1381
-        self.assertEqual(case_gate(lane), (False, "time-budget"))
+        self.assertEqual(case_gate(lane, token_of(result)), (False, "time-budget"))
 
 
 class CodexRoundOneTests(unittest.TestCase):
@@ -227,7 +227,7 @@ class CodexRoundOneTests(unittest.TestCase):
         self.assertEqual(result["status"], READY)
         clock.t = lane_core.load_session(lane)["t0"] + 1379
         runner.costs = [("gh api", 10)]          # two API calls: 20 s
-        self.assertEqual(case_gate(lane), (False, "time-budget"))
+        self.assertEqual(case_gate(lane, token_of(result)), (False, "time-budget"))
         self.assertLessEqual(clock.now(), lane_core.load_session(lane)["case_cutoff"] + 0.001)
 
     def test_slow_ci_probes_never_run_past_the_wait_deadline(self):
@@ -439,6 +439,47 @@ class ReleaseRequiresTokenTests(unittest.TestCase):
         import cbqa_lane
         with self.assertRaises(SystemExit):
             cbqa_lane.main(["release"])
+
+
+class CaseGateRequiresTokenTests(unittest.TestCase):
+    """A pass whose hold ran out never reads another pass's cut-off."""
+
+    def test_a_gate_after_b_took_over_is_refused_without_reading_b_cutoff(self):
+        clock = FakeClock()
+        runner = FakeRunner()
+        lane, _ = make_lane(self, runner, clock)
+        a = token_of(preflight(lane, "pass-A", spawn=FakeLock(lane, clock).spawn))
+        self.assertEqual(case_gate(lane, a), (True, "ok"))
+        import shutil
+        shutil.rmtree(str(lane.lock_dir))             # A's holder hit its outer deadline
+        clock.t += 1000                                 # well inside B's fresh budget
+        b = token_of(preflight(lane, "pass-B", spawn=FakeLock(lane, clock).spawn))
+        calls_before = len(runner.calls)
+        self.assertEqual(case_gate(lane, a), (False, "lock-not-owned"))
+        self.assertEqual(len(runner.calls), calls_before)   # no CI probe either
+        self.assertEqual(case_gate(lane, b), (True, "ok"))
+
+    def test_gate_refused_when_lock_released_but_session_still_ours(self):
+        result, lane, _, _, _ = run_preflight(self)
+        import shutil
+        shutil.rmtree(str(lane.lock_dir))
+        self.assertEqual(case_gate(lane, token_of(result)), (False, "lock-not-owned"))
+
+    def test_cli_reports_lock_not_owned_as_time_budget(self):
+        import io
+        from contextlib import redirect_stdout
+        import cbqa_lane
+        result, lane, _, _, _ = run_preflight(self)
+        original = cbqa_lane.Lane
+        cbqa_lane.Lane = lambda: lane
+        self.addCleanup(setattr, cbqa_lane, "Lane", original)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = cbqa_lane.main(["case-gate", "--token", "someone-else", "TC-CB-10"])
+        self.assertEqual(code, 2)
+        self.assertEqual(out.getvalue().strip(), "BLOCKED time-budget lock-not-owned TC-CB-10")
+        with self.assertRaises(SystemExit):
+            cbqa_lane.main(["case-gate", "TC-CB-10"])
 
 
 class GuiCleanupPendingTests(unittest.TestCase):

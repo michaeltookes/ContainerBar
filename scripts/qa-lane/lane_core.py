@@ -226,15 +226,28 @@ def load_session(lane: Lane) -> Optional[Dict[str, object]]:
     return read_json(lane.session_file)
 
 
-def case_gate(lane: Lane) -> Tuple[bool, str]:
+def lock_owner_run(lane: Lane) -> Optional[str]:
+    """The token of the run whose holder owns the shared desktop lock, if any."""
+    owner = read_json(lane.lock_dir / "owner.json") or {}
+    run = owner.get("run")
+    return run if isinstance(run, str) else None
+
+
+def case_gate(lane: Lane, token: str) -> Tuple[bool, str]:
     """Before every case: no wait, only the cut-off and the CI predicate.
 
-    The clock is read again after the CI probes, so slow probes never grant a
-    case inside the restore reserve.
+    Only the pass that owns the lock may start a case: unless both
+    session.json and the lock owner carry this pass's token, the answer is
+    lock-not-owned (reported as time-budget: no case starts), so a pass whose
+    hold ran out never reads another pass's cut-off. The clock is read again
+    after the CI probes, so slow probes never grant a case inside the restore
+    reserve.
     """
     session = load_session(lane)
     if session is None:
         return False, "no-session"
+    if session.get("token") != token or lock_owner_run(lane) != token:
+        return False, "lock-not-owned"
     cutoff = float(session["case_cutoff"])
     if lane.clock.now() > cutoff:
         return False, "time-budget"

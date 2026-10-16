@@ -3,7 +3,7 @@
 
   preflight --session ID     step 0: CI wait, desktop lock, marker recovery
   normalise --token T        retry the quit/relaunch after closing dialogs
-  case-gate [TC-ID]          before each case: time budget and CI, no wait
+  case-gate --token T [TC-ID] before each case: lock ownership, time budget, CI; no wait
   restore [--keep-marker]    the no-GUI restore (containerbar-qa-restore.sh)
   gui-done                   step 5: the GUI restore succeeded, clear gui-cleanup-pending
   release --token T          release the desktop lock held for this pass (T: the
@@ -39,6 +39,7 @@ def main(argv=None) -> int:
     norm.add_argument("--token", required=True)
     gate = sub.add_parser("case-gate")
     gate.add_argument("case", nargs="?", default="")
+    gate.add_argument("--token", required=True)
     rest = sub.add_parser("restore")
     rest.add_argument("--keep-marker", action="store_true")
     sub.add_parser("gui-done")
@@ -66,7 +67,9 @@ def main(argv=None) -> int:
     if args.cmd == "normalise":
         return print_result(normalise_after_dialogs(lane, args.token))
     if args.cmd == "case-gate":
-        ok, reason = case_gate(lane)
+        ok, reason = case_gate(lane, args.token)
+        if reason == "lock-not-owned":
+            reason = "time-budget lock-not-owned"
         print("ok" if ok else "BLOCKED %s %s" % (reason, args.case))
         return 0 if ok else 2
     if args.cmd == "restore":

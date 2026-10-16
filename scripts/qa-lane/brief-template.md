@@ -15,8 +15,8 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
 - **One deadline.** `T/cbqa_lane.py preflight` records T0. CI and lock waits share
   the budget to T0 + 480 s; no case starts after T0 + 1380 s; the rest is for the restore.
   Copy every `note:` line preflight prints into the run notes (the wait end times included).
-  One of them is `lock token <token>`: this pass's own token, needed by `normalise` and
-  `release` below. Use exactly that value, never one read from `session.json`.
+  One of them is `lock token <token>`: this pass's own token, needed by `normalise`,
+  `case-gate` and `release` below. Use exactly that value, never one read from `session.json`.
 - **Desktop lock.** Preflight takes the workspace desktop lock the Sentwise pass uses and
   holds it for the whole pass; while it is held the Sentwise and ContainerBar hourly
   checks skip. Do not wrap your own Peekaboo calls in `device_lock.py` (the pass already
@@ -54,11 +54,15 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
 
 ## Every case
 
-Before each case run `python3 -B T/cbqa_lane.py case-gate <TC-ID>` (no waiting):
+Before each case run `python3 -B T/cbqa_lane.py case-gate --token <token> <TC-ID>` (no waiting):
 - `ok`: run the case.
 - `BLOCKED ci-busy`: finish the current step, mark this and every remaining case BLOCKED
   `ci-busy`, go to the restore.
 - `BLOCKED time-budget`: mark this and every remaining case `blocked` `time-budget`, go to the restore.
+- `BLOCKED time-budget lock-not-owned`: this pass's hold on the desktop ran out and another
+  pass may own it now. Start no case; mark this and every remaining case `blocked`
+  `time-budget` with the note `lock-not-owned`, and touch nothing on the desktop. Run
+  `release --token <token>` (it will refuse) and record both answers in the run notes.
 
 ## Unix-socket leg (Wednesday and Saturday: TC-CB-11, TC-CB-12)
 
