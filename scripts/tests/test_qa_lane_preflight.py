@@ -6,6 +6,9 @@ Run: python3 -m unittest discover -s scripts/tests -p 'test_qa_lane*.py'
 from __future__ import annotations
 
 import json
+import os
+import sys
+import time
 import unittest
 
 from qa_lane_fakes import FakeClock, FakeRunner, make_lane, status_json
@@ -235,6 +238,53 @@ class MarkerRecoveryTests(unittest.TestCase):
         self.assertEqual(result["status"], READY)
         self.assertFalse(runner.ran("api-start"))
         self.assertFalse(runner.ran("osascript"))
+
+
+STUB_LOCK_TOOL = """
+import json, os, shutil, subprocess, sys
+args = sys.argv[1:]
+lock = args[args.index("--lock") + 1]
+run = args[args.index("--run") + 1]
+cmd = args[args.index("--") + 1:]
+try:
+    os.mkdir(lock)
+except FileExistsError:
+    sys.exit(75)
+open(os.path.join(lock, "owner.json"), "w").write(json.dumps({"run": run, "pid": os.getpid()}))
+try:
+    code = subprocess.call(cmd)
+finally:
+    shutil.rmtree(lock, ignore_errors=True)
+sys.exit(code)
+"""
+
+
+class RealLockHolderTests(unittest.TestCase):
+    """The detached holder keeps the shared lock across the pass and lets go on release."""
+
+    def test_holder_acquires_holds_and_releases(self):
+        lane, root = make_lane(self, FakeRunner(), lane_core.Clock())
+        tool = root / "device_lock.py"
+        tool.write_text(STUB_LOCK_TOOL)
+        lane.lock_tool = tool
+        lane.lock_dir = root / "device.lock"
+        lane.python = sys.executable
+        result = preflight(lane, "real-holder-run")
+        self.assertEqual(result["status"], READY, result["notes"])
+        self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")
+        time.sleep(1.5)
+        self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")  # still held
+        self.assertTrue(lane_preflight.release_lock(lane))
+        deadline = time.time() + 10
+        while lane.lock_dir.exists() and time.time() < deadline:
+            time.sleep(0.2)
+        self.assertFalse(lane.lock_dir.exists())
+        self.assertFalse(lane.release_file.exists())
+        pid = lane_core.load_session(lane)["holder_pid"]
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
 
 
 if __name__ == "__main__":
