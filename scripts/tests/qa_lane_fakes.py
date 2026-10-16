@@ -51,6 +51,9 @@ class FakeRunner:
         self.processes = {}          # pid -> command line, for ps -o command=
         self.quit_works = True
         self.next_app_pid = 5000
+        self.clock = None            # set by make_lane; costs advance it
+        self.costs = []              # (argv prefix, seconds the command takes)
+        self.timeouts = []           # timeout passed with each call
 
     def on(self, prefix, handler):
         self.handlers.append((prefix, handler))
@@ -58,7 +61,13 @@ class FakeRunner:
     def __call__(self, argv, timeout):
         argv = list(argv)
         self.calls.append(argv)
+        self.timeouts.append(timeout)
         joined = " ".join(argv)
+        for prefix, cost in self.costs:
+            if joined.startswith(prefix) and self.clock is not None:
+                self.clock.sleep(min(cost, timeout))
+                if cost > timeout:
+                    return 124, ""
         for prefix, handler in self.handlers:
             if joined.startswith(prefix):
                 return handler(argv)
@@ -108,6 +117,9 @@ def make_lane(test, runner=None, clock=None, extra_env=None):
         "CBQA_OPENCLAW_ENV": str(root / "openclaw.env"),
     }
     env.update(extra_env or {})
-    lane = Lane(env=env, run=runner or FakeRunner(), clock=clock or FakeClock())
+    runner = runner or FakeRunner()
+    lane = Lane(env=env, run=runner, clock=clock or FakeClock())
+    if isinstance(runner, FakeRunner):
+        runner.clock = lane.clock
     lane.state_dir.mkdir(parents=True, exist_ok=True)
     return lane, root

@@ -39,6 +39,7 @@ REMOTE_SOCKET = "/run/cbqa-api/podman.sock"
 DEFAULT_RUNNER_REPOS = "michaeltookes/ContainerBar,michaeltookes/sentwise"
 
 Result = Tuple[int, str]
+OUT_OF_TIME = 124
 RunFn = Callable[[Sequence[str], float], Result]
 
 
@@ -112,6 +113,18 @@ class Lane:
         self.run = run
         self.clock = clock or Clock()
 
+    def call(self, argv: Sequence[str], timeout: float,
+             deadline: Optional[float] = None) -> Result:
+        """Run argv with its timeout capped by an absolute deadline.
+
+        Past the deadline nothing runs and the result is (124, "") like a timeout.
+        """
+        if deadline is not None:
+            timeout = min(timeout, deadline - self.clock.now())
+            if timeout <= 0:
+                return OUT_OF_TIME, ""
+        return self.run(argv, timeout)
+
     def setting(self, key: str, default: str = "") -> str:
         return self.settings.get(key, default)
 
@@ -126,18 +139,26 @@ class Lane:
 # ---------------------------------------------------------------- CI-busy
 
 
-def ci_busy(lane: Lane) -> Tuple[bool, List[str]]:
+def ci_busy(lane: Lane, deadline: Optional[float] = None) -> Tuple[bool, List[str]]:
     """The CI-busy predicate (architecture section 7).
 
     Busy if `pgrep -x Runner.Worker` prints a PID, or the runners API lists one
     of this host's runners with busy: true. An unreachable API (or no runner
     names configured) is noted as runner-api-unavailable and never counts as
     idle evidence on its own; the Runner.Worker check then decides alone.
+
+    Every probe's timeout is capped by `deadline`. When no time is left for
+    the Runner.Worker check, CI cannot be observed and counts as busy
+    (ci-check-out-of-time); API calls that run out of time count as an
+    unavailable API.
     """
     notes: List[str] = []
-    rc, out = lane.run(["pgrep", "-x", "Runner.Worker"], 5)
+    rc, out = lane.call(["pgrep", "-x", "Runner.Worker"], 5, deadline)
     if rc == 0 and out.strip():
         notes.append("runner-worker-present")
+        return True, notes
+    if rc == OUT_OF_TIME:
+        notes.append("ci-check-out-of-time")
         return True, notes
     names = set(lane.runner_names())
     if not names:
@@ -145,7 +166,8 @@ def ci_busy(lane: Lane) -> Tuple[bool, List[str]]:
         return False, notes
     api_failed = False
     for repo in lane.runner_repos():
-        rc, out = lane.run(["gh", "api", "repos/%s/actions/runners?per_page=100" % repo], 10)
+        rc, out = lane.call(["gh", "api", "repos/%s/actions/runners?per_page=100" % repo], 10,
+                            deadline)
         if rc != 0:
             api_failed = True
             continue
@@ -167,7 +189,12 @@ def ci_busy(lane: Lane) -> Tuple[bool, List[str]]:
 
 
 def new_session(lane: Lane, session: str) -> Dict[str, object]:
-    """Compute the run's deadlines once, at session start (CB-110)."""
+    """Compute the run's deadlines once, at session start (CB-110).
+
+    In memory only: a pass still waiting for the lock must not overwrite the
+    session file of the pass that holds it. publish_session() writes it once
+    the lock is held.
+    """
     t0 = lane.clock.now()
     data = {
         "session": session,
@@ -176,8 +203,12 @@ def new_session(lane: Lane, session: str) -> Dict[str, object]:
         "case_cutoff": t0 + CASE_CUTOFF_S,
         "outer_deadline": t0 + OUTER_TIMEOUT_S,
     }
-    write_json(lane.session_file, data)
     return data
+
+
+def publish_session(lane: Lane, session: Dict[str, object]) -> None:
+    """Called only by the lock holder's pass."""
+    write_json(lane.session_file, session)
 
 
 def load_session(lane: Lane) -> Optional[Dict[str, object]]:
@@ -185,13 +216,20 @@ def load_session(lane: Lane) -> Optional[Dict[str, object]]:
 
 
 def case_gate(lane: Lane) -> Tuple[bool, str]:
-    """Before every case: no wait, only the cut-off and the CI predicate."""
+    """Before every case: no wait, only the cut-off and the CI predicate.
+
+    The clock is read again after the CI probes, so slow probes never grant a
+    case inside the restore reserve.
+    """
     session = load_session(lane)
     if session is None:
         return False, "no-session"
-    if lane.clock.now() > float(session["case_cutoff"]):
+    cutoff = float(session["case_cutoff"])
+    if lane.clock.now() > cutoff:
         return False, "time-budget"
-    busy, _ = ci_busy(lane)
+    busy, notes = ci_busy(lane, cutoff)
+    if lane.clock.now() > cutoff or "ci-check-out-of-time" in notes:
+        return False, "time-budget"
     if busy:
         return False, "ci-busy"
     return True, "ok"
@@ -200,10 +238,11 @@ def case_gate(lane: Lane) -> Tuple[bool, str]:
 # ---------------------------------------------------------------- fixtures
 
 
-def fixture_status(lane: Lane) -> Tuple[str, Optional[Dict[str, str]]]:
+def fixture_status(lane: Lane, deadline: Optional[float] = None
+                   ) -> Tuple[str, Optional[Dict[str, str]]]:
     """('ok', states) | ('down', None) | ('unparsable', None)."""
-    rc, out = lane.run(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
-                        "cbqa-ctl", "status"], 20)
+    rc, out = lane.call(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+                         "cbqa-ctl", "status"], 20, deadline)
     if rc != 0:
         return "down", None
     try:

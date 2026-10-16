@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- ContainerBar hourly QA check (CB-105). Rendered by install.sh: __TOOLS__ and
-     __HOME__ are replaced with the workspace tools folder and the user's home.
+<!-- ContainerBar hourly QA check (CB-105). Rendered by install.sh: __TOOLS__, __WORKSPACE__
+     and __HOME__ are replaced with the tools folder, the workspace the installer
+     targeted (launchd passes no shell environment, so the agent must carry it)
+     and the user's home.
      Minute 40 keeps clear of the Sentwise hourly check at minute 10. Hours are the
      Mini's local time (Central); the script also skips outside 08:00-20:00 Central. -->
 <plist version="1.0">
@@ -13,7 +15,11 @@
   <array>
 __INTERVALS__
   </array>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>CBQA_WORKSPACE</key><string>__WORKSPACE__</string>
+  </dict>
   <key>StandardOutPath</key><string>__HOME__/Library/Logs/containerbar-qa/hourly.out.log</string>
   <key>StandardErrorPath</key><string>__HOME__/Library/Logs/containerbar-qa/hourly.err.log</string>
 </dict>

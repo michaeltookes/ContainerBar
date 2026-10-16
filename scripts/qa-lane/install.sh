@@ -37,6 +37,7 @@ rendered=$(mktemp -t containerbar-hourly)
 tpl=$(<"$here/com.genkeilabs.containerbar-hourly.plist.template")
 tpl=${tpl//__TOOLS__/$tools}
 tpl=${tpl//__HOME__/$HOME}
+tpl=${tpl//__WORKSPACE__/$ws}
 tpl=${tpl/__INTERVALS__/${intervals%$'\n'}}
 print -r -- "$tpl" > "$rendered"
 plutil -lint "$rendered" >/dev/null

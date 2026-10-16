@@ -89,24 +89,29 @@ def stop_forward(lane: Lane, notes: List[str],
 
 
 def restore(lane: Lane, keep_marker: bool = False,
-            terminate: Callable[[int], None] = default_terminate) -> Tuple[bool, List[str]]:
-    """No-GUI restore. Returns (ok, run-notes lines)."""
+            terminate: Callable[[int], None] = default_terminate,
+            deadline: Optional[float] = None) -> Tuple[bool, List[str]]:
+    """No-GUI restore. Returns (ok, run-notes lines).
+
+    `deadline` (absolute) caps every remote call, so the hourly backstop fits
+    its run budget; a restore cut short fails and keeps the marker.
+    """
     notes: List[str] = []
     ok = True
-    rc, _ = lane.run(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
-                      "cbqa-ctl", "api-start"], 30)
+    rc, _ = lane.call(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+                       "cbqa-ctl", "api-start"], 30, deadline)
     notes.append("cbqa-ctl api-start rc=%d" % rc)
     if rc != 0:
         ok = False
 
-    state, states = fixture_status(lane)
+    state, states = fixture_status(lane, deadline)
     diffs = baseline_diff(states) if states is not None else ["status %s" % state]
     if diffs:
         notes.append("fixtures not at baseline: %s" % "; ".join(diffs))
-        rc, _ = lane.run(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
-                          "cbqa-ctl", "reset"], 90)
+        rc, _ = lane.call(["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes",
+                           "cbqa-ctl", "reset"], 90, deadline)
         notes.append("cbqa-ctl reset rc=%d" % rc)
-        state, states = fixture_status(lane)
+        state, states = fixture_status(lane, deadline)
         diffs = baseline_diff(states) if states is not None else ["status %s" % state]
         if diffs:
             notes.append("fixtures still not at baseline: %s" % "; ".join(diffs))

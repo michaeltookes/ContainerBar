@@ -13,6 +13,7 @@ from pathlib import Path
 from qa_lane_fakes import LANE_DIR, FakeClock, FakeRunner, make_lane, status_json
 
 import lane_core
+import lane_hourly
 from lane_hourly import appcast_version, cask_version, hourly, parse_cputime
 
 APPCAST = """<?xml version="1.0"?>
@@ -46,12 +47,20 @@ class Env:
         self.write_installed()
         self.versions = {"tag": "v2.0.5", "appcast": "2.0.5", "cask": "2.0.5"}
         self.posts = []
+        self.fetch_timeouts = []
+        self.fetch_cost = 0
 
     def write_installed(self):
         path = Path(self.lane.app_path, "Contents", "Info.plist")
         path.write_bytes(plistlib.dumps({"CFBundleShortVersionString": self.installed}))
 
-    def fetch(self, url):
+    def fetch(self, url, timeout=8):
+        self.fetch_timeouts.append(timeout)
+        cost = self.fetch_cost
+        if cost:
+            self.clock.sleep(min(cost, timeout))
+            if cost > timeout:
+                return None
         if "releases/latest" in url:
             return json.dumps({"tag_name": self.versions["tag"]})
         if "appcast" in url:
@@ -99,7 +108,7 @@ class HourlyTests(unittest.TestCase):
     def test_unreadable_appcast_is_a_failure(self):
         env = Env(self)
         original = env.fetch
-        env.fetch = lambda url: None if "appcast" in url else original(url)
+        env.fetch = lambda url, timeout: None if "appcast" in url else original(url, timeout)
         self.assertEqual(env.run()["failures"], ["release-unreadable"])
 
     def test_app_not_running(self):
@@ -193,6 +202,80 @@ class HourlyTests(unittest.TestCase):
             self.assertNotIn(call[0], ("osascript", "open", "peekaboo"))
 
 
+class CodexRoundOneTests(unittest.TestCase):
+    """PR 76 Codex round 1, items 1-3."""
+
+    def test_stalled_services_stay_inside_the_wrapper_limit_and_still_post(self):
+        env = Env(self)
+        env.versions["cask"] = "2.0.4"          # a failure to report
+        env.fetch_cost = 30                      # every HTTP call hangs to its timeout
+        env.runner.costs = [("gh api", 60), ("ssh", 60), ("spctl", 60), ("pgrep -x Runner", 60)]
+        result = env.run()
+        self.assertLessEqual(result["elapsed"], lane_hourly.HOURLY_BUDGET_S)
+        self.assertLess(lane_hourly.HOURLY_BUDGET_S + lane_hourly.POST_TIMEOUT_S,
+                        lane_hourly.WRAPPER_LIMIT_S - 5)
+        self.assertTrue((env.lane.artifacts / "hourly-state.json").exists())
+        self.assertIsNotNone(result["message"])
+        self.assertEqual(len(env.posts), 1)
+        self.assertTrue(all(t <= lane_hourly.FETCH_TIMEOUT_S for t in env.fetch_timeouts))
+
+    def test_backstop_restore_shares_the_budget(self):
+        env = Env(self)
+        lane_core.write_json(env.lane.marker, {"t0": env.clock.now() - 40 * 60})
+        env.runner.status = [status_json({"cbqa-target": "exited"})]
+        env.runner.costs = [("ssh -o ConnectTimeout=5 -o BatchMode=yes cbqa-ctl reset", 200)]
+        result = env.run()
+        self.assertLessEqual(result["elapsed"], lane_hourly.HOURLY_BUDGET_S)
+        self.assertIn("restore-backstop-failed", result["failures"])
+        self.assertTrue(env.lane.marker.exists())   # kept for the next run
+        self.assertEqual(len(env.posts), 1)
+
+    def test_app_failure_survives_a_ci_busy_run(self):
+        env = Env(self)
+        env.runner.app_pid = None
+        env.run()
+        self.assertIn("FAIL app-not-running", env.posts[-1])
+        env.runner.worker = True                 # CI busy: the app cannot be observed
+        env.clock.t += 3600
+        result = env.run()
+        self.assertEqual(result["failures"], ["app-not-running"])
+        self.assertEqual(len(env.posts), 1)      # no false "recovered"
+        env.runner.worker = False
+        env.runner.app_pid = 4300
+        env.clock.t += 3600
+        self.assertEqual(env.run()["failures"], [])
+        self.assertIn("recovered", env.posts[-1])
+
+    def test_unobserved_check_out_of_time_keeps_its_previous_result(self):
+        env = Env(self)
+        env.spctl_rc = 3
+        env.run()
+        env.spctl_rc = 0
+        env.clock.t += 3600
+        env.fetch_cost = 8                        # three fetches eat 24 s
+        env.runner.costs = [("ssh", 20)]          # the fixture check eats the rest
+        result = env.run()
+        self.assertTrue(any("gatekeeper: not run (out of time)" in line
+                            for line in (env.lane.artifacts / "hourly.log").read_text().splitlines()))
+        self.assertIn("gatekeeper-rejected", result["failures"])
+
+    def test_backstop_event_is_retried_until_delivered(self):
+        env = Env(self)
+        lane_core.write_json(env.lane.marker, {"t0": env.clock.now() - 40 * 60})
+        attempts = []
+        env.post = lambda url, text: attempts.append(text) and False
+        env.run()
+        self.assertFalse(env.lane.marker.exists())
+        env.clock.t += 3600
+        env.post = lambda url, text: attempts.append(text) or True
+        env.run()
+        self.assertEqual(len(attempts), 2)
+        self.assertIn("restore-backstop-ran", attempts[1])
+        env.clock.t += 3600
+        env.run()
+        self.assertEqual(len(attempts), 2)       # delivered once, then cleared
+
+
 class ParsingTests(unittest.TestCase):
     def test_appcast_child_and_enclosure_forms(self):
         self.assertEqual(appcast_version(APPCAST.format(v="2.0.5")), "2.0.5")
@@ -254,6 +337,8 @@ class LaunchdEntryPointTests(unittest.TestCase):
         self.assertEqual(agent["Label"], "com.genkeilabs.containerbar-hourly")
         self.assertEqual([i["Hour"] for i in agent["StartCalendarInterval"]], list(range(8, 21)))
         self.assertTrue(agent["ProgramArguments"][1].endswith("tools/containerbar-qa/containerbar-hourly.sh"))
+        # Codex round 1 item 4: launchd carries the workspace the installer targeted.
+        self.assertEqual(agent["EnvironmentVariables"]["CBQA_WORKSPACE"], str(lane.workspace))
 
 
 if __name__ == "__main__":

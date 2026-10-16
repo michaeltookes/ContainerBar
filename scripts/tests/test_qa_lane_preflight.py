@@ -167,6 +167,106 @@ class DeadlineTests(unittest.TestCase):
         self.assertEqual(case_gate(lane), (False, "time-budget"))
 
 
+class CodexRoundOneTests(unittest.TestCase):
+    """PR 76 Codex round 1, items 5-8."""
+
+    def test_waiting_pass_never_overwrites_the_active_session(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+        active = {"session": "active-pass", "t0": 1.0, "case_cutoff": 1381.0}
+        lane_core.write_json(lane.session_file, active)
+        lock = FakeLock(lane, clock, other_until=clock.start + 10_000)
+        result = preflight(lane, "newcomer", spawn=lock.spawn)
+        self.assertEqual(result["reason"], "desktop-busy")
+        self.assertEqual(lane_core.load_session(lane), active)
+
+    def test_ci_busy_blocked_pass_leaves_session_file_alone(self):
+        runner = FakeRunner()
+        runner.worker = True
+        clock = FakeClock()
+        lane, _ = make_lane(self, runner, clock)
+        lane_core.write_json(lane.session_file, {"session": "active-pass"})
+        preflight(lane, "newcomer", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(lane_core.load_session(lane)["session"], "active-pass")
+
+    def test_ci_recheck_after_lock_blocks_before_any_recovery(self):
+        runner = FakeRunner()
+        runner.app_pid = 4100
+        clock = FakeClock()
+        lane, _ = make_lane(self, runner, clock)
+        lane_core.write_json(lane.marker, {"t0": 1.0, "session": "old"})
+        lock = FakeLock(lane, clock)
+        original_spawn = lock.spawn
+
+        def spawn_then_ci_starts(ln, run_id, timeout_s):
+            holder = original_spawn(ln, run_id, timeout_s)
+            runner.worker = True   # a job lands while we were taking the lock
+            return holder
+
+        released = []
+        original = lane_preflight.release_lock
+        lane_preflight.release_lock = lambda ln, run_id=None: released.append(run_id) or True
+        self.addCleanup(setattr, lane_preflight, "release_lock", original)
+        result = preflight(lane, "s6", spawn=spawn_then_ci_starts)
+        self.assertEqual((result["status"], result["reason"]), (BLOCKED, "ci-busy"))
+        self.assertEqual(released, ["s6"])
+        self.assertFalse(runner.ran("osascript"))
+        self.assertFalse(runner.ran("api-start"))
+        self.assertEqual(runner.app_pid, 4100)
+        self.assertEqual(lane_core.read_json(lane.marker)["session"], "old")
+
+    def test_slow_ci_probes_cannot_grant_a_case_inside_the_restore_reserve(self):
+        result, lane, runner, clock, _ = run_preflight(self)
+        self.assertEqual(result["status"], READY)
+        clock.t = lane_core.load_session(lane)["t0"] + 1379
+        runner.costs = [("gh api", 10)]          # two API calls: 20 s
+        self.assertEqual(case_gate(lane), (False, "time-budget"))
+        self.assertLessEqual(clock.now(), lane_core.load_session(lane)["case_cutoff"] + 0.001)
+
+    def test_slow_ci_probes_never_run_past_the_wait_deadline(self):
+        runner = FakeRunner()
+        runner.costs = [("gh api", 25)]          # each runners-API call hangs to its timeout
+        runner.runners["michaeltookes/ContainerBar"] = [{"name": "mini-runner-1", "busy": True}]
+        result, lane, runner, clock, lock = run_preflight(self, runner)
+        self.assertEqual(result["reason"], "ci-busy")
+        self.assertLessEqual(clock.elapsed(), 480)
+        self.assertEqual(lock.spawns, 0)
+
+    def test_no_lock_attempt_after_the_wait_deadline(self):
+        clock = FakeClock()
+        runner = FakeRunner()
+        original = runner.__call__
+
+        def idle_from_420(argv, timeout):
+            runner.worker = clock.elapsed() < 420
+            return original(argv, timeout)
+
+        repos = ",".join("michaeltookes/repo%d" % i for i in range(6))
+        lane, _ = make_lane(self, idle_from_420, clock, extra_env={"CBQA_RUNNER_REPOS": repos})
+        runner.clock = clock
+        runner.costs = [("pgrep -x Runner.Worker", 3), ("gh api", 10)]
+        lock = FakeLock(lane, clock)
+        result = preflight(lane, "late", spawn=lock.spawn)
+        self.assertEqual(result["reason"], "desktop-busy")
+        self.assertLessEqual(clock.elapsed(), 480)
+        self.assertEqual(lock.spawns, 0)
+
+    def test_giving_up_tells_a_pending_holder_to_let_go(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+
+        class Waiting:
+            pid = 9999
+
+            def poll(self):
+                return None   # still queued on the lock when the deadline comes
+
+        result = preflight(lane, "queued", spawn=lambda ln, run_id, t: Waiting())
+        self.assertEqual(result["reason"], "desktop-busy")
+        self.assertLessEqual(clock.elapsed(), 480)
+        self.assertEqual(lane.release_file.read_text(), "queued")
+
+
 class MarkerRecoveryTests(unittest.TestCase):
     def test_leftover_marker_is_recovered_and_app_normalised_before_new_marker(self):
         runner = FakeRunner()
