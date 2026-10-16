@@ -71,9 +71,9 @@ window. Do not upload screenshots without a dedicated QA login on the runner.
   `containerCard-<name-slug>` in the dashboard, and `aboutVersion`.
   The QA-hooks identifiers (CB-107, built by `QAAccessibilityID`) are also
   available: `containerBarStatusItem` on the status item, `connectionStatus`,
-  `logs-panel-container-<name-slug>`, `logsPanelText`, `showStoppedToggle`,
+  `logs-panel-container-<name-slug>-<short-id>`, `logsPanelText`, `showStoppedToggle`,
   `addSectionButton`, `sectionRow-<name-slug>-<section-uuid>`, and the
-  mutating `containerStop-<name-slug>`, `containerStart-<name-slug>`,
+  mutating `containerStop-<name-slug>-<short-id>`, `containerStart-<name-slug>-<short-id>`,
   `checkForUpdates-general`, `checkForUpdates-about`, and
   `autoCheckUpdatesToggle`, which `config.yml` forbids in hunts
 - `label="…"` — exact accessibility label, **click steps only**. Assertions

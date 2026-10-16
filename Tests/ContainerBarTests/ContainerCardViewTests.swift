@@ -108,32 +108,32 @@ struct ContainerCardViewTests {
         }
     }
 
-    @Test("Running card exposes containerStop-<slug> with the card's slug while not hovered")
+    @Test("Running card exposes containerStop-<slug>-<short id> while not hovered")
     func runningCardExposesStopIdentifier() throws {
-        let container = DockerContainer.mock(name: "cbqa-target", state: .running)
+        let container = DockerContainer.mock(id: "A1B2C3D4E5F6A7B8", name: "cbqa-target", state: .running)
         let card = try inspectedCard(container: container, stats: .mock())
 
         #expect(throws: Never.self) {
             try card.find(viewWithAccessibilityIdentifier: "containerCard-cbqa-target")
         }
         #expect(throws: Never.self) {
-            try card.find(viewWithAccessibilityIdentifier: "containerStop-cbqa-target")
+            try card.find(viewWithAccessibilityIdentifier: "containerStop-cbqa-target-a1b2c3d4e5f6")
         }
         #expect(throws: (any Error).self) {
-            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-target")
+            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-target-a1b2c3d4e5f6")
         }
     }
 
-    @Test("Exited card exposes containerStart-<slug> with the card's slug while not hovered")
+    @Test("Exited card exposes containerStart-<slug>-<short id> while not hovered")
     func exitedCardExposesStartIdentifier() throws {
-        let container = DockerContainer.mock(name: "cbqa-stopped", state: .exited)
+        let container = DockerContainer.mock(id: "0123456789abcdef", name: "cbqa-stopped", state: .exited)
         let card = try inspectedCard(container: container, stats: nil)
 
         #expect(throws: Never.self) {
             try card.find(viewWithAccessibilityIdentifier: "containerCard-cbqa-stopped")
         }
         #expect(throws: Never.self) {
-            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-stopped")
+            try card.find(viewWithAccessibilityIdentifier: "containerStart-cbqa-stopped-0123456789ab")
         }
     }
 

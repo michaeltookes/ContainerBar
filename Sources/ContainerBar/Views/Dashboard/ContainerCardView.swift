@@ -184,7 +184,7 @@ struct ContainerCardView: View {
             .help("Stop container")
             .focused($isQuickActionFocused)
             .accessibilityLabel("Stop container \(container.displayName)")
-            .accessibilityIdentifier(QAAccessibilityID.containerStop(container.displayName))
+            .accessibilityIdentifier(QAAccessibilityID.containerStop(name: container.displayName, id: container.id))
 
         case .paused:
             // Paused containers need unpause - show disabled button until unpause is implemented
@@ -229,7 +229,7 @@ struct ContainerCardView: View {
             .help("Start container")
             .focused($isQuickActionFocused)
             .accessibilityLabel("Start container \(container.displayName)")
-            .accessibilityIdentifier(QAAccessibilityID.containerStart(container.displayName))
+            .accessibilityIdentifier(QAAccessibilityID.containerStart(name: container.displayName, id: container.id))
         }
     }
 
