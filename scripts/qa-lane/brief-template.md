@@ -15,6 +15,8 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
 - **One deadline.** `T/cbqa_lane.py preflight` records T0. CI and lock waits share
   the budget to T0 + 480 s; no case starts after T0 + 1380 s; the rest is for the restore.
   Copy every `note:` line preflight prints into the run notes (the wait end times included).
+  One of them is `lock token <token>`: this pass's own token, needed by `normalise` and
+  `release` below. Use exactly that value, never one read from `session.json`.
 - **Desktop lock.** Preflight takes the workspace desktop lock the Sentwise pass uses and
   holds it for the whole pass; while it is held the Sentwise and ContainerBar hourly
   checks skip. Do not wrap your own Peekaboo calls in `device_lock.py` (the pass already
@@ -40,7 +42,7 @@ the restore, and the safety rules (requirements story 6, CB-105, CB-110, CB-112)
    - `NEEDS-NORMALISE` (exit 3): ContainerBar would not quit, usually because a Settings
      window or a Sparkle dialog is open. Close it by its accessibility identifier (Settings
      window close button; Sparkle **Remind Me Later**, never Skip or Install), then run
-     `python3 -B T/cbqa_lane.py normalise`. `READY`: continue. `BLOCKED restore-failed`:
+     `python3 -B T/cbqa_lane.py normalise --token <token>`. `READY`: continue. `BLOCKED restore-failed`:
      stop as above. Record `windows-normalised` in the run notes either way it succeeds.
 2. `ssh cbqa-ctl reset`, then `ssh cbqa-ctl status` must match the baseline; else retry once
    after 60 s, else BLOCKED `qa-runtime-down` and go to the restore.
@@ -91,7 +93,9 @@ click Allow. Take a cropped screenshot, mark the run BLOCKED, post one line to
    relaunch, record it as a finding.
 3. Only when step 2 succeeded: `python3 -B T/cbqa_lane.py gui-done` (clears the flag).
    If step 2 failed, leave the flag; the next pass's step 0 quits and relaunches the app.
-4. `python3 -B T/cbqa_lane.py release` to release the desktop lock.
+4. `python3 -B T/cbqa_lane.py release --token <token>` to release the desktop lock. If it
+   answers `lock not owned by this pass` (exit 1), this pass's hold ran out and another
+   pass now has the desktop: record it in the run notes and do nothing else to the lock.
 5. Run notes list every restore action above. A restore that failed posts to
    `#lucius-updates`; the hourly check's backstop (31 minutes) and the next pass's step 0
    will retry the no-GUI part.

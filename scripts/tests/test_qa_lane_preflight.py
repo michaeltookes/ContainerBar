@@ -211,7 +211,7 @@ class CodexRoundOneTests(unittest.TestCase):
 
         released = []
         original = lane_preflight.release_lock
-        lane_preflight.release_lock = lambda ln, run_id=None: released.append(run_id) or True
+        lane_preflight.release_lock = lambda ln, token: released.append(token) or (True, "")
         self.addCleanup(setattr, lane_preflight, "release_lock", original)
         result = preflight(lane, "s6", spawn=spawn_then_ci_starts)
         self.assertEqual((result["status"], result["reason"]), (BLOCKED, "ci-busy"))
@@ -309,7 +309,7 @@ class PerRunReleaseFileTests(unittest.TestCase):
 
         lane_preflight.lock_owner_run = owner
         self.addCleanup(setattr, lane_preflight, "lock_owner_run", original)
-        self.assertTrue(lane_preflight.release_lock(lane))
+        self.assertEqual(lane_preflight.release_lock(lane, "run-A.1"), (True, "lock released"))
         # B's holder, when it finally gets the lock, still finds its cancellation.
         self.assertEqual(lane.release_file_for(b).read_text(), b)
         before = clock.now()
@@ -392,6 +392,55 @@ class SameSessionLabelTests(unittest.TestCase):
         self.assertNotEqual(a["token"], b["token"])
 
 
+class ReleaseRequiresTokenTests(unittest.TestCase):
+    """PR 76 bot P2: a late release by pass A never ends pass B's holder."""
+
+    def test_a_releasing_after_b_acquired_is_refused(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+        a = token_of(preflight(lane, "pass-A", spawn=FakeLock(lane, clock).spawn))
+        # A's holder reaches the outer deadline and lets go; B acquires and publishes.
+        import shutil
+        shutil.rmtree(str(lane.lock_dir))
+        b_result = preflight(lane, "pass-B", spawn=FakeLock(lane, clock).spawn)
+        self.assertEqual(b_result["status"], READY)
+        b = token_of(b_result)
+        session_before = lane_core.load_session(lane)
+        ok, message = lane_preflight.release_lock(lane, a)
+        self.assertEqual((ok, message), (False, "lock not owned by this pass"))
+        self.assertEqual(lane_preflight.lock_owner_run(lane), b)         # B's holder intact
+        self.assertFalse(lane.release_file_for(b).exists())               # nothing told B to stop
+        self.assertFalse(lane.release_file_for(a).exists())
+        self.assertEqual(lane_core.load_session(lane), session_before)   # B's session intact
+
+    def test_late_normalise_by_a_is_refused_and_writes_nothing(self):
+        clock = FakeClock()
+        runner = FakeRunner()
+        lane, _ = make_lane(self, runner, clock)
+        a = token_of(preflight(lane, "pass-A", spawn=FakeLock(lane, clock).spawn))
+        import shutil
+        shutil.rmtree(str(lane.lock_dir))
+        preflight(lane, "pass-B", spawn=FakeLock(lane, clock).spawn)
+        marker_before = lane_core.read_json(lane.marker)
+        result = normalise_after_dialogs(lane, a)
+        self.assertEqual((result["status"], result["reason"]), (BLOCKED, "lock-not-owned"))
+        self.assertFalse(runner.ran("osascript"))
+        self.assertEqual(lane_core.read_json(lane.marker), marker_before)
+
+    def test_release_after_own_holder_expired_with_nobody_else_is_ok(self):
+        clock = FakeClock()
+        lane, _ = make_lane(self, FakeRunner(), clock)
+        a = token_of(preflight(lane, "pass-A", spawn=FakeLock(lane, clock).spawn))
+        import shutil
+        shutil.rmtree(str(lane.lock_dir))
+        self.assertEqual(lane_preflight.release_lock(lane, a), (True, "lock already released"))
+
+    def test_cli_requires_a_token(self):
+        import cbqa_lane
+        with self.assertRaises(SystemExit):
+            cbqa_lane.main(["release"])
+
+
 class GuiCleanupPendingTests(unittest.TestCase):
     """PR 76 Codex round 2 item 1: the backstop's GUI flag is honoured by step 0."""
 
@@ -421,7 +470,7 @@ class GuiCleanupPendingTests(unittest.TestCase):
         self.assertEqual(result["status"], NEEDS_NORMALISE)
         self.assertTrue(lane.gui_flag.exists())
         runner.quit_works = True
-        self.assertEqual(normalise_after_dialogs(lane)["status"], READY)
+        self.assertEqual(normalise_after_dialogs(lane, token_of(result))["status"], READY)
         self.assertFalse(lane.gui_flag.exists())
 
     def test_pass_aborted_between_restore_and_gui_step_is_normalised_next_time(self):
@@ -490,7 +539,7 @@ class MarkerRecoveryTests(unittest.TestCase):
         lock = FakeLock(lane, clock)
         released = []
         original = lane_preflight.release_lock
-        lane_preflight.release_lock = lambda ln: released.append(True) or True
+        lane_preflight.release_lock = lambda ln, token: released.append(True) or (True, "")
         self.addCleanup(setattr, lane_preflight, "release_lock", original)
         result = preflight(lane, "s2", spawn=lock.spawn)
         self.assertEqual(result["reason"], "restore-failed")
@@ -507,7 +556,7 @@ class MarkerRecoveryTests(unittest.TestCase):
         self.assertEqual(result["status"], NEEDS_NORMALISE)
         self.assertEqual(lane_core.read_json(lane.marker)["session"], "old")
         runner.quit_works = True
-        retry = normalise_after_dialogs(lane)
+        retry = normalise_after_dialogs(lane, token_of(result))
         self.assertEqual(retry["status"], READY)
         self.assertEqual(lane_core.read_json(lane.marker)["session"], "cbqa-daily-test")
 
@@ -517,7 +566,7 @@ class MarkerRecoveryTests(unittest.TestCase):
         runner.quit_works = False
         result, lane, runner, _, _ = run_preflight(self, runner, marker={"t0": 1.0, "session": "old"})
         self.assertEqual(result["status"], NEEDS_NORMALISE)
-        retry = normalise_after_dialogs(lane)
+        retry = normalise_after_dialogs(lane, token_of(result))
         self.assertEqual((retry["status"], retry["reason"]), (BLOCKED, "restore-failed"))
         self.assertEqual(lane_core.read_json(lane.marker)["session"], "old")
 
@@ -583,7 +632,7 @@ class RealLockHolderTests(unittest.TestCase):
         self.assertEqual(lane_preflight.lock_owner_run(lane), token)
         time.sleep(1.5)
         self.assertEqual(lane_preflight.lock_owner_run(lane), token)  # still held
-        self.assertTrue(lane_preflight.release_lock(lane))
+        self.assertEqual(lane_preflight.release_lock(lane, token), (True, "lock released"))
         deadline = time.time() + 10
         while lane.lock_dir.exists() and time.time() < deadline:
             time.sleep(0.2)

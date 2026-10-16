@@ -26,7 +26,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from lane_core import (APP_NAME, CI_RECHECK_S, LOCK_RECHECK_S, Lane, ci_busy, load_session,
                        new_session, publish_session, read_json, write_json)
@@ -140,24 +140,34 @@ def prune_release_files(lane: Lane, max_age_s: float = 2 * 3600) -> None:
             pass
 
 
-def release_lock(lane: Lane, run_id: Optional[str] = None) -> bool:
-    if run_id is None:
+NOT_OWNED = "lock not owned by this pass"
+
+
+def release_lock(lane: Lane, token: str) -> Tuple[bool, str]:
+    """Release the lock held for the pass whose token this is; nothing else.
+
+    No fallback to session.json: if this pass's holder already timed out and
+    another pass took the lock (and published its session), releasing must
+    not end that pass's holder. Returns (ok, message).
+    """
+    owner = lock_owner_run(lane)
+    if owner != token:
         session = load_session(lane) or {}
-        run_id = str(session.get("token", ""))
-    if lock_owner_run(lane) != run_id:
-        return True
-    _write_release(lane, run_id)
+        if owner is None and session.get("token") == token:
+            return True, "lock already released"
+        return False, NOT_OWNED
+    _write_release(lane, token)
     for _ in range(20):
-        if lock_owner_run(lane) != run_id:
+        if lock_owner_run(lane) != token:
             break
         lane.clock.sleep(0.5)
-    released = lock_owner_run(lane) != run_id
-    if released:
-        try:
-            lane.release_file_for(run_id).unlink()
-        except FileNotFoundError:
-            pass
-    return released
+    if lock_owner_run(lane) == token:
+        return False, "lock still held"
+    try:
+        lane.release_file_for(token).unlink()
+    except FileNotFoundError:
+        pass
+    return True, "lock released"
 
 
 def hold(lane: Lane, run_id: str, release_file: Optional[str] = None,
@@ -230,8 +240,8 @@ def _clear_recovery(lane: Lane, notes: List[str]) -> None:
             pass
 
 
-def _restore_failed(lane: Lane, notes: List[str]) -> Dict[str, object]:
-    release_lock(lane)
+def _restore_failed(lane: Lane, notes: List[str], token: str) -> Dict[str, object]:
+    release_lock(lane, token)
     notify(lane, "ContainerBar QA BLOCKED restore-failed: recovery of the previous run's "
                  "marker failed; marker kept for the hourly backstop. %s" % "; ".join(notes[-3:]))
     return {"status": BLOCKED, "reason": "restore-failed", "notes": notes}
@@ -278,7 +288,7 @@ def preflight(lane: Lane, session_id: str,
         ok, restore_notes = restore(lane, keep_marker=True)
         notes.extend(restore_notes)
         if not ok:
-            return _restore_failed(lane, notes)
+            return _restore_failed(lane, notes, run_id)
     elif gui_pending:
         notes.append("gui-cleanup-pending: the hourly backstop restored an aborted run without a GUI")
     if marker_left or gui_pending:
@@ -291,14 +301,21 @@ def preflight(lane: Lane, session_id: str,
     return {"status": READY, "reason": "", "notes": notes}
 
 
-def normalise_after_dialogs(lane: Lane) -> Dict[str, object]:
-    """Second attempt after the agent closed Settings/Sparkle by accessibility id."""
+def normalise_after_dialogs(lane: Lane, token: str) -> Dict[str, object]:
+    """Second attempt after the agent closed Settings/Sparkle by accessibility id.
+
+    Only for the pass that holds the lock (its token): another pass's session
+    is never used to write the marker.
+    """
     notes: List[str] = []
     session = load_session(lane)
     if session is None:
         return {"status": BLOCKED, "reason": "no-session", "notes": notes}
+    if session.get("token") != token or lock_owner_run(lane) != token:
+        notes.append(NOT_OWNED)
+        return {"status": BLOCKED, "reason": "lock-not-owned", "notes": notes}
     if not normalise_app(lane, notes):
-        return _restore_failed(lane, notes)
+        return _restore_failed(lane, notes, token)
     _clear_recovery(lane, notes)
     _write_marker(lane, session)
     notes.append("run marker written")

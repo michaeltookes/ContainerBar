@@ -2,11 +2,12 @@
 """ContainerBar QA lane command line (CB-105). See README.md in this folder.
 
   preflight --session ID     step 0: CI wait, desktop lock, marker recovery
-  normalise                  retry the quit/relaunch after closing dialogs
+  normalise --token T        retry the quit/relaunch after closing dialogs
   case-gate [TC-ID]          before each case: time budget and CI, no wait
   restore [--keep-marker]    the no-GUI restore (containerbar-qa-restore.sh)
   gui-done                   step 5: the GUI restore succeeded, clear gui-cleanup-pending
-  release                    release the desktop lock held for this pass
+  release --token T          release the desktop lock held for this pass (T: the
+                             "lock token" run note); refuses another pass's lock
   forward-start              Unix-socket leg: start the SSH-forwarded socket
   forward-stop               stop that forward by its recorded PID
   prefs-drift BEFORE BASE    step 0e: which baseline preferences drifted
@@ -34,13 +35,15 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     pre = sub.add_parser("preflight")
     pre.add_argument("--session", required=True)
-    sub.add_parser("normalise")
+    norm = sub.add_parser("normalise")
+    norm.add_argument("--token", required=True)
     gate = sub.add_parser("case-gate")
     gate.add_argument("case", nargs="?", default="")
     rest = sub.add_parser("restore")
     rest.add_argument("--keep-marker", action="store_true")
     sub.add_parser("gui-done")
-    sub.add_parser("release")
+    rel = sub.add_parser("release")
+    rel.add_argument("--token", required=True, help="the lock token from preflight's run notes")
     sub.add_parser("forward-start")
     sub.add_parser("forward-stop")
     prefs = sub.add_parser("prefs-drift")
@@ -61,7 +64,7 @@ def main(argv=None) -> int:
     if args.cmd == "preflight":
         return print_result(preflight(lane, args.session))
     if args.cmd == "normalise":
-        return print_result(normalise_after_dialogs(lane))
+        return print_result(normalise_after_dialogs(lane, args.token))
     if args.cmd == "case-gate":
         ok, reason = case_gate(lane)
         print("ok" if ok else "BLOCKED %s %s" % (reason, args.case))
@@ -77,8 +80,8 @@ def main(argv=None) -> int:
             print("restore: %s" % line)
         return 0
     if args.cmd == "release":
-        ok = release_lock(lane)
-        print("lock released" if ok else "lock still held")
+        ok, message = release_lock(lane, args.token)
+        print(message)
         return 0 if ok else 1
     if args.cmd == "forward-start":
         ok, notes = start_forward(lane)
