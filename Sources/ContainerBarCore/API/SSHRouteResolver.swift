@@ -6,19 +6,33 @@ public protocol SSHRouteResolving: Sendable {
     func resolve(host: String, user: String?, port: Int?) async -> SSHRoute?
 }
 
-/// Runs `/usr/bin/ssh -G` with the same `-p`/`-l`/`--` argv shape the tunnel uses.
-/// `ssh -G` only evaluates the configuration and makes no network connection.
+/// Runs `/usr/bin/ssh -G` with the tunnel's session flags (`-nNT`) and the same
+/// `-p`/`-l`/`--` argv shape, so `Match sessiontype` and similar blocks resolve
+/// the route the tunnel actually takes. `ssh -G` only evaluates the
+/// configuration and makes no network connection.
 public struct SSHConfigRouteResolver: SSHRouteResolving {
     /// Upper bound for `ssh -G`; it normally returns in milliseconds.
     let timeout: Duration
 
+    /// An explicit config file (`-F`), for tests only; `nil` uses ssh's defaults
+    /// exactly as the tunnel does.
+    let configFile: String?
+
     public init(timeout: Duration = .seconds(3)) {
+        self.init(timeout: timeout, configFile: nil)
+    }
+
+    init(timeout: Duration, configFile: String?) {
         self.timeout = timeout
+        self.configFile = configFile
     }
 
     /// The argv after `ssh`. The user goes in `-l` and `--` ends option parsing.
-    static func arguments(host: String, user: String?, port: Int?) -> [String] {
-        var args = ["-G"]
+    static func arguments(host: String, user: String?, port: Int?, configFile: String? = nil) -> [String] {
+        var args = ["-G", SSHTunnelProcessLauncher.sessionFlags]
+        if let configFile {
+            args += ["-F", configFile]
+        }
         if let port {
             args += ["-p", String(port)]
         }
@@ -41,7 +55,7 @@ public struct SSHConfigRouteResolver: SSHRouteResolving {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = Self.arguments(host: host, user: user, port: port)
+        process.arguments = Self.arguments(host: host, user: user, port: port, configFile: configFile)
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice

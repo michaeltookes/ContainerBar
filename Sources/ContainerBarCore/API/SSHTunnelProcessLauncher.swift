@@ -55,6 +55,11 @@ enum SSHTunnelProcessLauncher {
         return SSHTunnelLaunchResult(process: process, errorPipe: errorPipe, localSocketPath: localSocketPath)
     }
 
+    /// The tunnel's session-mode flags: no stdin, no remote command (session
+    /// type `none`), no tty. `ssh -G` route queries pass the same flags so a
+    /// `Match sessiontype` block resolves the way it does for the tunnel (CB-115).
+    static let sessionFlags = "-nNT"
+
     /// Builds the `ssh` argv. The user goes in `-l` (never `user@host`) and `--`
     /// ends option parsing before the host, so neither value can become an option.
     /// The host stays a bare argument so `~/.ssh/config` aliases keep working.
@@ -66,7 +71,7 @@ enum SSHTunnelProcessLauncher {
         remoteSocket: String
     ) -> [String] {
         [
-            "-nNT",
+            sessionFlags,
             "-o", "StrictHostKeyChecking=yes",
             "-o", "UserKnownHostsFile=\(knownHostsPath())",
             "-o", "BatchMode=yes",

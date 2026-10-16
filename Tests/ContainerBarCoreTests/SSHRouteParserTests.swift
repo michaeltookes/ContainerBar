@@ -80,11 +80,36 @@ struct SSHRouteParserTests {
         #expect(SSHRouteParser.connectEndpoint(fromStderr: stderr) == nil)
     }
 
-    @Test("ssh -G argv mirrors the tunnel: -p, -l, then -- before the host")
+    @Test("ssh -G argv mirrors the tunnel: session flags, -p, -l, then -- before the host")
     func resolverArguments() {
         #expect(SSHConfigRouteResolver.arguments(host: "cbqa-tunnel", user: "cbqa-fwd", port: 22)
-            == ["-G", "-p", "22", "-l", "cbqa-fwd", "--", "cbqa-tunnel"])
-        #expect(SSHConfigRouteResolver.arguments(host: "box", user: nil, port: nil) == ["-G", "--", "box"])
+            == ["-G", "-nNT", "-p", "22", "-l", "cbqa-fwd", "--", "cbqa-tunnel"])
+        #expect(SSHConfigRouteResolver.arguments(host: "box", user: nil, port: nil) == ["-G", "-nNT", "--", "box"])
+        #expect(SSHConfigRouteResolver.arguments(host: "box", user: nil, port: nil).contains(SSHTunnelProcessLauncher.sessionFlags))
+    }
+
+    /// Runs the real `/usr/bin/ssh -G` against a temporary config; it evaluates
+    /// the file only and opens no connection.
+    @Test("Session-dependent Match resolves the tunnel's route, not an interactive one")
+    func sessionTypeMatch() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cb115-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let config = dir.appendingPathComponent("config")
+        try """
+        Match host cbqa-tunnel sessiontype none
+          HostName 10.0.0.9
+          Port 2200
+          ProxyJump none
+        Host cbqa-tunnel
+          HostName 10.0.0.5
+          ProxyJump bastion
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        let resolver = SSHConfigRouteResolver(timeout: .seconds(5), configFile: config.path)
+        let route = await resolver.resolve(host: "cbqa-tunnel", user: "cbqa-fwd", port: nil)
+
+        #expect(route == SSHRoute(endpoint: NetworkEndpoint(host: "10.0.0.9", port: 2200), isProxied: false))
     }
 
     @Test("Resolver refuses an option-shaped host without spawning ssh")
