@@ -127,6 +127,11 @@ public final class ContainerStore {
     @ObservationIgnored
     let fetcherFactory: FetcherFactory
 
+    /// Recognizes a denied Local Network permission behind a failed remote
+    /// connection (CB-115). Tests replace it with stubbed probes.
+    @ObservationIgnored
+    var connectionDiagnoser = LocalNetworkDiagnoser.live
+
     /// Production factory: real Unix socket, SSH, or TLS client per host.
     public static let defaultFetcherFactory: FetcherFactory = { host in
         if let host {
