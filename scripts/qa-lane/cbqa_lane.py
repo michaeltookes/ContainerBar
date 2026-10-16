@@ -51,6 +51,8 @@ def main(argv=None) -> int:
     log.add_argument("text")
     hold_p = sub.add_parser("hold")
     hold_p.add_argument("--run", required=True)
+    hold_p.add_argument("--release-file")
+    hold_p.add_argument("--until", type=float)
     args = parser.parse_args(argv)
     lane = Lane()
 
@@ -100,7 +102,7 @@ def main(argv=None) -> int:
         append_log(lane, args.text)
         return 0
     if args.cmd == "hold":
-        return hold(lane, args.run)
+        return hold(lane, args.run, args.release_file, args.until)
     return 1
 
 

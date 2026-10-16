@@ -259,6 +259,25 @@ sys.exit(code)
 """
 
 
+class HoldTests(unittest.TestCase):
+    def test_hold_stops_at_its_deadline_without_release(self):
+        clock = FakeClock()
+        lane, root = make_lane(self, FakeRunner(), clock)
+        self.assertEqual(lane_preflight.hold(lane, "r", str(root / "never"), clock.now() + 30), 0)
+        self.assertGreaterEqual(clock.elapsed(), 30)
+
+    def test_hold_returns_when_release_names_this_run(self):
+        lane, root = make_lane(self, FakeRunner())
+        flag = root / "release"
+        flag.write_text("other-run")
+        clock = lane.clock
+        self.assertEqual(lane_preflight.hold(lane, "r", str(flag), clock.now() + 5), 0)
+        flag.write_text("r")
+        start = clock.now()
+        lane_preflight.hold(lane, "r", str(flag), clock.now() + 500)
+        self.assertEqual(clock.now(), start)
+
+
 class RealLockHolderTests(unittest.TestCase):
     """The detached holder keeps the shared lock across the pass and lets go on release."""
 
@@ -270,6 +289,8 @@ class RealLockHolderTests(unittest.TestCase):
         lane.lock_dir = root / "device.lock"
         lane.python = sys.executable
         result = preflight(lane, "real-holder-run")
+        self.addCleanup(lambda: lane.release_file.parent.mkdir(parents=True, exist_ok=True)
+                        or lane.release_file.write_text("real-holder-run"))
         self.assertEqual(result["status"], READY, result["notes"])
         self.assertEqual(lane_preflight.lock_owner_run(lane), "real-holder-run")
         time.sleep(1.5)

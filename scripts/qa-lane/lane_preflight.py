@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from lane_core import (APP_NAME, CI_RECHECK_S, LOCK_RECHECK_S, Lane, ci_busy, load_session,
@@ -47,7 +48,9 @@ def spawn_holder(lane: Lane, run_id: str, timeout_s: float) -> Holder:
     argv = [lane.python, "-B", str(lane.lock_tool), "--lock", str(lane.lock_dir),
             "--run", run_id, "--session", run_id, "--job", "containerbar-daily-qa",
             "--timeout", str(int(max(timeout_s, 60))), "--grace", "2", "--",
-            lane.python, "-B", os.path.join(HERE, "cbqa_lane.py"), "hold", "--run", run_id]
+            lane.python, "-B", os.path.join(HERE, "cbqa_lane.py"), "hold", "--run", run_id,
+            "--release-file", str(lane.release_file),
+            "--until", str(int(lane.clock.now() + max(timeout_s, 60)))]
     with open(str(log), "a") as out:
         proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=out,
                                 start_new_session=True)
@@ -120,15 +123,23 @@ def release_lock(lane: Lane) -> bool:
     return released
 
 
-def hold(lane: Lane, run_id: str) -> int:
-    """Child of device_lock.py: keep running until release() names this run."""
-    while True:
+def hold(lane: Lane, run_id: str, release_file: Optional[str] = None,
+         until: Optional[float] = None) -> int:
+    """Child of device_lock.py: keep running until release() names this run.
+
+    The release file and the stop time come from the parent's argv, so the
+    holder never depends on its own environment; it exits by itself at the
+    run's outer deadline even if release() is never called.
+    """
+    path = Path(release_file) if release_file else lane.release_file
+    while until is None or lane.clock.now() < until:
         try:
-            if lane.release_file.read_text().strip() == run_id:
+            if path.read_text().strip() == run_id:
                 return 0
         except OSError:
             pass
         lane.clock.sleep(1)
+    return 0
 
 
 def pgrep_app(lane: Lane) -> Optional[int]:
