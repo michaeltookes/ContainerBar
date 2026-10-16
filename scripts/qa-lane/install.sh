@@ -44,7 +44,7 @@ if [ -n "$render_to" ]; then mv "$rendered" "$render_to"; exit 0; fi
 
 doit mkdir -p "$tools" "$ws/qa/containerbar" "$ws/artifacts/containerbar-qa" "$HOME/Library/Logs/containerbar-qa"
 for f in cbqa_lane.py lane_core.py lane_restore.py lane_preflight.py lane_hourly.py lane_prefs.py \
-         containerbar-qa-restore.sh containerbar-hourly.sh README.md; do
+         containerbar-qa-restore.sh containerbar-hourly.sh README.md brief-template.md; do
   doit cp "$here/$f" "$tools/$f"
 done
 doit cp "$rendered" "$agent"
