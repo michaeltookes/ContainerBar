@@ -228,7 +228,7 @@ def case_gate(lane: Lane) -> Tuple[bool, str]:
     if lane.clock.now() > cutoff:
         return False, "time-budget"
     busy, notes = ci_busy(lane, cutoff)
-    if lane.clock.now() > cutoff or "ci-check-out-of-time" in notes:
+    if lane.clock.now() >= cutoff or "ci-check-out-of-time" in notes:
         return False, "time-budget"
     if busy:
         return False, "ci-busy"

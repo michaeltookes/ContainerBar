@@ -123,7 +123,8 @@ class DeadlineTests(unittest.TestCase):
 
         lane, _ = make_lane(self, record, clock)
         preflight(lane, "s0", spawn=FakeLock(lane, clock).spawn)
-        self.assertEqual(seen, [60.0 * i for i in range(9)])  # T0, T0+60 ... T0+480
+        # T0 ... T0+420; at T0+480 no time is left to probe, so the wait ends busy.
+        self.assertEqual(seen, [60.0 * i for i in range(8)])
 
     def test_lock_wait_gets_only_what_is_left_of_the_shared_budget(self):
         clock = FakeClock()
@@ -224,13 +225,18 @@ class CodexRoundOneTests(unittest.TestCase):
         self.assertLessEqual(clock.now(), lane_core.load_session(lane)["case_cutoff"] + 0.001)
 
     def test_slow_ci_probes_never_run_past_the_wait_deadline(self):
+        clock = FakeClock()
         runner = FakeRunner()
-        runner.costs = [("gh api", 25)]          # each runners-API call hangs to its timeout
-        runner.runners["michaeltookes/ContainerBar"] = [{"name": "mini-runner-1", "busy": True}]
-        result, lane, runner, clock, lock = run_preflight(self, runner)
-        self.assertEqual(result["reason"], "ci-busy")
+        repos = ["michaeltookes/repo%d" % i for i in range(6)]
+        runner.runners[repos[-1]] = [{"name": "mini-runner-1", "busy": True}]
+        runner.costs = [("gh api", 9)]           # six slow API calls per probe: 54 s
+        lane, _ = make_lane(self, runner, clock, extra_env={"CBQA_RUNNER_REPOS": ",".join(repos)})
+        lock = FakeLock(lane, clock)
+        result = preflight(lane, "slow", spawn=lock.spawn)
+        self.assertEqual(result["status"], BLOCKED)
         self.assertLessEqual(clock.elapsed(), 480)
         self.assertEqual(lock.spawns, 0)
+        self.assertTrue(all(t <= 10 for t in runner.timeouts))
 
     def test_no_lock_attempt_after_the_wait_deadline(self):
         clock = FakeClock()

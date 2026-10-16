@@ -32,7 +32,10 @@ sourced.
   every 60 s) and then the lock wait share the budget ending at T0 + 480 s;
   a wait that reaches it reports `ci-busy` if CI was still busy, else
   `desktop-busy`. No case starts after T0 + 1380 s (`case-gate` answers
-  `time-budget`); the last 420 s are the restore's.
+  `time-budget`, reading the clock again after its CI probes); the last 420 s
+  are the restore's. Every CI probe's timeout is capped by the deadline it
+  serves; `session.json` is written only once the pass holds the lock, and CI
+  is checked again right then (busy releases the lock: `ci-busy`).
 - **CI-busy predicate.** Busy if `pgrep -x Runner.Worker` prints a PID, or the
   runners API (`gh api repos/<repo>/actions/runners`) lists one of this host's
   runners (`CBQA_RUNNER_NAMES`) with `busy: true`. An API failure is recorded
@@ -53,7 +56,12 @@ sourced.
 - **Hourly check.** No model, no AppleScript, no GUI, under 60 s. Skips while
   the lock is held; skips the app-alive and CPU check while CI is busy; posts
   only when the set of failing checks changes, or when the stale-marker
-  backstop (marker older than 31 minutes) ran.
+  backstop (marker older than 31 minutes) ran. The checks and the backstop
+  share a 40 s budget, leaving the webhook (8 s) and the state file inside
+  the wrapper's 55 s limit; a check not observed this run (out of time, or the
+  app check while CI is busy) keeps its previous result; undelivered posts
+  and backstop events are retried the next run. The launchd agent carries
+  `CBQA_WORKSPACE`, rendered by the installer.
 
 ## Private settings (`<workspace>/qa/containerbar/lane.env`)
 
