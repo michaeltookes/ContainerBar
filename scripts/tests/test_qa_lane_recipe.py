@@ -39,7 +39,7 @@ class RecipeTests(unittest.TestCase):
 
     def test_token_is_passed_to_every_lock_command(self):
         for cmd in ("normalise", "case-gate", "release"):
-            calls = re.findall(r"cbqa_lane\.py %s[^`\n]*" % cmd, self.text)
+            calls = re.findall(r"cbqa_lane\.py %s[^`]*" % cmd, " ".join(self.text.split()))
             self.assertTrue(calls, cmd)
             for call in calls:
                 self.assertIn('--token "$TOKEN"', call, call)
@@ -153,25 +153,57 @@ class RecipeTests(unittest.TestCase):
 
     def test_signature_failure_launches_nothing(self):
         # Round 3 (bot P1): a failed signing check must not lead to launching the app.
-        case = self.text.split("**TC-CB-01", 1)[1].split("**TC-CB-02", 1)[0]
-        self.assertIn("Launch nothing", case)
+        case = " ".join(self.before_preflight().split())
+        self.assertIn("launch nothing", case)
         self.assertIn("`blocked signature-failed`", case)
         self.assertIn("start only after all three signature checks passed", case)
-        restore = self.text.split("## Restore and release", 1)[1].split("## Report and post", 1)[0]
-        self.assertIn("skipped after `signature-failed`", restore)
+        self.assertIn("run no restore and no `release`", case)
+        self.assertIn("## Restore and release (always, except after `lock-not-owned` or `signature-failed`)",
+                      self.text)
         self.assertIn("`signature-failed`", self.text.split("Blocked reasons:", 1)[1])
 
     def test_launch_is_gated_on_the_authority_too(self):
         # Final round (bot P1): a valid signature by another Developer ID must not launch.
-        case = " ".join(self.text.split("**TC-CB-01", 1)[1].split("**TC-CB-02", 1)[0].split())
+        case = " ".join(self.before_preflight().split())
         self.assertIn("or the first Authority line is not exactly `CBQA_DEVELOPER_ID_AUTHORITY`", case)
         self.assertIn("`authority-mismatch`", case)
         self.assertIn("naming the check or the mismatch", case)
         self.assertIn("start only after all three signature checks passed and the Authority line matched",
                       case)
         failure = case.split("**A codesign, spctl or stapler check fails", 1)[1]
-        self.assertIn("Launch nothing", failure)
+        self.assertIn("launch nothing", failure)
         self.assertIn("`blocked signature-failed`", failure)
+
+    def before_preflight(self):
+        return self.text.split("## Before preflight", 1)[1].split("## Step 0", 1)[0]
+
+    def test_static_signature_checks_run_before_preflight(self):
+        # Last round (bot P1): preflight's recovery can relaunch the app, so verify the bundle first.
+        static = self.before_preflight()
+        block = shell_blocks(static)[0]
+        for check in ("codesign --verify --deep --strict", "spctl --assess", "xcrun stapler validate",
+                      "codesign -dv --verbose=4", "^Authority="):
+            self.assertIn(check, block)
+        self.assertNotIn("open ", block)
+        self.assertIn("**do not call preflight**", static)
+        self.assertIn("marker left for the next pass", " ".join(static.split()))
+        self.assertLess(self.text.index("## Before preflight"), self.text.index("cbqa_lane.py preflight"))
+        tc01 = self.text.split("**TC-CB-01", 1)[1].split("**TC-CB-02", 1)[0]
+        self.assertNotIn("codesign", tc01)
+        self.assertNotIn("open ", tc01)
+
+    def test_lock_token_never_reaches_the_report(self):
+        # Last round (bot P2): the token note stays out of report.md.
+        report = " ".join(self.text.split("## Report and post", 1)[1].split("Verdict:", 1)[0].split())
+        self.assertIn("every `note:` line except `lock token`", report)
+        self.assertNotRegex(report, r"lock token,|, lock token")
+        rules = " ".join(self.text.split("## Rules for the whole pass", 1)[1].split("## Private", 1)[0].split())
+        self.assertIn("never write it to the report, notes or Discord", rules)
+        step0 = " ".join(self.text.split("## Step 0", 1)[1].split("## Every case", 1)[0].split())
+        self.assertIn("Copy every `note:` line except `lock token`", step0)
+        brief = " ".join(Path(LANE_DIR, "brief-template.md").read_text().split())
+        self.assertIn("except `lock token <token>`", brief)
+        self.assertIn("never in the report or Discord", brief)
 
     def test_lock_not_owned_skips_the_restore(self):
         # Round 3 (bot P1): without the lock the pass must not touch the desktop.
@@ -180,7 +212,7 @@ class RecipeTests(unittest.TestCase):
         for step in ("no restore script", "no UI", "no `gui-done`", 'release --token "$TOKEN"` once',
                      "left to the owning pass"):
             self.assertIn(step, gate.replace("\n", " "))
-        self.assertIn("## Restore and release (always, except after `lock-not-owned`)", self.text)
+        self.assertIn("## Restore and release (always, except after `lock-not-owned`", self.text)
 
     def test_socket_error_case_takes_no_screenshot(self):
         # Round 3 (bot P2): the expanded socket path names the account.
