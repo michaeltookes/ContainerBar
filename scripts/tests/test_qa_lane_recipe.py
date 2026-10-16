@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from shlex import quote as shlex_quote
 import shutil
 import subprocess
 import tempfile
@@ -78,6 +79,66 @@ class RecipeTests(unittest.TestCase):
     def test_logs_fallbacks_name_button_and_row(self):
         self.assertIn("button `Logs`", self.text)
         self.assertIn("the row button labelled with the container name", self.text)
+
+    def block_with(self, needle):
+        found = [b for b in shell_blocks(self.text) if needle in b]
+        self.assertEqual(len(found), 1, needle)
+        return found[0]
+
+    def test_cask_version_is_the_quoted_value(self):
+        # Codex round 2 (bot P1): compare the version string, not the whole declaration.
+        line = [l for l in self.text.splitlines() if "containerbar.rb" in l and l.startswith("curl")][0]
+        pipeline = line.split("|", 1)[1]
+        cask = 'cask "containerbar" do\n  version "2.0.4"\n  sha256 "abc"\nend\n'
+        done = subprocess.run(["/bin/bash", "-c", pipeline], input=cask, capture_output=True, text=True)
+        self.assertEqual(done.stdout, "2.0.4\n", done.stderr)
+
+    def run_gate(self, log_lines, build):
+        block = self.block_with("local-network-grants.log")
+        block = re.sub(r"BUILD='[^']*'", "BUILD='%s'" % build, block)
+        with tempfile.TemporaryDirectory() as ws:
+            Path(ws, "qa", "containerbar").mkdir(parents=True)
+            Path(ws, "qa", "containerbar", "local-network-grants.log").write_text("".join(
+                line + "\n" for line in log_lines))
+            env = dict(os.environ, CBQA_WORKSPACE=ws)
+            done = subprocess.run(["/bin/bash", "-c", block], env=env, capture_output=True, text=True)
+        return done.stdout.strip()
+
+    def test_developer_id_grant_covers_every_release(self):
+        # Codex round 2 (bot P1): a Developer ID grant is not tied to one release.
+        log = ["2026-10-17 | developer-id | - | michael"]
+        self.assertEqual(self.run_gate(log, "2.0.4-7"), "gate-open")
+        self.assertEqual(self.run_gate(log, "2.0.5-8"), "gate-open")
+
+    def test_adhoc_grant_covers_only_its_build(self):
+        log = ["2026-10-17 | adhoc | 2.0.5-8 | michael"]
+        self.assertEqual(self.run_gate(log, "2.0.5-8"), "gate-open")
+        self.assertEqual(self.run_gate(log, "2.0.5-9"), "gate-closed")
+        self.assertEqual(self.run_gate([], "2.0.5-8"), "gate-closed")
+
+    def test_connection_errors_are_redacted(self):
+        # Codex round 2 (bot P2): no address or socket path reaches report.md.
+        block = self.block_with("printf")
+        samples = {
+            "ssh: connect to host 192.168.1.20 port 22: Connection refused":
+                "ssh: connect to host <address> port 22: Connection refused",
+            "ssh: connect to host fe80::1%en0 port 22: No route to host":
+                "ssh: connect to host <address> port 22: No route to host",
+            "Could not reach [2001:db8::5]:22": "Could not reach <address>:22",
+            "No such file /Users/qa/qa/containerbar/podman.sock": "No such file <socket>",
+        }
+        for raw, want in samples.items():
+            script = re.sub(r"ERR='[^']*'", "ERR=%s" % shlex_quote(raw), block)
+            done = subprocess.run(["/bin/bash", "-c", script], capture_output=True, text=True)
+            self.assertEqual(done.stdout.strip(), want, done.stderr)
+
+    def test_unexpected_blocked_case_makes_the_run_blocked(self):
+        # Codex round 2 (P2): only the CB-116 gate and predicted blocks are exempt.
+        verdict = self.text.split("Verdict:", 1)[1].split("Your final reply", 1)[0]
+        self.assertIn("any case or step is blocked", verdict)
+        self.assertIn("`forward-failed`", verdict)
+        self.assertIn("`blocked local-network-denied (CB-116)` while the gate is closed", verdict)
+        self.assertIn("known-failures table predicts", verdict)
 
     def test_no_private_values(self):
         self.assertIsNone(re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", self.text))
