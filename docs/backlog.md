@@ -413,6 +413,19 @@ Build order for the enriched Medium items (BA 2026-10-14, project-manager ruling
 
 **Story/test**: US-qa-lane-leftovers-5; proposed TC-CB-28.
 
+### CB-132: Hourly QA check: the app RSS alert needs a limit above normal usage, or sustained samples (CB-105 follow-up)
+**Priority**: Medium
+**Rank**: hourly-reliability wave with CB-126 to CB-128 (orchestrator 2026-10-26, from the Discord `app-rss-high` flap; BA to confirm rank).
+**Description**: Filed 2026-10-26 (orchestrator, QA finding from Lucius' Mini). `scripts/qa-lane/lane_hourly.py` line 40 sets `RSS_LIMIT_KB = 200 * 1024` and the app check (line ~154) fails `app-rss-high` on a single hourly `ps` RSS sample at or above it. ContainerBar 2.0.4 (7) at rest oscillates between about 53 MB and 292 MB over 48 hours, falling back repeatedly, so the check posted FAIL / recovered pairs four times on 2026-10-25 and 2026-10-26 with no leak behind them (CPU time grows a steady 25 s per hour). On 2026-10-26 the installed copy on the Mini was raised to 400 MB (backup `lane_hourly.py.bak-2026-10-26`); `install.sh` would overwrite that, so the versioned check must carry the change. The creeping peaks (222, 217, 292 MB) stay a watch item: a real leak must still alert.
+**Acceptance**: Size **S**.
+- Given the hourly check runs with the app resident between 53 MB and 300 MB across consecutive samples, then no `app-rss-high` is posted and no recovered message follows.
+- Given three consecutive hourly samples at or above the limit (default 400 MB), then one `app-rss-high` is posted with the three values and the trend; a single sample above the limit is logged, not posted.
+- Given samples fall back under the limit after an alert, then exactly one recovered message is posted.
+- The limit and the consecutive-sample count are constants at the top of `lane_hourly.py`, documented in `scripts/qa-lane/README.md` and `CONTAINERBAR_QA.md` where the hourly check is described; `install.sh` reinstall keeps the behaviour.
+- The state file records the recent RSS samples so a Mini reboot or check restart does not lose the streak.
+
+**Story/test**: US-qa-lane-leftovers-4 family; proposed TC-CB-30.
+
 ### CB-128: Hourly QA check: keep an undelivered failure snapshot until it is posted (CB-105 follow-up)
 **Priority**: Medium
 **Description**: Filed 2026-10-16 (business-analyst, review-cap leftover from PR #76, Codex P2 at `scripts/qa-lane/lane_hourly.py` ~296, answered as a ticket intent by the orchestrator at 12:10 CT). No duplicate in this backlog or `docs/resolved.md`. When the webhook post fails on a red run, `state["failing"]` stays at the last delivered value but `checks` holds the red observation; if the check recovers before the next hourly run, that run overwrites the observation with green, sees current equal to previous, and posts neither the failure nor a recovery, although the log said the post would be retried. Fix: persist the undelivered failure message (and the failing set it reported) separately in the state file until a post succeeds, and post it, marked as late, before or with the next run's result. Severity P2 (a real failure can go unreported; workaround: read the hourly log). Rank: with CB-126 and CB-127, one branch on `lane_hourly.py`, after CB-129.
