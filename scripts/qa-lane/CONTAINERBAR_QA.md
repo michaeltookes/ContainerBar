@@ -90,6 +90,27 @@ ERR='paste the error text here'
 printf '%s\n' "$ERR" | sed -E 's/([0-9]{1,3}[.]){3}[0-9]{1,3}/<address>/g; s/[[]?[0-9A-Fa-f]{0,4}(:[0-9A-Fa-f]{0,4}){2,7}(%[A-Za-z0-9]+)?[]]?/<address>/g; s#/[^ ]*[.]sock#<socket>#g; s/host [^< ][^ ]* port/host <host> port/g; s/(resolve hostname )[^: ]+/\1<host>/g; s/Load key "[^"]*"/Load key "<keyfile>"/g; s#(/Users/|/home/|~/)[^ "]*#<path>#g'
 ```
 
+## Branch builds: re-sign with the Apple Development identity (CB-124)
+
+Applies only when the installed build is a branch or CI build rather than the released Developer ID build.
+After the QA build is fetched and copied to `/Applications/ContainerBar.app`, and before the static checks:
+```sh
+ID="Apple Development: Created via API (69STSBXF28)"   # team 6739LM5834, valid to 2027-10-22
+APP=/Applications/ContainerBar.app
+ENT=Distribution/ContainerBar.entitlements             # use only if the build was made with entitlements
+codesign --force --deep --options runtime --sign "$ID" --entitlements "$ENT" "$APP"   # bundle id stays com.tookes.ContainerBar
+codesign --verify --deep --strict "$APP"; echo "codesign=$?"
+```
+- Sign only from the lane's launchd (gui/501) context. Over plain SSH the login keychain is locked and
+  codesign fails with `errSecInternalComponent` (verified 2026-11-16); never type a keychain password.
+- `spctl` and `stapler` are NOT expected to pass: Apple Development is not notarized. TC-CB-01's Developer ID
+  Authority match does not apply; expect `Authority=Apple Development: Created via API (69STSBXF28)` instead.
+- First run of a re-signed build: macOS shows the Local Network dialog once for this identity. Michael clicks
+  Allow via Jump Desktop (the lane never clicks it), then the lane appends
+  `<YYYY-MM-DD> | apple-development | <version>-<build> | michael` to `qa/containerbar/local-network-grants.log`
+  (CB-116 format; treat `apple-development` like `adhoc` in the gate, matching the named build). The Keychain
+  "Always Allow" prompt also needs Michael once.
+
 ## Before preflight: static signature checks (TC-CB-01, no launch)
 
 Preflight may relaunch ContainerBar (marker or `gui-cleanup-pending` recovery; no skip option), so first:
