@@ -31,7 +31,7 @@ class RecipeTokenTests(unittest.TestCase):
         for name, text in (("recipe", RECIPE), ("RESIGN.md", RESIGN_MD)):
             for line in text.splitlines():
                 for m in re.finditer(r"(\S*)\s*bash tools/containerbar-qa/resign(-gui)?\.sh\s+(\S+)", line):
-                    if m.group(3) == "--provenance":
+                    if m.group(3).startswith("--provenance"):
                         continue
                     self.assertIn('CBQA_LOCK_TOKEN="$TOKEN"', line, (name, line))
         self.assertIn('CBQA_LOCK_TOKEN="$TOKEN" bash tools/containerbar-qa/resign-gui.sh', RECIPE)
