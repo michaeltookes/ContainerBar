@@ -11,6 +11,7 @@
 #   CBQA_DAILY_TARGET   Discord target the daily pass announces to
 #   CBQA_DEVELOPER_ID_AUTHORITY  expected codesign Authority line (read by the recipe, TC-CB-01)
 #   CBQA_SIGNING_IDENTITY_HASH   SHA-1 of the active Apple Development identity (CB-124; homelab-it sets it)
+#   CBQA_RSS_LIMIT_MB            hourly app RSS limit in MB, optional, default 400 (CB-132)
 # The hourly webhook lives in ~/.openclaw/.env as CONTAINERBAR_QA_WEBHOOK.
 set -eu
 here=${0:A:h}
