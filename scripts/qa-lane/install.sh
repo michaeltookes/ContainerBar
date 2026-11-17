@@ -10,6 +10,7 @@
 #   CBQA_ALERT_TARGET   Discord target for #lucius-updates lines
 #   CBQA_DAILY_TARGET   Discord target the daily pass announces to
 #   CBQA_DEVELOPER_ID_AUTHORITY  expected codesign Authority line (read by the recipe, TC-CB-01)
+#   CBQA_SIGNING_IDENTITY_HASH   SHA-1 of the active Apple Development identity (CB-124; homelab-it sets it)
 # The hourly webhook lives in ~/.openclaw/.env as CONTAINERBAR_QA_WEBHOOK.
 set -eu
 here=${0:A:h}
@@ -46,11 +47,14 @@ if [ -n "$render_to" ]; then mv "$rendered" "$render_to"; exit 0; fi
 
 doit mkdir -p "$tools" "$ws/qa/containerbar" "$ws/artifacts/containerbar-qa" "$HOME/Library/Logs/containerbar-qa"
 for f in cbqa_lane.py lane_core.py lane_restore.py lane_preflight.py lane_hourly.py lane_prefs.py \
-         containerbar-qa-restore.sh containerbar-hourly.sh README.md brief-template.md; do
+         containerbar-qa-restore.sh containerbar-hourly.sh resign.sh README.md brief-template.md; do
   doit cp "$here/$f" "$tools/$f"
 done
 # The standing recipe the daily brief hands to the agent (CB-101); versioned here, never edited there.
 doit cp "$here/CONTAINERBAR_QA.md" "$ws/CONTAINERBAR_QA.md"
+doit cp "$here/RESIGN.md" "$ws/RESIGN.md"
+# The re-sign step runs from the workspace, so it gets its own copy of the entitlements (CB-124).
+doit cp "$here/../../Distribution/ContainerBar.entitlements" "$ws/qa/containerbar/ContainerBar.entitlements"
 doit cp "$rendered" "$agent"
 doit launchctl bootout "gui/$(id -u)/com.genkeilabs.containerbar-hourly" || true
 doit launchctl bootstrap "gui/$(id -u)" "$agent"
