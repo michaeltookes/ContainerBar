@@ -38,7 +38,9 @@ try:
 except ImportError:  # Python 3.8 and older
     ZoneInfo = None  # type: ignore
 
-RSS_LIMIT_KB = 200 * 1024
+RSS_LIMIT_MB_DEFAULT = 400   # CB-132: the Mini's configured limit; override with CBQA_RSS_LIMIT_MB in lane.env
+RSS_STREAK = 3               # consecutive hourly samples at or above the limit before app-rss-high
+RSS_LIMIT_VAR = "CBQA_RSS_LIMIT_MB"
 CPU_PER_HOUR_S = 36.0
 WINDOW = (8, 20)  # 08:00-20:00 Central, inclusive of the 20:xx run
 RELEASE_URL = "https://api.github.com/repos/michaeltookes/ContainerBar/releases/latest"
@@ -152,10 +154,36 @@ def parse_cputime(text: str) -> float:
     return days * 86400 + seconds
 
 
+def rss_limit_mb(lane: Lane) -> int:
+    """Limit from lane.env; empty, non-numeric, zero or negative falls back to the default."""
+    raw = lane.settings.get(RSS_LIMIT_VAR)
+    if raw is None:
+        return RSS_LIMIT_MB_DEFAULT
+    try:
+        value = int(str(raw).strip())
+    except ValueError:
+        value = 0
+    if value <= 0:
+        append_log(lane, "warning: %s=%r is not a positive integer, using %d"
+                   % (RSS_LIMIT_VAR, raw, RSS_LIMIT_MB_DEFAULT))
+        return RSS_LIMIT_MB_DEFAULT
+    return value
+
+
+def _streak(samples: List[int], limit_mb: int) -> int:
+    count = 0
+    for x in reversed(samples):
+        if x < limit_mb:
+            break
+        count += 1
+    return count
+
+
 def check_app(lane: Lane, state: Dict[str, object], deadline: float) -> Tuple[Optional[str], str]:
     rc, out = lane.call(["pgrep", "-x", APP_NAME], 5, deadline)
     if rc != 0 or not out.split():
         state.pop("cpu_sample", None)
+        state.pop("rss_samples", None)
         return "app-not-running", "pgrep found no process"
     pid = int(out.split()[0])
     rc, out = lane.call(["ps", "-o", "rss=,time=", "-p", str(pid)], 5, deadline)
@@ -167,8 +195,16 @@ def check_app(lane: Lane, state: Dict[str, object], deadline: float) -> Tuple[Op
     previous = state.get("cpu_sample") or {}
     state["cpu_sample"] = {"pid": pid, "cpu": cpu, "at": now}
     detail = "pid=%d rss=%dMB cpu=%.1fs" % (pid, rss_kb // 1024, cpu)
-    if rss_kb >= RSS_LIMIT_KB:
-        return "app-rss-high", detail
+    limit_mb = rss_limit_mb(lane)
+    samples = [int(x) for x in (state.get("rss_samples") or []) if isinstance(x, int)]
+    samples = (samples + [rss_kb // 1024])[-RSS_STREAK:]
+    state["rss_samples"] = samples
+    over = len(samples) == RSS_STREAK and all(x >= limit_mb for x in samples)
+    if over:
+        return "app-rss-high", "%s rss-samples=%s limit=%dMB" % (
+            detail, "/".join("%dMB" % x for x in samples), limit_mb)
+    if rss_kb // 1024 >= limit_mb:
+        detail += " over-limit(%dMB) streak=%d/%d" % (limit_mb, _streak(samples, limit_mb), RSS_STREAK)
     if isinstance(previous, dict) and previous.get("pid") == pid:
         elapsed = max(now - float(previous["at"]), 1.0)
         used = cpu - float(previous["cpu"])

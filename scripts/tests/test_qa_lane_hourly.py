@@ -116,10 +116,50 @@ class HourlyTests(unittest.TestCase):
         env.runner.app_pid = None
         self.assertIn("app-not-running", env.run()["failures"])
 
-    def test_rss_over_200_mb(self):
+    def _samples(self, env, mbs):
+        out = []
+        for mb in mbs:
+            env.rss_kb = mb * 1024
+            out.append(env.run()["failures"])
+        return out
+
+    def test_rss_300_mb_never_alerts(self):
         env = Env(self)
-        env.rss_kb = 201 * 1024
-        self.assertIn("app-rss-high", env.run()["failures"])
+        self.assertEqual(self._samples(env, [300] * 5), [[]] * 5)
+        self.assertEqual(env.posts, [])
+
+    def test_rss_450_mb_alerts_on_third_consecutive_sample(self):
+        env = Env(self)
+        self.assertEqual(self._samples(env, [450, 450, 450]), [[], [], ["app-rss-high"]])
+        self.assertEqual(len(env.posts), 1)
+        self.assertIn("450MB/450MB/450MB", env.lane.artifacts.joinpath("hourly-state.json").read_text()
+                      + env.posts[0])
+
+    def test_rss_two_of_three_does_not_alert(self):
+        env = Env(self)
+        self.assertEqual(self._samples(env, [450, 450, 300, 450, 450]), [[]] * 5)
+        self.assertEqual(env.posts, [])
+
+    def test_rss_streak_survives_state_reload_and_recovers_once(self):
+        env = Env(self)
+        self._samples(env, [450, 450, 450])
+        self.assertEqual(len(env.posts), 1)
+        self._samples(env, [100])
+        self.assertEqual(len(env.posts), 2)           # one recovered message
+        self._samples(env, [100])
+        self.assertEqual(len(env.posts), 2)
+
+    def test_rss_limit_from_lane_env_and_invalid_falls_back(self):
+        env = Env(self)
+        env.lane.settings["CBQA_RSS_LIMIT_MB"] = "250"
+        self.assertEqual(self._samples(env, [260] * 3)[-1], ["app-rss-high"])
+        for bad in ("", "abc", "0", "-5"):
+            env = Env(self)
+            env.lane.settings["CBQA_RSS_LIMIT_MB"] = bad
+            self.assertEqual(self._samples(env, [300, 450, 450, 450])[-1], ["app-rss-high"])
+            log = env.lane.artifacts.joinpath("hourly.log")
+            self.assertTrue(any("CBQA_RSS_LIMIT_MB" in l for l in log.read_text().splitlines()))
+            self.assertEqual(self._samples(Env(self), [399] * 4)[-1], [])
 
     def test_cpu_budget_36_seconds_per_hour(self):
         env = Env(self)

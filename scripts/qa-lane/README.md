@@ -84,6 +84,14 @@ sourced.
   app check while CI is busy) keeps its previous result; undelivered posts
   and backstop events are retried the next run. The launchd agent carries
   `CBQA_WORKSPACE`, rendered by the installer.
+  The app check alerts `app-rss-high` only after `RSS_STREAK` (3) consecutive
+  hourly samples at or above `CBQA_RSS_LIMIT_MB` (lane.env, default
+  `RSS_LIMIT_MB_DEFAULT` = 400); one sample over is only logged. Recent samples
+  live in `hourly-state.json` (`rss_samples`). Why 400: at rest the app swings
+  between about 53 and 292 MB with no leak (CB-132, 2026-10-25/26 flaps), so the
+  old 200 MB single-sample rule posted FAIL/recovered pairs; reason for the
+  Mini's 2026-10-26 hand patch to be recorded by homelab-it. An empty,
+  non-numeric, zero or negative value falls back to 400 with a log warning.
 
 ## Private settings (`<workspace>/qa/containerbar/lane.env`)
 
@@ -93,6 +101,7 @@ CBQA_ALERT_TARGET=channel:<lucius-updates-id>
 CBQA_DAILY_TARGET=channel:<containerbar-channel-id>
 CBQA_DEVELOPER_ID_AUTHORITY=Authority=Developer ID Application: <owner> (<team-id>)
 CBQA_SIGNING_IDENTITY_HASH=<sha1-of-active-apple-development-identity>
+CBQA_RSS_LIMIT_MB=400   # optional, hourly app RSS limit (CB-132)
 ```
 
 The recipe also reads `qa/containerbar/local-network-grants.log`, one line per
