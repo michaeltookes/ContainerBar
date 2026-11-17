@@ -71,8 +71,11 @@ PLIST
 
 # On a timeout the job is NOT booted out: killing resign.sh mid-swap could leave no app or a stale provenance record.
 # It is one-shot and finishes (and rolls back on its own checked failures) by itself.
-timed_out=0
-cleanup() { [ "$timed_out" = 1 ] || "$launchctl_bin" bootout "gui/$uid/$label" >/dev/null 2>&1 || true; rm -f "$plist"; }
+timed_out=0; finished=0
+# Boot out only a job that has finished (its rc file was read back); anything else is left running, whatever ended the wrapper.
+cleanup() { [ "$timed_out" = 1 ] || [ "$finished" = 1 ] || "$launchctl_bin" bootout "gui/$uid/$label" >/dev/null 2>&1 || true; rm -f "$plist"; }
+interrupted() { timed_out=1; echo "resign-gui: interrupted; resign.sh was left running (never killed mid-install). Do not retry; read $dir/rc and $dir/output.txt later, then report" >&2; exit 9; }
+trap interrupted HUP INT TERM
 trap cleanup EXIT
 "$launchctl_bin" bootstrap "gui/$uid" "$plist" >/dev/null 2>&1 || { echo "resign-gui: launchctl bootstrap failed" >&2; exit 9; }
 waited=0
@@ -80,6 +83,7 @@ while [ ! -f "$dir/rc" ]; do
   [ "$waited" -ge "$timeout_s" ] && { timed_out=1; echo "resign-gui: still waiting after ${timeout_s}s; resign.sh was left running (never killed mid-install). Do not retry; read $dir/rc and $dir/output.txt later, then report" >&2; exit 9; }
   sleep 1; waited=$((waited + 1))
 done
+finished=1
 cat "$dir/output.txt" 2>/dev/null
 rc=$(cat "$dir/rc")
 rm -rf "$dir"

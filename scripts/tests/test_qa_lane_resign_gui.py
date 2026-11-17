@@ -109,6 +109,23 @@ class WrapperTests(unittest.TestCase):
         base = self.ws / "artifacts" / "containerbar-qa" / "resign-gui"
         self.assertEqual(list(base.glob("**/*.plist")), [])
 
+    def test_interruption_never_boots_out_an_unfinished_job(self):
+        import signal, time
+        env = dict(self.env, CBQA_LOCK_TOKEN="t1", FAKE_NO_RUN="1", CBQA_RESIGN_TIMEOUT="30")
+        proc = subprocess.Popen(["/bin/bash", str(self.lane / "resign-gui.sh"), "/x/Cand.app", "abc"], env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        for _ in range(50):
+            if self.log.exists() and "bootstrap" in self.log.read_text():
+                break
+            time.sleep(0.1)
+        proc.send_signal(signal.SIGTERM)
+        _, err = proc.communicate(timeout=15)
+        self.assertEqual(proc.returncode, 9, err)
+        self.assertIn("left running", err)
+        self.assertEqual(self.log.read_text().split(), ["bootstrap"])
+        base = self.ws / "artifacts" / "containerbar-qa" / "resign-gui"
+        self.assertEqual(list(base.glob("**/*.plist")), [])
+
     def test_empty_token_is_passed_through_for_resign_to_block(self):
         done = self.run_wrapper("/x/Cand.app", "abc", STUB_RC="7")
         self.assertEqual(done.returncode, 7)
