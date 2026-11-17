@@ -84,9 +84,9 @@ printf '%s\n' "$ERR" | sed -E 's/([0-9]{1,3}[.]){3}[0-9]{1,3}/<address>/g; s/[[]
 
 ## Branch builds (CB-124)
 
-Install a branch or CI build only with `bash tools/containerbar-qa/resign.sh <candidate.app> <branch-sha>`: it signs a staged copy with the identity named by
+Install a branch or CI build only with `CBQA_LOCK_TOKEN="$TOKEN" bash tools/containerbar-qa/resign-gui.sh <candidate.app> <branch-sha>` (the wrapper runs `resign.sh` in the `gui/501` launchd context): it signs a staged copy with the identity named by
 `CBQA_SIGNING_IDENTITY_HASH`, replaces `/Applications/ContainerBar.app` only after the verify passes, and records the build. Exit 3: `BLOCKED qa-signing-failed`
-(nothing installed); exit 4: `BLOCKED qa-identity-invalid`; exits 5 to 8 (`app-quit-timeout`, `keychain-locked`, `desktop-busy`/`ci-busy`, `qa-install-failed`) keep the old app; none marks a case FAIL. Run it holding the desktop lock with `CBQA_LOCK_TOKEN=<lock token>`. Launchd (gui/501) context only; see `RESIGN.md`. Before the static checks run
+(nothing installed); exit 4: `BLOCKED qa-identity-invalid`; exits 5 to 8 (`app-quit-timeout`, `keychain-locked`, `desktop-busy`/`ci-busy`, `qa-install-failed`) keep the old app; none marks a case FAIL. Run it holding the desktop lock; `TOKEN` is the lock-token variable defined above. Never call `resign.sh` directly over SSH (`keychain-locked`, exit 6): stop and report, never type a keychain password; see `RESIGN.md`. Before the static checks run
 `bash tools/containerbar-qa/resign.sh --provenance`. `mode=release`: continue below. `mode=branch-candidate`: its last line replaces the static checks and TC-CB-01's
 tag, appcast and cask comparison. `provenance=ok` is PASS (`identity=` feeds the gate's `HASH`); `provenance=FAIL <why>` is TC-CB-01 FAIL (a Developer ID signature is `mode=release` even with a stale record), as a signature failure.
 
