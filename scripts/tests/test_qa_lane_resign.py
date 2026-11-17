@@ -64,11 +64,16 @@ class ResignTests(unittest.TestCase):
         (r / "bin" / "xattr").write_text(
             '#!/bin/bash\napp="${@: -1}"\ncase "$1" in -dr) [ "$FAKE_XATTR_STUCK" = 1 ] || rm -f "$app/.quar" ;;\n'
             '-lr) [ -f "$app/.quar" ] && echo "$app: com.apple.quarantine: 0083" ;; esac\nexit 0\n')
-        # pgrep -f <installed bundle path> sees only the installed app; pgrep -x ContainerBar would also see the hunt build.
+        # pgrep -x ContainerBar lists every process of that name (installed app 4242, hunt build 5151, odd one 6666);
+        # pgrep -f never matches a relative launch, so resign.sh must not depend on it.
         (r / "bin" / "pgrep").write_text(
             '#!/bin/bash\necho "pgrep $*" >> "$FAKE_LOG"\n'
-            'case "$*" in *-f*Contents/MacOS*) [ -f "$FAKE_RUNNING" ] && echo 4242; exit $? ;; esac\n'
-            '[ -f "$FAKE_RUNNING" ] || [ -f "$FAKE_HUNT_RUNNING" ]\n')
+            '[ "$*" = "-x ContainerBar" ] || exit 1\n'
+            '[ -f "$FAKE_RUNNING" ] && echo 4242; [ -f "$FAKE_HUNT_RUNNING" ] && echo 5151; [ -f "$FAKE_ODD_RUNNING" ] && echo 6666\n'
+            'exit 0\n')
+        (r / "bin" / "pidpath").write_text(
+            '#!/bin/bash\ncase "$1" in 4242) echo "$FAKE_APP_PATH/Contents/MacOS/ContainerBar" ;;\n'
+            '5151) echo "/Users/x/hunt/ContainerBar.app/Contents/MacOS/ContainerBar" ;; *) exit 1 ;; esac\n')
         (r / "bin" / "ditto").write_text(   # a copy into the sibling temp bundle can be made to fail half way
             '#!/bin/bash\ncase "$2" in *cbqa-new*) if [ "$FAKE_DITTO_FAIL" = 1 ]; then mkdir -p "$2"; echo partial > "$2/part"; exit 1; fi ;; esac\n'
             'exec /usr/bin/ditto "$@"\n')
@@ -78,7 +83,7 @@ class ResignTests(unittest.TestCase):
             'case "$FAKE_GATE" in ok) echo ok; exit 0 ;; busy) echo "BLOCKED ci-busy " ; exit 2 ;; *) echo "BLOCKED time-budget lock-not-owned "; exit 2 ;; esac\n')
         (r / "bin" / "osascript").write_text('#!/bin/bash\necho "osascript $*" >> "$FAKE_LOG"\n'
                                              '[ "$FAKE_QUIT_REFUSES" = 1 ] || rm -f "$FAKE_RUNNING"\n')
-        for n in ("codesign", "security", "xattr", "pgrep", "osascript", "ditto", "lane", "keychain"):
+        for n in ("codesign", "security", "xattr", "pgrep", "osascript", "ditto", "lane", "keychain", "pidpath"):
             (r / "bin" / n).chmod(0o755)
         self.log = r / "calls.log"
         self.set_hash(self.hash_a)
@@ -93,7 +98,8 @@ class ResignTests(unittest.TestCase):
                         FAKE_DER_DIR=str(r / "der"), FAKE_SIGNER="active", FAKE_SIGN_FAIL="0", FAKE_VERIFY_FAIL="0",
                         FAKE_RUNNING=str(r / "running"), CBQA_QUIT_POLL="0", FAKE_XATTR_STUCK="0",
                         FAKE_QUIT_REFUSES="0", FAKE_HUNT_RUNNING=str(r / "hunt-running"), FAKE_KEYCHAIN_LOCKED="0",
-                        FAKE_DITTO_FAIL="0", FAKE_GATE="ok", CBQA_LANE_CMD=str(r / "bin" / "lane"), CBQA_KEYCHAIN_CHECK=str(r / "bin" / "keychain"),
+                        FAKE_DITTO_FAIL="0", FAKE_GATE="ok", CBQA_LANE_CMD=str(r / "bin" / "lane"), CBQA_KEYCHAIN_CHECK=str(r / "bin" / "keychain"), CBQA_PIDPATH_CMD=str(r / "bin" / "pidpath"),
+                        FAKE_APP_PATH=str(self.app), FAKE_ODD_RUNNING=str(r / "odd-running"),
                         CBQA_LOCK_TOKEN="pass.abc123", CBQA_KEYCHAIN=str(r / "login.keychain-db"))
 
     def set_hash(self, value):
@@ -359,15 +365,37 @@ class ResignTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout)
         self.assertNotIn("osascript", self.log.read_text())
         self.assertNotIn("relaunch required", done.stdout)
-        self.assertNotIn("pgrep -x ContainerBar", self.log.read_text())
         self.assertTrue(Path(self.env["FAKE_HUNT_RUNNING"]).exists())
 
     def test_quit_polls_the_installed_bundle_path(self):
         Path(self.env["FAKE_RUNNING"]).write_text("")
         Path(self.env["FAKE_HUNT_RUNNING"]).write_text("")
         self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
-        self.assertIn("pgrep -f", self.log.read_text())
-        self.assertIn("ContainerBar\\.app/Contents/MacOS/", self.log.read_text())
+        self.assertIn("osascript", self.log.read_text())   # only the installed app's PID (by resolved path) triggers the quit
+        self.assertTrue(Path(self.env["FAKE_HUNT_RUNNING"]).exists())
+
+    def test_relative_launch_is_caught_by_its_resolved_path(self):
+        # started as ./ContainerBar inside Contents/MacOS: pgrep -f finds nothing, the resolved path still names the bundle
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("relaunch required", done.stdout)
+        self.assertIn("osascript", self.log.read_text())
+
+    def test_unresolvable_pid_path_is_waited_on_not_ignored(self):
+        Path(self.env["FAKE_ODD_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 5, done.stdout)
+        self.assertIn("BLOCKED app-quit-timeout", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_pid_path_helper_fails_closed_and_resolves_a_real_process(self):
+        helper = os.path.join(LANE_DIR, "pid_path.py")
+        for args in ([], ["notapid"], ["99999999"]):
+            self.assertEqual(subprocess.run(["python3", helper, *args], capture_output=True).returncode, 1, args)
+        ok = subprocess.run(["python3", helper, str(os.getpid())], capture_output=True, text=True)
+        self.assertEqual(ok.returncode, 0)
+        self.assertTrue(ok.stdout.strip().startswith("/"))
 
     def test_no_signal_commands_in_the_script(self):
         text = Path(RESIGN).read_text()

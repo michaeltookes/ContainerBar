@@ -95,8 +95,19 @@ if [ "$grc" -ne 0 ]; then
   esac
 fi
 
-# The installed app's PIDs, resolved from its bundle path (never by process name: the hunt build shares the executable name).
-app_pids() { pgrep -f "^$(printf '%s' "$app/Contents/MacOS/" | sed 's/[][\.*^$+?(){}|]/\\&/g')" 2>/dev/null; }
+# The installed app's PIDs, by resolved executable path (the hunt build shares the executable name but not the bundle path).
+app_pids() {
+  local pid p real; real=$(cd -P "$app/Contents/MacOS" 2>/dev/null && pwd -P); real=${real:-$app/Contents/MacOS}
+  for pid in $(pgrep -x ContainerBar 2>/dev/null); do
+    # Candidates are the processes named ContainerBar; each is judged by its resolved executable path (a relative launch
+    # shows no bundle path in its argv). An unresolvable path is a candidate to wait for, never ignored.
+    if [ -n "${CBQA_PIDPATH_CMD:-}" ]; then p=$("$CBQA_PIDPATH_CMD" "$pid" 2>/dev/null); else p=$(python3 "$here/pid_path.py" "$pid" 2>/dev/null); fi
+    case "$p" in
+      "$app/Contents/MacOS/"*|"$real/"*) echo "$pid" ;;
+      "") echo "$pid" ;;
+    esac
+  done
+}
 # A running old binary must not be tested against the new provenance: quit it gracefully (never a signal).
 if [ -n "$(app_pids)" ]; then
   osascript -e 'tell application id "com.tookes.ContainerBar" to quit' >/dev/null 2>&1
