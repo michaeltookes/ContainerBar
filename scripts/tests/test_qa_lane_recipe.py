@@ -93,9 +93,10 @@ class RecipeTests(unittest.TestCase):
         done = subprocess.run(["/bin/bash", "-c", pipeline], input=cask, capture_output=True, text=True)
         self.assertEqual(done.stdout, "2.0.4\n", done.stderr)
 
-    def run_gate(self, log_lines, build):
+    def run_gate(self, log_lines, build, ident=""):
         block = self.block_with("local-network-grants.log")
         block = re.sub(r"BUILD='[^']*'", "BUILD='%s'" % build, block)
+        block = re.sub(r"HASH='[^']*'", "HASH='%s'" % ident, block)
         with tempfile.TemporaryDirectory() as ws:
             Path(ws, "qa", "containerbar").mkdir(parents=True)
             Path(ws, "qa", "containerbar", "local-network-grants.log").write_text("".join(
@@ -115,6 +116,16 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(self.run_gate(log, "2.0.5-8"), "gate-open")
         self.assertEqual(self.run_gate(log, "2.0.5-9"), "gate-closed")
         self.assertEqual(self.run_gate([], "2.0.5-8"), "gate-closed")
+
+    def test_apple_development_grant_names_the_identity_not_the_build(self):
+        # Codex r1 P2: a rebuild signed with the same identity keeps the gate open.
+        log = ["2026-11-16 | apple-development | AB12CD | michael"]
+        self.assertEqual(self.run_gate(log, "2.0.5-8", "AB12CD"), "gate-open")
+        self.assertEqual(self.run_gate(log, "2.0.5-9", "AB12CD"), "gate-open")
+        self.assertEqual(self.run_gate(log, "2.0.5-8", "FFFFFF"), "gate-closed")
+        self.assertEqual(self.run_gate(log, "2.0.5-8", ""), "gate-closed")
+        self.assertEqual(self.run_gate(["2026-11-16 | apple-development | 2.0.5-8 | michael"], "2.0.5-8", ""),
+                         "gate-closed")
 
     def test_connection_errors_are_redacted(self):
         # Codex round 2 (bot P2): no address or socket path reaches report.md.
@@ -255,6 +266,11 @@ class InstallCopiesRecipeTests(unittest.TestCase):
         lines = done.stdout.splitlines()
         self.assertIn(expected, [line.replace("\\ ", " ") for line in lines])
         self.assertFalse((self.ws / "CONTAINERBAR_QA.md").exists())
+        plan = [line.replace("\\ ", " ") for line in lines]
+        for name in ("resign.sh", "RESIGN.md"):
+            self.assertTrue(any(l.startswith("dry-run: cp") and name in l for l in plan), name)
+        self.assertTrue(any("ContainerBar.entitlements" in l and str(self.ws / "qa" / "containerbar") in l
+                            for l in plan))
 
 
 if __name__ == "__main__":
