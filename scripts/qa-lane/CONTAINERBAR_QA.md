@@ -26,7 +26,7 @@ Read with `grep '^KEY=' qa/containerbar/lane.env | tail -n1 | cut -d= -f2-`, nev
 `CBQA_RUNNER_NAMES`. The baseline is `qa/containerbar/baseline.plist`. Local Network grants:
 `qa/containerbar/local-network-grants.log`, one line per grant, `<YYYY-MM-DD> | <identity> | <build> | <who>`.
 `<identity>` is `developer-id` (the release signature; one grant covers every release, `<build>` is `-`)
-or `adhoc` (an unsigned or ad-hoc build; the grant covers only the `<version>-<build>` it names).
+or `adhoc` (an unsigned or ad-hoc build) or `apple-development` (a re-signed branch build, CB-124); for both the grant covers only the `<version>-<build>` it names.
 
 ## The app
 
@@ -199,12 +199,12 @@ process was running; `defaults read com.tookes.ContainerBar.hunt SULastCheckTime
 **Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is
 installed, verified and running) and before TC-CB-14 and any SSH-dependent case or step.
 **Open** when the grant log has a `developer-id` line and TC-CB-01 found the Developer ID
-authority (any installed version), or an `adhoc` line naming the installed `<version>-<build>`:
+authority (any installed version), or an `adhoc` or `apple-development` line naming the installed `<version>-<build>`:
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 BUILD='2.0.4-7'   # installed CFBundleShortVersionString-CFBundleVersion from TC-CB-01
-awk -F' *[|] *' -v b="$BUILD" '$2=="developer-id" || ($2=="adhoc" && $3==b) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
+awk -F' *[|] *' -v b="$BUILD" '$2=="developer-id" || (($2=="adhoc" || $2=="apple-development") && $3==b) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
 ```
 
 Then Settings > Connections > `QA Runtime` > Test Connection must show success, the only proof. `No route to host` or the Local Network message while
