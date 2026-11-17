@@ -25,6 +25,7 @@ sourced.
 | `containerbar-hourly.sh` | launchd entry point; runs the checks under the shared lock, skips when it is held |
 | `com.genkeilabs.containerbar-hourly.plist.template` | launchd agent, hourly at :40 from 08:00 to 20:00 |
 | `CONTAINERBAR_QA.md` | the standing recipe the daily brief hands to the agent (CB-101): selectors, cases runnable today, evidence, restore, report; installed as `<workspace>/CONTAINERBAR_QA.md` |
+| `resign.sh` | CB-124: stage, sign (identity by hash from `lane.env`), verify, then install a branch build; `--provenance` for TC-CB-01 (see `RESIGN.md`) |
 | `install.sh` | copies the tools into `<workspace>/tools/containerbar-qa/` and the recipe to `<workspace>/CONTAINERBAR_QA.md`, renders and loads the agent, optionally adds the OpenClaw cron job; dry run unless `--apply` |
 
 ## Rules the code keeps
@@ -91,12 +92,14 @@ CBQA_RUNNER_NAMES=<runner-1>,<runner-2>
 CBQA_ALERT_TARGET=channel:<lucius-updates-id>
 CBQA_DAILY_TARGET=channel:<containerbar-channel-id>
 CBQA_DEVELOPER_ID_AUTHORITY=Authority=Developer ID Application: <owner> (<team-id>)
+CBQA_SIGNING_IDENTITY_HASH=<sha1-of-active-apple-development-identity>
 ```
 
 The recipe also reads `qa/containerbar/local-network-grants.log`, one line per
 Local Network grant (CB-116): `<YYYY-MM-DD> | <identity> | <build> | <who>`.
 A `developer-id` line (build `-`) covers every Developer ID release; an `adhoc`
-line covers only the `<version>-<build>` it names. Without a matching line the
+line covers only the `<version>-<build>` it names; an `apple-development` line (CB-124) names the signing
+certificate's SHA-1, so rebuilds signed by the same identity keep the gate open. Without a matching line the
 recipe marks every SSH case `blocked local-network-denied (CB-116)`.
 
 Optional: `CBQA_RUNNER_REPOS` (default `michaeltookes/ContainerBar,michaeltookes/sentwise`),

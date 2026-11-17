@@ -21,6 +21,7 @@ previous result instead of reading as a recovery.
 from __future__ import annotations
 
 import json
+import os
 import plistlib
 import re
 import urllib.request
@@ -100,7 +101,22 @@ def _fetch_within(lane: Lane, fetch: Fetch, url: str, deadline: float) -> Option
     return fetch(url, min(FETCH_TIMEOUT_S, remaining))
 
 
-def check_release(lane: Lane, fetch: Fetch, deadline: float) -> Tuple[Optional[str], str]:
+def branch_provenance(lane: Lane, deadline: float) -> Optional[Tuple[bool, str]]:
+    """CB-124: None for a release install; else (verified, detail) from resign.sh --provenance."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resign.sh")
+    rc, out = lane.call(["/bin/bash", script, "--provenance"], 20, deadline)
+    lines = [l.strip() for l in (out or "").splitlines() if l.strip()]
+    if "mode=branch-candidate" not in lines:
+        return None
+    last = lines[-1]
+    return (last == "provenance=ok", last)
+
+
+def check_release(lane: Lane, fetch: Fetch, deadline: float,
+                  branch: Optional[Tuple[bool, str]] = None) -> Tuple[Optional[str], str]:
+    if branch is not None:   # a deliberately installed branch candidate is not compared with the release
+        return (None, "branch candidate, release comparison skipped") if branch[0] else \
+            ("branch-provenance-failed", branch[1])
     tag = None
     body = _fetch_within(lane, fetch, RELEASE_URL, deadline)
     if body:
@@ -173,7 +189,11 @@ def check_fixtures(lane: Lane, deadline: float) -> Tuple[Optional[str], str]:
     return None, "baseline"
 
 
-def check_gatekeeper(lane: Lane, deadline: float) -> Tuple[Optional[str], str]:
+def check_gatekeeper(lane: Lane, deadline: float,
+                     branch: Optional[Tuple[bool, str]] = None) -> Tuple[Optional[str], str]:
+    if branch is not None:   # Apple Development is not notarized: spctl rejects it by design
+        return (None, "branch candidate, spctl rejection expected") if branch[0] else \
+            ("branch-provenance-failed", branch[1])
     rc, _ = lane.call(["spctl", "--assess", "--type", "execute", lane.app_path], 15, deadline)
     return (None, "accepted") if rc == 0 else ("gatekeeper-rejected", "spctl rc=%d" % rc)
 
@@ -252,10 +272,11 @@ def hourly(lane: Lane, fetch: Fetch = http_get,
     busy, why = ci_busy(lane, deadline)
     details.append("ci=%s%s" % ("busy" if busy else "idle", " (%s)" % ", ".join(why) if why else ""))
 
-    checks = [("release", lambda: check_release(lane, fetch, deadline)),
+    branch = branch_provenance(lane, deadline)
+    checks = [("release", lambda: check_release(lane, fetch, deadline, branch)),
               ("app", lambda: check_app(lane, state, deadline)),
               ("fixtures", lambda: check_fixtures(lane, deadline)),
-              ("gatekeeper", lambda: check_gatekeeper(lane, deadline))]
+              ("gatekeeper", lambda: check_gatekeeper(lane, deadline, branch))]
     for name, run_check in checks:
         if name == "app" and busy:
             details.append("app: not observed (ci-busy), keeping %s" % (results.get("app") or "ok"))

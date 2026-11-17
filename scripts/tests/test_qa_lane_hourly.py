@@ -165,6 +165,30 @@ class HourlyTests(unittest.TestCase):
         env.spctl_rc = 3
         self.assertEqual(env.run()["failures"], ["gatekeeper-rejected"])
 
+    def test_branch_candidate_skips_spctl_and_release_drift(self):
+        # Codex r2 P2: a verified branch candidate is judged on provenance, not the release
+        env = Env(self)
+        env.spctl_rc = 3
+        env.versions["cask"] = "2.0.4"
+        env.runner.on("/bin/bash", lambda argv: (0, "mode=branch-candidate\nprovenance=ok\n"))
+        result = env.run()
+        self.assertEqual(result["failures"], [])
+        self.assertFalse(env.runner.ran("spctl"))
+
+    def test_unverified_branch_candidate_fails_on_provenance(self):
+        env = Env(self)
+        env.runner.on("/bin/bash", lambda argv: (1, "mode=branch-candidate\nprovenance=FAIL sha mismatch\n"))
+        self.assertEqual(env.run()["failures"], ["branch-provenance-failed"])
+
+    def test_release_mode_provenance_keeps_normal_checks(self):
+        env = Env(self)
+        env.spctl_rc = 3
+        env.versions["cask"] = "2.0.4"
+        env.runner.on("/bin/bash", lambda argv: (0, "mode=release\n"))
+        failures = env.run()["failures"]
+        self.assertIn("gatekeeper-rejected", failures)
+        self.assertIn("release-drift", failures)
+
     def test_stale_marker_runs_backstop_and_reports_it(self):
         env = Env(self)
         lane_core.write_json(env.lane.marker, {"t0": env.clock.now() - 32 * 60})
