@@ -44,9 +44,19 @@ identity keeps the gate open. The Keychain "Always Allow" prompt also needs Mich
 
 ## Round 2 additions (Codex r2)
 
-- Running app: `resign.sh` asks ContainerBar to quit (`osascript`, bounded wait, never a kill) before replacing the bundle and prints `relaunch required`; the lane must launch fresh, not reuse the old PID. If it will not quit: exit 5, `BLOCKED restore-failed`, nothing installed.
+- Running app: `resign.sh` asks ContainerBar to quit (`osascript`, bounded wait, never a kill) before replacing the bundle and prints `relaunch required`; the lane must launch fresh, not reuse the old PID. If it will not quit: exit 5, `BLOCKED app-quit-timeout`, nothing installed (superseded by the install-path section below).
 - `--provenance`: branch mode needs an Apple Development signature AND a record matching the installed version-build. A Developer ID signature is `mode=release` even with a stale record.
 - Gate: a branch candidate (non-empty HASH) is opened only by an `apple-development` line with its hash; `developer-id` and `adhoc` lines do not open it.
 - Hourly checks call `resign.sh --provenance`: a verified branch candidate skips spctl and release-drift; unverified gives `branch-provenance-failed`.
 - `com.apple.quarantine` is stripped from the staged copy and verified absent before install.
 - `CFBundleIdentifier` must be `com.tookes.ContainerBar` before and after signing, else `BLOCKED qa-signing-failed` naming the identifier (hunt builds are excluded).
+
+## Install path (CB-133, Codex r3 on PR 81)
+
+Order: identity hash, keychain check, stage and sign, lock and CI gate, quit, swap, record.
+
+- Keychain: `security show-keychain-info` on the login keychain (`CBQA_KEYCHAIN` overrides) runs before the first `codesign`; locked gives `BLOCKED keychain-locked` (exit 6), nothing staged.
+- Lock: the caller passes preflight's lock token in `CBQA_LOCK_TOKEN`; `resign.sh` runs `cbqa_lane.py case-gate --token` (lock owned, time budget, CI idle) before quitting. `BLOCKED desktop-busy` or `BLOCKED ci-busy` (exit 7), app untouched, no lock is taken or removed. No token counts as not owned.
+- Quit: PIDs come from `pgrep -f` on `<installed app>/Contents/MacOS/`, so a running hunt build is neither waited on nor quit. Timeout: `BLOCKED app-quit-timeout` (exit 5). No signals are sent.
+- Swap: `ditto` to `ContainerBar.app.cbqa-new.<pid>`, verify there, move the old bundle to `.cbqa-old.<pid>`, move the new one in, verify in place, delete the old one last. Any failure restores the old bundle and removes the temp: `BLOCKED qa-install-failed` (exit 8), "previous installation was kept".
+- Record: `branch-candidate.env` is written to a temp file and renamed, then read back (version-build, sha, identity hash, signed hash). A failure rolls the bundle and the previous record back (or removes the new one) and never prints `installed`.
