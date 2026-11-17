@@ -59,7 +59,7 @@ class ResignTests(unittest.TestCase):
         (r / "bin" / "codesign").write_text(FAKE_CODESIGN)
         (r / "bin" / "security").write_text(
             '#!/bin/bash\necho "security $*" >> "$FAKE_LOG"\n'
-            'case "$1" in show-keychain-info) [ "$FAKE_KEYCHAIN_LOCKED" = 1 ] && { echo "User interaction is not allowed." >&2; exit 36; }; exit 0 ;; esac\n'
+            'case "$1" in show-keychain-info) exit 0 ;; esac   # real behaviour: succeeds even when the keychain is locked\n'
             'echo "  1) %s \\"Apple Development: x\\""\n' % self.hash_a)
         (r / "bin" / "xattr").write_text(
             '#!/bin/bash\napp="${@: -1}"\ncase "$1" in -dr) [ "$FAKE_XATTR_STUCK" = 1 ] || rm -f "$app/.quar" ;;\n'
@@ -72,12 +72,13 @@ class ResignTests(unittest.TestCase):
         (r / "bin" / "ditto").write_text(   # a copy into the sibling temp bundle can be made to fail half way
             '#!/bin/bash\ncase "$2" in *cbqa-new*) if [ "$FAKE_DITTO_FAIL" = 1 ]; then mkdir -p "$2"; echo partial > "$2/part"; exit 1; fi ;; esac\n'
             'exec /usr/bin/ditto "$@"\n')
+        (r / "bin" / "keychain").write_text('#!/bin/bash\necho "keychain-check $*" >> "$FAKE_LOG"\n[ "$FAKE_KEYCHAIN_LOCKED" != 1 ]\n')
         (r / "bin" / "lane").write_text(   # stands in for cbqa_lane.py: case-gate answers from FAKE_GATE
             '#!/bin/bash\necho "lane $*" >> "$FAKE_LOG"\n'
             'case "$FAKE_GATE" in ok) echo ok; exit 0 ;; busy) echo "BLOCKED ci-busy " ; exit 2 ;; *) echo "BLOCKED time-budget lock-not-owned "; exit 2 ;; esac\n')
         (r / "bin" / "osascript").write_text('#!/bin/bash\necho "osascript $*" >> "$FAKE_LOG"\n'
                                              '[ "$FAKE_QUIT_REFUSES" = 1 ] || rm -f "$FAKE_RUNNING"\n')
-        for n in ("codesign", "security", "xattr", "pgrep", "osascript", "ditto", "lane"):
+        for n in ("codesign", "security", "xattr", "pgrep", "osascript", "ditto", "lane", "keychain"):
             (r / "bin" / n).chmod(0o755)
         self.log = r / "calls.log"
         self.set_hash(self.hash_a)
@@ -92,7 +93,7 @@ class ResignTests(unittest.TestCase):
                         FAKE_DER_DIR=str(r / "der"), FAKE_SIGNER="active", FAKE_SIGN_FAIL="0", FAKE_VERIFY_FAIL="0",
                         FAKE_RUNNING=str(r / "running"), CBQA_QUIT_POLL="0", FAKE_XATTR_STUCK="0",
                         FAKE_QUIT_REFUSES="0", FAKE_HUNT_RUNNING=str(r / "hunt-running"), FAKE_KEYCHAIN_LOCKED="0",
-                        FAKE_DITTO_FAIL="0", FAKE_GATE="ok", CBQA_LANE_CMD=str(r / "bin" / "lane"),
+                        FAKE_DITTO_FAIL="0", FAKE_GATE="ok", CBQA_LANE_CMD=str(r / "bin" / "lane"), CBQA_KEYCHAIN_CHECK=str(r / "bin" / "keychain"),
                         CBQA_LOCK_TOKEN="pass.abc123", CBQA_KEYCHAIN=str(r / "login.keychain-db"))
 
     def set_hash(self, value):
@@ -325,8 +326,31 @@ class ResignTests(unittest.TestCase):
     def test_unlocked_keychain_is_checked_then_signing_proceeds(self):
         self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
         calls = self.log.read_text()
-        self.assertIn("security show-keychain-info", calls)
-        self.assertLess(calls.index("show-keychain-info"), calls.index("\ncodesign "))
+        self.assertIn("keychain-check", calls)
+        self.assertNotIn("show-keychain-info", calls)
+        self.assertLess(calls.index("keychain-check"), calls.index("\ncodesign "))
+
+    def test_unlock_state_helper_fails_closed(self):
+        helper = os.path.join(LANE_DIR, "keychain_unlocked.py")
+        for args in ([], [str(self.root / "no-such.keychain-db")], ["a", "b"]):
+            done = subprocess.run(["python3", helper, *args], capture_output=True)
+            self.assertEqual(done.returncode, 1, args)
+
+    def test_keychain_check_error_is_keychain_locked(self):
+        env = dict(self.env, CBQA_KEYCHAIN_CHECK=str(self.root / "bin" / "missing-helper"))
+        done = subprocess.run(["/bin/bash", RESIGN, str(self.cand), "abc"], env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 6)
+        self.assertIn("BLOCKED keychain-locked", done.stdout)
+
+    def test_record_backup_failure_moves_nothing(self):
+        self.record_path().write_text("VERSION_BUILD=old\nSHA=old\nIDENTITY_HASH=old\n")
+        (self.root / "bin" / "cp").write_text('#!/bin/bash\ncase "$*" in *record.prev*) exit 1 ;; esac\nexec /bin/cp "$@"\n'); (self.root / "bin" / "cp").chmod(0o755)
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 8, done.stdout)
+        self.assertIn("BLOCKED qa-install-failed", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertEqual(self.leftovers(), [])
+        self.assertIn("SHA=old", self.record_path().read_text())
 
     # CB-133 fix 4: quit polling by the installed app's PID, not the process name
     def test_hunt_build_running_does_not_block_or_get_quit(self):

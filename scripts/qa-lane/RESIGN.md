@@ -55,8 +55,9 @@ identity keeps the gate open. The Keychain "Always Allow" prompt also needs Mich
 
 Order: identity hash, keychain check, stage and sign, lock and CI gate, quit, swap, record.
 
-- Keychain: `security show-keychain-info` on the login keychain (`CBQA_KEYCHAIN` overrides) runs before the first `codesign`; locked gives `BLOCKED keychain-locked` (exit 6), nothing staged.
+- Keychain: `keychain_unlocked.py` reads `SecKeychainGetStatus` on the login keychain (`CBQA_KEYCHAIN` overrides) and requires kSecUnlockStateStatus, fail closed, before the first `codesign` (`security show-keychain-info` only reports timeouts and succeeds when locked); locked or unreadable gives `BLOCKED keychain-locked` (exit 6), nothing staged.
 - Lock: the caller passes preflight's lock token in `CBQA_LOCK_TOKEN`; `resign.sh` runs `cbqa_lane.py case-gate --token` (lock owned, time budget, CI idle) before quitting. `BLOCKED desktop-busy` or `BLOCKED ci-busy` (exit 7), app untouched, no lock is taken or removed. No token counts as not owned.
 - Quit: PIDs come from `pgrep -f` on `<installed app>/Contents/MacOS/`, so a running hunt build is neither waited on nor quit. Timeout: `BLOCKED app-quit-timeout` (exit 5). No signals are sent.
 - Swap: `ditto` to `ContainerBar.app.cbqa-new.<pid>`, verify there, move the old bundle to `.cbqa-old.<pid>`, move the new one in, verify in place, delete the old one last. Any failure restores the old bundle and removes the temp: `BLOCKED qa-install-failed` (exit 8), "previous installation was kept".
 - Record: `branch-candidate.env` is written to a temp file and renamed, then read back (version-build, sha, identity hash, signed hash). A failure rolls the bundle and the previous record back (or removes the new one) and never prints `installed`.
+- The existing record is backed up before either bundle moves; a failed backup is `BLOCKED qa-install-failed` with nothing moved.

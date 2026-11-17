@@ -60,7 +60,8 @@ want=$(conf CBQA_SIGNING_IDENTITY_HASH)
 valid_hash "$want" || { echo "BLOCKED qa-identity-invalid"; exit 4; }
 # Fail closed on a locked login keychain (a plain ssh session) before any codesign call: codesign must never wait for a prompt.
 keychain=${CBQA_KEYCHAIN:-$HOME/Library/Keychains/login.keychain-db}
-security show-keychain-info "$keychain" >/dev/null 2>&1 || { echo "BLOCKED keychain-locked: run from the lane's gui context"; exit 6; }
+# (show-keychain-info only reports timeout settings and succeeds on a locked keychain, so it is not the check.)
+{ if [ -n "${CBQA_KEYCHAIN_CHECK:-}" ]; then "$CBQA_KEYCHAIN_CHECK" "$keychain"; else python3 "$here/keychain_unlocked.py" "$keychain"; fi; } >/dev/null 2>&1 || { echo "BLOCKED keychain-locked: run from the lane's gui context"; exit 6; }
 case $stage in */staged) ;; *) exit 64 ;; esac
 rm -rf "$stage"; mkdir -p "$stage"
 block() { echo "BLOCKED qa-signing-failed: $1"; rm -rf "$stage"; exit 3; }
@@ -120,7 +121,10 @@ verify_at() { codesign --verify --deep --strict "$1" >/dev/null 2>&1 && [ "$(sig
 rm -rf "$new"
 ditto "$stage/ContainerBar.app" "$new" || install_failed "cannot copy the candidate next to the installed app"
 verify_at "$new" || install_failed "the copied bundle failed verification"
-[ -f "$record" ] && cp -p "$record" "$stage/record.prev" && had_rec=1
+if [ -e "$record" ]; then   # the backup must succeed before either bundle moves, else the rollback would lose provenance
+  cp -p "$record" "$stage/record.prev" 2>/dev/null && [ -f "$stage/record.prev" ] || install_failed "cannot back up branch-candidate.env"
+  had_rec=1
+fi
 if [ -e "$app" ]; then
   mv "$app" "$old" || install_failed "cannot move the installed app aside"; had_old=1
 fi
