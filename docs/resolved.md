@@ -1,5 +1,9 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-135: `resign.sh` caller: lock token and `gui/501` context in the recipe~~
+**Resolved**: 2026-11-17 (branch fix/cb-135-resign-caller)
+**Description**: The recipe's branch-build command is now `CBQA_LOCK_TOKEN="$TOKEN" bash tools/containerbar-qa/resign-gui.sh <candidate.app> <branch-sha>`. New `scripts/qa-lane/resign-gui.sh` (copied by `install.sh`) is the one named mechanism: a one-shot `gui/501` LaunchAgent that runs `resign.sh` with the token in the job environment (plist mode 600, removed before exit, never printed) and returns its exit code unchanged (exit 9 = wrapper failure). `RESIGN.md` documents it, the direct-SSH `keychain-locked` negative case, and that `keychain_unlocked.py` always gets the keychain path. Tests: `scripts/tests/test_qa_lane_resign_gui.py` (7 cases). The real candidate-install run is recorded by homelab-it under CB-124 step (c); this item's on-Mini verification is that run.
+
 ## ~~CB-133: `resign.sh` install path, Codex r3 leftovers from PR 81~~
 **Resolved**: 2026-11-16 (branch fix/cb-133-resign-install-path)
 **Description**: Five gaps in `scripts/qa-lane/resign.sh`, fixed with one or more tests each in `scripts/tests/test_qa_lane_resign.py` (34 cases): (1) the installed app is kept until a verified sibling temp bundle is swapped in, and restored on any failure (`BLOCKED qa-install-failed`); (2) the desktop lock (`CBQA_LOCK_TOKEN`, `cbqa_lane.py case-gate`) and CI idle are confirmed before quitting (`BLOCKED desktop-busy` / `ci-busy`); (3) a locked login keychain gives `BLOCKED keychain-locked` before any `codesign`; (4) quit polling resolves the installed app's PIDs by bundle path, so a running hunt build is ignored (`BLOCKED app-quit-timeout`); (5) `branch-candidate.env` is written atomically, read back, and rolled back with the bundle on failure. Detail in `scripts/qa-lane/RESIGN.md`. Unblocks CB-124 step (a).
