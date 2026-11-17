@@ -88,7 +88,7 @@ Install a branch or CI build only with `bash tools/containerbar-qa/resign.sh <ca
 `CBQA_SIGNING_IDENTITY_HASH`, replaces `/Applications/ContainerBar.app` only after the verify passes, and records the build. Exit 3: `BLOCKED qa-signing-failed`
 (nothing installed); exit 4: `BLOCKED qa-identity-invalid`; neither marks a case FAIL. Launchd (gui/501) context only; see `RESIGN.md`. Before the static checks run
 `bash tools/containerbar-qa/resign.sh --provenance`. `mode=release`: continue below. `mode=branch-candidate`: its last line replaces the static checks and TC-CB-01's
-tag, appcast and cask comparison. `provenance=ok` is PASS (`identity=` feeds the gate's `HASH`); `provenance=FAIL <why>` is TC-CB-01 FAIL, as a signature failure.
+tag, appcast and cask comparison. `provenance=ok` is PASS (`identity=` feeds the gate's `HASH`); `provenance=FAIL <why>` is TC-CB-01 FAIL (a Developer ID signature is `mode=release` even with a stale record), as a signature failure.
 
 ## Before preflight: static signature checks (TC-CB-01, no launch)
 
@@ -171,13 +171,13 @@ missing
 
 **Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is installed, verified and running) and before TC-CB-14 and any SSH-dependent
 case or step. **Open** when the grant log has a `developer-id` line and TC-CB-01 found the Developer ID authority (any installed version), an `adhoc` line naming the
-installed `<version>-<build>`, or an `apple-development` line naming the verified identity hash:
+installed `<version>-<build>`, or an `apple-development` line naming the verified identity hash (a branch candidate, non-empty `HASH`, is opened by that line alone):
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
 BUILD='2.0.4-7'   # installed CFBundleShortVersionString-CFBundleVersion from TC-CB-01
 HASH=''           # identity= from the provenance check on a branch candidate; empty on a release
-awk -F' *[|] *' -v b="$BUILD" -v h="$HASH" '$2=="developer-id" || ($2=="adhoc" && $3==b) || ($2=="apple-development" && h!="" && $3==h) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
+awk -F' *[|] *' -v b="$BUILD" -v h="$HASH" 'h!="" {ok = ($2=="apple-development" && $3==h) ? 1 : ok; next} $2=="developer-id" || ($2=="adhoc" && $3==b) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
 ```
 
 Then Settings > Connections > `QA Runtime` > Test Connection must show success, the only proof. `No route to host` or the Local Network message while `ssh cbqa-ctl

@@ -127,6 +127,16 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(self.run_gate(["2026-11-16 | apple-development | 2.0.5-8 | michael"], "2.0.5-8", ""),
                          "gate-closed")
 
+    def test_branch_candidate_gate_ignores_other_identities(self):
+        # Codex r2 P2: a developer-id or adhoc line must not open the gate for a branch candidate.
+        old = ["2026-10-17 | developer-id | - | michael", "2026-10-18 | adhoc | 2.0.5-8 | michael"]
+        self.assertEqual(self.run_gate(old, "2.0.5-8", "AB12CD"), "gate-closed")
+        self.assertEqual(self.run_gate(old + ["2026-11-16 | apple-development | AB12CD | michael"],
+                                       "2.0.5-8", "AB12CD"), "gate-open")
+        self.assertEqual(self.run_gate(old + ["2026-11-16 | apple-development | AB12CD | michael"],
+                                       "2.0.5-8", "FFFFFF"), "gate-closed")
+        self.assertEqual(self.run_gate(old, "2.0.5-8", ""), "gate-open")   # a release keeps its old rules
+
     def test_connection_errors_are_redacted(self):
         # Codex round 2 (bot P2): no address or socket path reaches report.md.
         block = self.block_with("printf")

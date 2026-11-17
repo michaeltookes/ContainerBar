@@ -33,6 +33,9 @@ case "$*" in
   *--extract-certificates*) pre=$2; pre=${pre#--extract-certificates=}
     [ -f "$app/.sig" ] || exit 1; cp "$FAKE_DER_DIR/$(cat "$app/.sig").der" "${pre}0"; exit 0 ;;
   *"-d --entitlements"*) [ -f "$app/.ents" ] && echo "<plist/>"; exit 0 ;;
+  *-dvv*) [ -f "$app/.sig" ] || exit 1
+    if [ "$(cat "$app/.sig")" = release ]; then echo "Authority=Developer ID Application: x" >&2; else echo "Authority=Apple Development: x" >&2; fi
+    echo "Identifier=${FAKE_IDENT:-com.tookes.ContainerBar}" >&2; exit 0 ;;
   *--verify*) [ "$FAKE_VERIFY_FAIL" = 1 ] && { echo "a sealed resource is missing" >&2; exit 1; }; [ -f "$app/.sig" ]; exit $? ;;
   *--sign*) [ "$FAKE_SIGN_FAIL" = 1 ] && { echo "errSecInternalComponent" >&2; exit 1; }
     id=${*#*--sign }; id=${id%% *}
@@ -56,7 +59,13 @@ class ResignTests(unittest.TestCase):
         (r / "bin" / "codesign").write_text(FAKE_CODESIGN)
         (r / "bin" / "security").write_text(
             '#!/bin/bash\necho "  1) %s \\"Apple Development: x\\""\n' % self.hash_a)
-        for n in ("codesign", "security"):
+        (r / "bin" / "xattr").write_text(
+            '#!/bin/bash\napp="${@: -1}"\ncase "$1" in -dr) [ "$FAKE_XATTR_STUCK" = 1 ] || rm -f "$app/.quar" ;;\n'
+            '-lr) [ -f "$app/.quar" ] && echo "$app: com.apple.quarantine: 0083" ;; esac\nexit 0\n')
+        (r / "bin" / "pgrep").write_text('#!/bin/bash\n[ -f "$FAKE_RUNNING" ]\n')
+        (r / "bin" / "osascript").write_text('#!/bin/bash\necho "osascript $*" >> "$FAKE_LOG"\n'
+                                             '[ "$FAKE_QUIT_REFUSES" = 1 ] || rm -f "$FAKE_RUNNING"\n')
+        for n in ("codesign", "security", "xattr", "pgrep", "osascript"):
             (r / "bin" / n).chmod(0o755)
         self.log = r / "calls.log"
         self.set_hash(self.hash_a)
@@ -68,15 +77,18 @@ class ResignTests(unittest.TestCase):
         (self.app / ".sig").write_text("release")
         self.env = dict(os.environ, CBQA_WORKSPACE=str(self.ws), CBQA_APP_PATH=str(self.app), TMPDIR=str(r),
                         PATH=str(r / "bin") + ":" + os.environ["PATH"], FAKE_LOG=str(self.log),
-                        FAKE_DER_DIR=str(r / "der"), FAKE_SIGNER="active", FAKE_SIGN_FAIL="0", FAKE_VERIFY_FAIL="0")
+                        FAKE_DER_DIR=str(r / "der"), FAKE_SIGNER="active", FAKE_SIGN_FAIL="0", FAKE_VERIFY_FAIL="0",
+                        FAKE_RUNNING=str(r / "running"), CBQA_QUIT_POLL="0", FAKE_XATTR_STUCK="0",
+                        FAKE_QUIT_REFUSES="0")
 
     def set_hash(self, value):
         (self.ws / "qa" / "containerbar" / "lane.env").write_text("CBQA_SIGNING_IDENTITY_HASH=%s\n" % value)
 
-    def make_app(self, path, version, build, *flags):
+    def make_app(self, path, version, build, *flags, ident="com.tookes.ContainerBar"):
         (path / "Contents").mkdir(parents=True)
         with open(path / "Contents" / "Info.plist", "wb") as f:
-            plistlib.dump({"CFBundleShortVersionString": version, "CFBundleVersion": build}, f)
+            plistlib.dump({"CFBundleShortVersionString": version, "CFBundleVersion": build,
+                           "CFBundleIdentifier": ident}, f)
         for flag in flags:
             (path / flag).write_text("")
 
@@ -167,6 +179,58 @@ class ResignTests(unittest.TestCase):
     def test_a_released_build_over_a_stale_record_is_judged_as_release(self):
         self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
         shutil.rmtree(self.app); self.make_app(self.app, "2.0.5", "8")
+        self.assertEqual(self.run_resign("--provenance").stdout.strip(), "mode=release")
+
+    def test_developer_id_build_with_the_same_version_build_is_release(self):
+        # Codex r2 P2: a leftover record must not make a Developer ID build a branch candidate.
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        (self.app / ".sig").write_text("release")
+        self.assertEqual(self.run_resign("--provenance").stdout.strip(), "mode=release")
+
+    def test_running_app_is_quit_gracefully_before_the_replace(self):
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("relaunch required", done.stdout)
+        self.assertIn('tell application id "com.tookes.ContainerBar" to quit', self.log.read_text())
+        self.assertEqual(self.installed_version(), "9")
+
+    def test_app_that_will_not_quit_blocks_and_installs_nothing(self):
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc", FAKE_QUIT_REFUSES="1")
+        self.assertEqual(done.returncode, 5)
+        self.assertIn("BLOCKED restore-failed", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertFalse((self.ws / "qa" / "containerbar" / "branch-candidate.env").exists())
+
+    def test_quarantine_is_stripped_from_the_staged_copy(self):
+        (self.cand / ".quar").write_text("")
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        self.assertFalse((self.app / ".quar").exists())
+
+    def test_quarantine_that_cannot_be_removed_blocks(self):
+        (self.cand / ".quar").write_text("")
+        done = self.run_resign(str(self.cand), "abc", FAKE_XATTR_STUCK="1")
+        self.assertEqual(done.returncode, 3)
+        self.assertIn("quarantine", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_hunt_build_is_never_resigned(self):
+        hunt = self.root / "hunt" / "ContainerBar.app"
+        self.make_app(hunt, "2.1.0", "9", ident="com.tookes.ContainerBar.hunt")
+        done = self.run_resign(str(hunt), "abc")
+        self.assertEqual(done.returncode, 3)
+        self.assertIn("com.tookes.ContainerBar.hunt", done.stdout)
+        self.assertNotIn("--sign", self.log.read_text() if self.log.exists() else "")
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_signed_identifier_must_still_match(self):
+        done = self.run_resign(str(self.cand), "abc", FAKE_IDENT="com.other.app")
+        self.assertEqual(done.returncode, 3)
+        self.assertIn("com.other.app", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_provenance_marker_for_unused_check(self):
         self.assertEqual(self.run_resign("--provenance").stdout.strip(), "mode=release")
 
 

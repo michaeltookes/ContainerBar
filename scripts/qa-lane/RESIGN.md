@@ -41,3 +41,12 @@ The first run of a re-signed build shows the Local Network dialog once for this 
 lane never clicks it) and the lane appends `<YYYY-MM-DD> | apple-development | <identity SHA-1> | michael` to
 `qa/containerbar/local-network-grants.log`. The grant names the signing identity, not the build, so a rebuild signed by the same
 identity keeps the gate open. The Keychain "Always Allow" prompt also needs Michael once.
+
+## Round 2 additions (Codex r2)
+
+- Running app: `resign.sh` asks ContainerBar to quit (`osascript`, bounded wait, never a kill) before replacing the bundle and prints `relaunch required`; the lane must launch fresh, not reuse the old PID. If it will not quit: exit 5, `BLOCKED restore-failed`, nothing installed.
+- `--provenance`: branch mode needs an Apple Development signature AND a record matching the installed version-build. A Developer ID signature is `mode=release` even with a stale record.
+- Gate: a branch candidate (non-empty HASH) is opened only by an `apple-development` line with its hash; `developer-id` and `adhoc` lines do not open it.
+- Hourly checks call `resign.sh --provenance`: a verified branch candidate skips spctl and release-drift; unverified gives `branch-provenance-failed`.
+- `com.apple.quarantine` is stripped from the staged copy and verified absent before install.
+- `CFBundleIdentifier` must be `com.tookes.ContainerBar` before and after signing, else `BLOCKED qa-signing-failed` naming the identifier (hunt builds are excluded).
