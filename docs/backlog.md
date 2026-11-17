@@ -151,21 +151,6 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 **Test cases**: TC-CB-22, TC-CB-23, TC-CB-05 (precondition), TC-CB-03.
 
-### CB-133: `resign.sh` install path: Codex r3 leftovers before the first re-signed run (CB-124 follow-up)
-**Priority**: High (P1, blocks CB-124 step (c))
-**Rank**: before CB-124 activation; first in the QA-lane order.
-**Source**: Codex review of PR 81, round 3 (2026-11-16): five findings left at the review cap when the PR merged (`c785f8c`). No duplicate in `docs/backlog.md` or `docs/resolved.md`.
-**Description**: `scripts/qa-lane/resign.sh` replaces `/Applications/ContainerBar.app` on Lucius' QA Mini, the same desktop the Sentwise pass and CI share. Five gaps can leave the Mini with no installed app, kill the wrong process's window, sign against a locked keychain, or record a candidate that was never installed. Fix all five before the first supervised re-signed run. Owner: builder. Size **S**. Lane code and `scripts/tests/test_qa_lane_resign.py` only; no app code.
-
-**Acceptance** (each one has a test in `scripts/tests/test_qa_lane_resign.py`):
-1. **Keep the old install until the new one is in place.** Given an installed `/Applications/ContainerBar.app`, when `resign.sh` installs a verified candidate, then it copies the candidate to a sibling temporary bundle in `/Applications`, verifies it there, and swaps it into place; it never runs `rm -rf` on the installed app before the copy succeeded. Unhappy path: given the copy or the post-copy verify fails (simulate a full disk or a failed `ditto`), then the old bundle is still at `/Applications/ContainerBar.app` with its old `CFBundleVersion`, the temporary bundle is removed, and the script exits non-zero with `BLOCKED qa-install-failed`.
-2. **Hold the desktop lock and confirm CI idle before quitting or replacing.** Given the `brief-template.md` desktop-lock contract, when `resign.sh` is about to quit ContainerBar, then it holds the shared desktop lock (or the caller's pass token) and the CI-busy predicate reports idle. Unhappy path: given the lock is held by another pass, then it exits `BLOCKED desktop-busy` without quitting the app; given a `Runner.Worker` process exists, then it exits `BLOCKED ci-busy`; in both cases the installed app is unchanged and no lock is removed.
-3. **Fail closed on a locked keychain.** Given the login keychain is locked (a plain `ssh` session), when `resign.sh` runs, then it checks the unlock state before the first `codesign` call and exits `BLOCKED keychain-locked` (US-3 AC5) with no `codesign` invocation and nothing installed. Given it runs in the lane's `gui/501` context with the keychain unlocked, then signing proceeds.
-4. **Wait on the installed app, not on a process name.** Given a hunt build (`com.tookes.ContainerBar.hunt`, same executable name) is also running, when `resign.sh` quits the installed app, then it polls the PID whose executable path is inside `/Applications/ContainerBar.app` and returns once that PID has exited, without waiting on or touching the hunt process. Unhappy path: given the installed app does not exit within the bounded wait, then it exits `BLOCKED app-quit-timeout` and replaces nothing; no `kill`, `pkill` or `killall` is used.
-5. **Write `branch-candidate.env` atomically, then confirm.** Given a successful swap, when `resign.sh` records provenance, then it writes `branch-candidate.env` to a temporary file in the same directory and renames it, re-reads it and checks the commit, bundle version and identity hash match the installed bundle, and only then prints `installed`. Unhappy path: given the write or the check fails, then it restores the previous app bundle and the previous `branch-candidate.env` (or none, if there was none), prints no `installed`, and exits non-zero.
-
-**Test cases**: lane unit tests above; TC-CB-01 and `lane_hourly` read `branch-candidate.env` through `--provenance` (unchanged).
-
 ### CB-134: QA lane: TC-CB-08 video survives the relaunch, and preflight probes Test Connection and records the Local Network grant itself
 **Priority**: Medium (P2, the case verdict and the gate have workarounds: screenshots carry the verdict; a human writes the grant line)
 **Rank**: after CB-124 activation, before CB-131.

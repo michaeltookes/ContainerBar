@@ -58,14 +58,32 @@ class ResignTests(unittest.TestCase):
         _, self.hash_b = make_cert(r / "der", "other")
         (r / "bin" / "codesign").write_text(FAKE_CODESIGN)
         (r / "bin" / "security").write_text(
-            '#!/bin/bash\necho "  1) %s \\"Apple Development: x\\""\n' % self.hash_a)
+            '#!/bin/bash\necho "security $*" >> "$FAKE_LOG"\n'
+            'case "$1" in show-keychain-info) exit 0 ;; esac   # real behaviour: succeeds even when the keychain is locked\n'
+            'echo "  1) %s \\"Apple Development: x\\""\n' % self.hash_a)
         (r / "bin" / "xattr").write_text(
             '#!/bin/bash\napp="${@: -1}"\ncase "$1" in -dr) [ "$FAKE_XATTR_STUCK" = 1 ] || rm -f "$app/.quar" ;;\n'
             '-lr) [ -f "$app/.quar" ] && echo "$app: com.apple.quarantine: 0083" ;; esac\nexit 0\n')
-        (r / "bin" / "pgrep").write_text('#!/bin/bash\n[ -f "$FAKE_RUNNING" ]\n')
+        # pgrep -x ContainerBar lists every process of that name (installed app 4242, hunt build 5151, odd one 6666);
+        # pgrep -f never matches a relative launch, so resign.sh must not depend on it.
+        (r / "bin" / "pgrep").write_text(
+            '#!/bin/bash\necho "pgrep $*" >> "$FAKE_LOG"\n'
+            '[ "$*" = "-x ContainerBar" ] || exit 1\n'
+            '[ -f "$FAKE_RUNNING" ] && echo 4242; [ -f "$FAKE_HUNT_RUNNING" ] && echo 5151; [ -f "$FAKE_ODD_RUNNING" ] && echo 6666\n'
+            'exit 0\n')
+        (r / "bin" / "pidpath").write_text(
+            '#!/bin/bash\ncase "$1" in 4242) echo "$FAKE_APP_PATH/Contents/MacOS/ContainerBar" ;;\n'
+            '5151) echo "/Users/x/hunt/ContainerBar.app/Contents/MacOS/ContainerBar" ;; *) exit 1 ;; esac\n')
+        (r / "bin" / "ditto").write_text(   # a copy into the sibling temp bundle can be made to fail half way
+            '#!/bin/bash\ncase "$2" in *cbqa-new*) if [ "$FAKE_DITTO_FAIL" = 1 ]; then mkdir -p "$2"; echo partial > "$2/part"; exit 1; fi ;; esac\n'
+            'exec /usr/bin/ditto "$@"\n')
+        (r / "bin" / "keychain").write_text('#!/bin/bash\necho "keychain-check $*" >> "$FAKE_LOG"\n[ "$FAKE_KEYCHAIN_LOCKED" != 1 ]\n')
+        (r / "bin" / "lane").write_text(   # stands in for cbqa_lane.py: case-gate answers from FAKE_GATE
+            '#!/bin/bash\necho "lane $*" >> "$FAKE_LOG"\n'
+            'case "$FAKE_GATE" in ok) echo ok; exit 0 ;; busy) echo "BLOCKED ci-busy " ; exit 2 ;; *) echo "BLOCKED time-budget lock-not-owned "; exit 2 ;; esac\n')
         (r / "bin" / "osascript").write_text('#!/bin/bash\necho "osascript $*" >> "$FAKE_LOG"\n'
                                              '[ "$FAKE_QUIT_REFUSES" = 1 ] || rm -f "$FAKE_RUNNING"\n')
-        for n in ("codesign", "security", "xattr", "pgrep", "osascript"):
+        for n in ("codesign", "security", "xattr", "pgrep", "osascript", "ditto", "lane", "keychain", "pidpath"):
             (r / "bin" / n).chmod(0o755)
         self.log = r / "calls.log"
         self.set_hash(self.hash_a)
@@ -79,7 +97,10 @@ class ResignTests(unittest.TestCase):
                         PATH=str(r / "bin") + ":" + os.environ["PATH"], FAKE_LOG=str(self.log),
                         FAKE_DER_DIR=str(r / "der"), FAKE_SIGNER="active", FAKE_SIGN_FAIL="0", FAKE_VERIFY_FAIL="0",
                         FAKE_RUNNING=str(r / "running"), CBQA_QUIT_POLL="0", FAKE_XATTR_STUCK="0",
-                        FAKE_QUIT_REFUSES="0")
+                        FAKE_QUIT_REFUSES="0", FAKE_HUNT_RUNNING=str(r / "hunt-running"), FAKE_KEYCHAIN_LOCKED="0",
+                        FAKE_DITTO_FAIL="0", FAKE_GATE="ok", CBQA_LANE_CMD=str(r / "bin" / "lane"), CBQA_KEYCHAIN_CHECK=str(r / "bin" / "keychain"), CBQA_PIDPATH_CMD=str(r / "bin" / "pidpath"),
+                        FAKE_APP_PATH=str(self.app), FAKE_ODD_RUNNING=str(r / "odd-running"),
+                        CBQA_LOCK_TOKEN="pass.abc123", CBQA_KEYCHAIN=str(r / "login.keychain-db"))
 
     def set_hash(self, value):
         (self.ws / "qa" / "containerbar" / "lane.env").write_text("CBQA_SIGNING_IDENTITY_HASH=%s\n" % value)
@@ -199,7 +220,7 @@ class ResignTests(unittest.TestCase):
         Path(self.env["FAKE_RUNNING"]).write_text("")
         done = self.run_resign(str(self.cand), "abc", FAKE_QUIT_REFUSES="1")
         self.assertEqual(done.returncode, 5)
-        self.assertIn("BLOCKED restore-failed", done.stdout)
+        self.assertIn("BLOCKED app-quit-timeout", done.stdout)
         self.assertEqual(self.installed_version(), "7")
         self.assertFalse((self.ws / "qa" / "containerbar" / "branch-candidate.env").exists())
 
@@ -228,6 +249,186 @@ class ResignTests(unittest.TestCase):
         done = self.run_resign(str(self.cand), "abc", FAKE_IDENT="com.other.app")
         self.assertEqual(done.returncode, 3)
         self.assertIn("com.other.app", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def record_path(self):
+        return self.ws / "qa" / "containerbar" / "branch-candidate.env"
+
+    def leftovers(self):
+        return sorted(p.name for p in self.app.parent.iterdir() if p.name != "ContainerBar.app")
+
+    # CB-133 fix 1: keep the installed app until the replacement is in place
+    def test_install_goes_through_a_sibling_temp_bundle_and_leaves_nothing_behind(self):
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        calls = self.log.read_text()
+        self.assertNotIn("rm -rf", calls)
+        self.assertEqual(self.installed_version(), "9")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_failed_copy_keeps_the_old_app_and_removes_the_temp_bundle(self):
+        done = self.run_resign(str(self.cand), "abc", FAKE_DITTO_FAIL="1")
+        self.assertEqual(done.returncode, 8, done.stdout)
+        self.assertIn("BLOCKED qa-install-failed", done.stdout)
+        self.assertIn("previous installation was kept", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertEqual((self.app / ".sig").read_text().strip(), "release")
+        self.assertEqual(self.leftovers(), [])
+        self.assertFalse(self.record_path().exists())
+
+    def test_post_copy_verify_failure_keeps_the_old_app(self):
+        # verify passes on the staged copy, fails on the copied one: the fake fails after the first successful sign
+        (self.root / "bin" / "codesign").write_text(FAKE_CODESIGN.replace(
+            '*--verify*) [', '*--verify*) case "$app" in *cbqa-new*) echo bad >&2; exit 1;; esac; ['))
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 8, done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_first_install_with_no_previous_app(self):
+        shutil.rmtree(self.app)
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        self.assertEqual(self.installed_version(), "9")
+
+    # CB-133 fix 2: desktop lock and CI idle before quitting or replacing
+    def test_gate_is_checked_with_the_pass_token_before_the_quit(self):
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        calls = self.log.read_text()
+        self.assertIn("lane case-gate --token pass.abc123", calls)
+        self.assertLess(calls.index("lane case-gate"), calls.index("osascript"))
+
+    def test_lock_held_by_another_pass_is_desktop_busy(self):
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc", FAKE_GATE="notowned")
+        self.assertEqual(done.returncode, 7)
+        self.assertIn("BLOCKED desktop-busy", done.stdout)
+        self.assertIn("lock-not-owned", done.stdout)
+        self.assertNotIn("osascript", self.log.read_text())
+        self.assertTrue(Path(self.env["FAKE_RUNNING"]).exists())
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_no_lock_token_is_desktop_busy(self):
+        env = dict(self.env); env.pop("CBQA_LOCK_TOKEN")
+        done = subprocess.run(["/bin/bash", RESIGN, str(self.cand), "abc"], env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 7)
+        self.assertIn("BLOCKED desktop-busy", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_ci_runner_worker_is_ci_busy(self):
+        done = self.run_resign(str(self.cand), "abc", FAKE_GATE="busy")
+        self.assertEqual((done.returncode, done.stdout.strip()), (7, "BLOCKED ci-busy"))
+        self.assertEqual(self.installed_version(), "7")
+        self.assertFalse(self.record_path().exists())
+
+    # CB-133 fix 3: fail closed on a locked keychain
+    def test_locked_keychain_blocks_before_any_codesign(self):
+        done = self.run_resign(str(self.cand), "abc", FAKE_KEYCHAIN_LOCKED="1")
+        self.assertEqual(done.returncode, 6)
+        self.assertIn("BLOCKED keychain-locked", done.stdout)
+        self.assertNotIn("\ncodesign ", "\n" + self.log.read_text())
+        self.assertEqual(self.installed_version(), "7")
+        self.assertFalse((self.ws / "artifacts" / "containerbar-qa" / "staged").exists())
+
+    def test_unlocked_keychain_is_checked_then_signing_proceeds(self):
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        calls = self.log.read_text()
+        self.assertIn("keychain-check", calls)
+        self.assertNotIn("show-keychain-info", calls)
+        self.assertLess(calls.index("keychain-check"), calls.index("\ncodesign "))
+
+    def test_unlock_state_helper_fails_closed(self):
+        helper = os.path.join(LANE_DIR, "keychain_unlocked.py")
+        for args in ([], [str(self.root / "no-such.keychain-db")], ["a", "b"]):
+            done = subprocess.run(["python3", helper, *args], capture_output=True)
+            self.assertEqual(done.returncode, 1, args)
+
+    def test_keychain_check_error_is_keychain_locked(self):
+        env = dict(self.env, CBQA_KEYCHAIN_CHECK=str(self.root / "bin" / "missing-helper"))
+        done = subprocess.run(["/bin/bash", RESIGN, str(self.cand), "abc"], env=env, capture_output=True, text=True)
+        self.assertEqual(done.returncode, 6)
+        self.assertIn("BLOCKED keychain-locked", done.stdout)
+
+    def test_record_backup_failure_moves_nothing(self):
+        self.record_path().write_text("VERSION_BUILD=old\nSHA=old\nIDENTITY_HASH=old\n")
+        (self.root / "bin" / "cp").write_text('#!/bin/bash\ncase "$*" in *record.prev*) exit 1 ;; esac\nexec /bin/cp "$@"\n'); (self.root / "bin" / "cp").chmod(0o755)
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 8, done.stdout)
+        self.assertIn("BLOCKED qa-install-failed", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertEqual(self.leftovers(), [])
+        self.assertIn("SHA=old", self.record_path().read_text())
+
+    # CB-133 fix 4: quit polling by the installed app's PID, not the process name
+    def test_hunt_build_running_does_not_block_or_get_quit(self):
+        Path(self.env["FAKE_HUNT_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertNotIn("osascript", self.log.read_text())
+        self.assertNotIn("relaunch required", done.stdout)
+        self.assertTrue(Path(self.env["FAKE_HUNT_RUNNING"]).exists())
+
+    def test_quit_polls_the_installed_bundle_path(self):
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        Path(self.env["FAKE_HUNT_RUNNING"]).write_text("")
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        self.assertIn("osascript", self.log.read_text())   # only the installed app's PID (by resolved path) triggers the quit
+        self.assertTrue(Path(self.env["FAKE_HUNT_RUNNING"]).exists())
+
+    def test_relative_launch_is_caught_by_its_resolved_path(self):
+        # started as ./ContainerBar inside Contents/MacOS: pgrep -f finds nothing, the resolved path still names the bundle
+        Path(self.env["FAKE_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 0, done.stdout)
+        self.assertIn("relaunch required", done.stdout)
+        self.assertIn("osascript", self.log.read_text())
+
+    def test_unresolvable_pid_path_is_waited_on_not_ignored(self):
+        Path(self.env["FAKE_ODD_RUNNING"]).write_text("")
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertEqual(done.returncode, 5, done.stdout)
+        self.assertIn("BLOCKED app-quit-timeout", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+
+    def test_pid_path_helper_fails_closed_and_resolves_a_real_process(self):
+        helper = os.path.join(LANE_DIR, "pid_path.py")
+        for args in ([], ["notapid"], ["99999999"]):
+            self.assertEqual(subprocess.run(["python3", helper, *args], capture_output=True).returncode, 1, args)
+        ok = subprocess.run(["python3", helper, str(os.getpid())], capture_output=True, text=True)
+        self.assertEqual(ok.returncode, 0)
+        self.assertTrue(ok.stdout.strip().startswith("/"))
+
+    def test_no_signal_commands_in_the_script(self):
+        text = Path(RESIGN).read_text()
+        for word in ("kill ", "pkill", "killall"):
+            self.assertNotIn(word, text)
+
+    # CB-133 fix 5: atomic provenance record, read back, rolled back on failure
+    def test_record_is_written_via_a_temp_file_and_checked(self):
+        self.assertEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        self.assertEqual(sorted(p.name for p in self.record_path().parent.iterdir() if p.name.startswith("branch-candidate")),
+                         ["branch-candidate.env"])
+        self.assertIn("SHA=abc", self.record_path().read_text())
+
+    def test_unwritable_record_rolls_back_to_the_old_app_and_prints_no_installed(self):
+        d = self.record_path().parent
+        d.chmod(0o555)
+        self.addCleanup(d.chmod, 0o755)
+        done = self.run_resign(str(self.cand), "abc")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertNotIn("installed", done.stdout.replace("qa-install-failed", "").replace("previous installation", ""))
+        self.assertIn("BLOCKED qa-install-failed", done.stdout)
+        self.assertEqual(self.installed_version(), "7")
+        self.assertEqual((self.app / ".sig").read_text().strip(), "release")
+        self.assertEqual(self.leftovers(), [])
+        self.assertFalse(self.record_path().exists())
+
+    def test_previous_record_survives_a_failed_install(self):
+        self.record_path().write_text("VERSION_BUILD=old\nSHA=old\nIDENTITY_HASH=old\n")
+        d = self.record_path().parent
+        d.chmod(0o555)
+        self.addCleanup(d.chmod, 0o755)
+        self.assertNotEqual(self.run_resign(str(self.cand), "abc").returncode, 0)
+        self.assertIn("SHA=old", self.record_path().read_text())
         self.assertEqual(self.installed_version(), "7")
 
     def test_provenance_marker_for_unused_check(self):
