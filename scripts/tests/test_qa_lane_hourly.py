@@ -149,6 +149,15 @@ class HourlyTests(unittest.TestCase):
         self._samples(env, [100])
         self.assertEqual(len(env.posts), 2)
 
+    def test_rss_ps_failure_breaks_streak(self):
+        env = Env(self)
+        self._samples(env, [450, 450])
+        orig = env.runner.handlers[:]
+        env.runner.handlers.insert(0, ("ps -o rss=,time=", lambda argv: (1, "")))
+        self.assertIn("app-not-running", env.run()["failures"])
+        env.runner.handlers[:] = orig
+        self.assertEqual(self._samples(env, [450])[-1], [])
+
     def test_rss_limit_from_lane_env_and_invalid_falls_back(self):
         env = Env(self)
         env.lane.settings["CBQA_RSS_LIMIT_MB"] = "250"

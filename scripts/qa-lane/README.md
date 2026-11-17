@@ -101,7 +101,8 @@ CBQA_ALERT_TARGET=channel:<lucius-updates-id>
 CBQA_DAILY_TARGET=channel:<containerbar-channel-id>
 CBQA_DEVELOPER_ID_AUTHORITY=Authority=Developer ID Application: <owner> (<team-id>)
 CBQA_SIGNING_IDENTITY_HASH=<sha1-of-active-apple-development-identity>
-CBQA_RSS_LIMIT_MB=400   # optional, hourly app RSS limit (CB-132)
+# optional: hourly app RSS limit in MB (CB-132); keep comments off the value line
+CBQA_RSS_LIMIT_MB=400
 ```
 
 The recipe also reads `qa/containerbar/local-network-grants.log`, one line per

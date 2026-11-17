@@ -189,6 +189,8 @@ def check_app(lane: Lane, state: Dict[str, object], deadline: float) -> Tuple[Op
     rc, out = lane.call(["ps", "-o", "rss=,time=", "-p", str(pid)], 5, deadline)
     fields = out.split()
     if rc != 0 or len(fields) < 2:
+        state.pop("cpu_sample", None)
+        state.pop("rss_samples", None)
         return "app-not-running", "ps could not read pid %d" % pid
     rss_kb, cpu = int(fields[0]), parse_cputime(fields[1])
     now = lane.clock.now()
