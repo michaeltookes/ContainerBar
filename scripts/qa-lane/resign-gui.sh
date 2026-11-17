@@ -73,7 +73,7 @@ PLIST
 # It is one-shot and finishes (and rolls back on its own checked failures) by itself.
 timed_out=0; finished=0
 # Boot out only a job that has finished (its rc file was read back); anything else is left running, whatever ended the wrapper.
-cleanup() { [ "$timed_out" = 1 ] || [ "$finished" = 1 ] || "$launchctl_bin" bootout "gui/$uid/$label" >/dev/null 2>&1 || true; rm -f "$plist"; }
+cleanup() { [ "$timed_out" = 1 ] || [ "$finished" != 1 ] || "$launchctl_bin" bootout "gui/$uid/$label" >/dev/null 2>&1 || true; rm -f "$plist"; }
 interrupted() { timed_out=1; echo "resign-gui: interrupted; resign.sh was left running (never killed mid-install). Do not retry; read $dir/rc and $dir/output.txt later, then report" >&2; exit 9; }
 trap interrupted HUP INT TERM
 trap cleanup EXIT
