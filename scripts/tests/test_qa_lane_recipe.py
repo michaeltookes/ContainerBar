@@ -343,6 +343,13 @@ class Tc02RecipeTests(unittest.TestCase):
         for line in ("hunt-process:", "hunt-sparkle:", "hunt-fixture-text"):
             self.assertIn(line, self.tc02)
 
+    def test_no_command_variable_in_the_tc_cb_02_block(self):
+        # zsh does not word-split $L: every command is written out directly.
+        block = "\n".join(shell_blocks(self.tc02))
+        self.assertNotRegex(block, r"(?m)^\$[A-Za-z_]+ ")
+        self.assertNotIn('L="python3', block)
+        self.assertEqual(block.count("python3 -B tools/containerbar-qa/cbqa_lane.py"), 4)
+
     def test_new_module_is_installed(self):
         install = Path(LANE_DIR, "install.sh").read_text()
         self.assertIn("lane_evidence.py", install)

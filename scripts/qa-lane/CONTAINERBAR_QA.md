@@ -165,15 +165,15 @@ disagree: `FAIL TC-CB-01` with the four values.
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
-L="python3 -B tools/containerbar-qa/cbqa_lane.py"; C="<run>/assets/TC-CB-02"
-$L capture-status-item --run-dir "<run>" --case-dir "$C"   # 01-status-item.png (frame + 4 px, at most 32 px tall) and the AX value
-$L open-panel --run-dir "<run>" --shot "$C/02-panel-open.png"
-$L hunt-checks --case-dir "$C" --fixture-text absent       # absent|present: the host `Fixture Docker` or `fixture log line` visible in 02-panel-open.png
-$L tc-cb-02-verdict --run-dir "<run>" --case-dir "$C"
+C="<run>/assets/TC-CB-02"
+python3 -B tools/containerbar-qa/cbqa_lane.py capture-status-item --run-dir "<run>" --case-dir "$C"   # 01-status-item.png and the AX value
+python3 -B tools/containerbar-qa/cbqa_lane.py open-panel --run-dir "<run>" --shot "$C/02-panel-open.png"
+python3 -B tools/containerbar-qa/cbqa_lane.py hunt-checks --case-dir "$C" --fixture-text absent   # absent|present: `Fixture Docker` or `fixture log line` in 02-panel-open.png
+python3 -B tools/containerbar-qa/cbqa_lane.py tc-cb-02-verdict --run-dir "<run>" --case-dir "$C"
 ```
 
 Paste the three `hunt-*` lines verbatim (`hunt-process: none|<pid>`, `hunt-sparkle: absent|<value>` (a value links CB-074; a missing domain still passes),
-`hunt-fixture-text`). The verdict line is the result: `PASS`; `FAIL P1` (fixture text seen: hunt mode in a release, CB-090); `BLOCKED evidence-incomplete <item>`
+`hunt-fixture-text`; a `hunt-process: error <reason>` or `hunt-sparkle: error <reason>` probe failure is `BLOCKED evidence-incomplete hunt-checks`, never `none`/`absent`). The verdict line is the result: `PASS`; `FAIL P1` (fixture text seen: hunt mode in a release, CB-090); `BLOCKED evidence-incomplete <item>`
 (`01-status-item.png`, `02-panel-open.png`, `ax-value` or `hunt-checks` missing; this case only, no other verdict changes); `BLOCKED status-item-frame-missing` (the frame lies off
 every display; attach `ax-dump.txt`). Record `found-by` too (PASS on `found-by: ax` as well).
 

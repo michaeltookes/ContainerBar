@@ -7,6 +7,7 @@ from pathlib import Path
 
 from qa_lane_fakes import FakeRunner, make_lane
 
+from lane_discovery import find_status_item
 from lane_evidence import (AX_FILE, HUNT_FILE, PANEL, STRIP, capture_status_item, hunt_checks, parse_hunt,
                            strip_region, verdict)
 from test_qa_lane_discovery import AX_RELEASED, Fixture, peek_json
@@ -54,6 +55,16 @@ class CaptureTests(Fixture):
         self.assertEqual(verdict(self.run_dir, self.case)[0], 2)
         self.assertIn("status-item-frame-missing", verdict(self.run_dir, self.case)[1])
 
+    def test_display_lookup_failure_is_case_local_not_a_run_block(self):
+        self.override("osascript -l JavaScript", lambda a: (124, ""))
+        code, lines = capture_status_item(self.lane, self.run_dir, self.case)
+        self.assertEqual(code, 0, lines)
+        self.assertFalse((self.run_dir / "status-item.json").exists() and
+                         "blocked" in (self.run_dir / "status-item.json").read_text())
+        self.assertFalse((self.case / STRIP).exists())
+        self.assertEqual(verdict(self.run_dir, self.case), (2, "BLOCKED evidence-incomplete %s" % STRIP))
+        self.assertEqual(find_status_item(self.lane, self.run_dir)[0], 0)  # later cases still run
+
     def test_empty_ax_value_is_not_recorded(self):
         self.ax = {100: "2|1|1453|3|54|24|5|ContainerBar|missing value\n"}
         code, lines = capture_status_item(self.lane, self.run_dir, self.case)
@@ -84,6 +95,22 @@ class HuntTests(Fixture):
         self.assertEqual(lines[0], "hunt-process: 200")
         self.assertEqual(lines[1], "hunt-sparkle: 2026-11-18 07:08:25 +0000")
         self.assertEqual(lines[2], "hunt-fixture-text: present")
+
+    def test_probe_timeouts_are_errors_not_none_or_absent_and_block_the_verdict(self):
+        self.override("pgrep", lambda a: (124, ""))
+        self.override("defaults read", lambda a: (124, ""))
+        case = self.root / "case"
+        capture_status_item(self.lane, self.run_dir, case)
+        (case / PANEL).write_text("panel")
+        _, lines = hunt_checks(self.lane, case, "absent")
+        self.assertEqual(lines[:2], ["hunt-process: error timeout", "hunt-sparkle: error timeout"])
+        self.assertEqual(verdict(self.run_dir, case), (2, "BLOCKED evidence-incomplete hunt-checks"))
+
+    def test_pgrep_no_match_and_defaults_exit_1_stay_none_and_absent(self):
+        self.override("pgrep", lambda a: (1, ""))
+        self.override("defaults read", lambda a: (1, ""))
+        _, lines = hunt_checks(self.lane, self.root / "case", "absent")
+        self.assertEqual(lines[:2], ["hunt-process: none", "hunt-sparkle: absent"])
 
     def test_missing_fixture_reading_is_unknown_and_parse_requires_all_three(self):
         _, lines = hunt_checks(self.lane, self.root / "case", "")

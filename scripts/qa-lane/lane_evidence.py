@@ -52,24 +52,29 @@ def capture_status_item(lane: Lane, run_dir: Path, case_dir: Path) -> Tuple[int,
     if code != 0 or not found:
         return 2, lines
     frame = list(found["frame"])  # type: ignore[arg-type]
-    display = display_for(displays(lane), center(frame))
-    if display is None:
-        # The frame lies off every display (or the display lookup failed): no evidence can be captured.
+    frames = displays(lane)
+    display = display_for(frames, center(frame))
+    if frames and display is None:
+        # A confirmed off-screen frame: no evidence can be captured, and the pass blocks.
         return _block(lane, run_dir, found, "status-item-frame-missing")[:2]
-    region = strip_region(frame, display)
     case_dir.mkdir(parents=True, exist_ok=True)
     strip = case_dir / STRIP
     if strip.exists():
         strip.unlink()
-    rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
-                      "--no-elements", "--path", str(strip), "--json"], 20)
-    if rc != 0 or not strip.exists():
-        if strip.exists():
-            strip.unlink()
-        lines = lines + ["capture-failed: %s" % STRIP]
+    if display is None:
+        # The display lookup failed or timed out: case-local incomplete evidence, never a run-wide block.
+        lines = lines + ["capture-failed: %s (display lookup failed)" % STRIP]
     else:
-        write_json(case_dir / CAPTURE_FILE, {"frame": frame, "region": region})
-        lines = lines + ["strip: %s" % strip, "strip-region: %s" % ",".join(str(v) for v in region)]
+        region = strip_region(frame, display)
+        rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
+                          "--no-elements", "--path", str(strip), "--json"], 20)
+        if rc != 0 or not strip.exists():
+            if strip.exists():
+                strip.unlink()
+            lines = lines + ["capture-failed: %s" % STRIP]
+        else:
+            write_json(case_dir / CAPTURE_FILE, {"frame": frame, "region": region})
+            lines = lines + ["strip: %s" % strip, "strip-region: %s" % ",".join(str(v) for v in region)]
     item = found.get("item")
     if not item and found.get("pid"):
         item = next((i for i in ax_items(lane, int(found["pid"])) if is_status_item(i)), None)  # type: ignore[arg-type]
@@ -86,6 +91,10 @@ def capture_status_item(lane: Lane, run_dir: Path, case_dir: Path) -> Tuple[int,
     return 0, lines
 
 
+def _reason(rc: int) -> str:
+    return "timeout" if rc == 124 else "rc=%s" % rc
+
+
 def hunt_checks(lane: Lane, case_dir: Path, fixture_text: str) -> Tuple[int, List[str]]:
     """The hunt lines, recorded verbatim in hunt-checks.txt and printed.
 
@@ -96,9 +105,18 @@ def hunt_checks(lane: Lane, case_dir: Path, fixture_text: str) -> Tuple[int, Lis
     released = set(released_pids(lane))
     rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
     hunters = [w for w in out.split() if rc == 0 and w.isdigit() and int(w) not in released]
+    if rc not in (0, 1):  # pgrep: 0 match, 1 no match; anything else is a probe error
+        process = "error %s" % _reason(rc)
+    else:
+        process = hunters[0] if hunters else "none"
     rc, out = lane.run(["defaults", "read", HUNT_DOMAIN, "SULastCheckTime"], 5)
-    sparkle = out.strip() if rc == 0 and out.strip() else "absent"
-    lines = ["hunt-process: %s" % (hunters[0] if hunters else "none"),
+    if rc == 0 and out.strip():
+        sparkle = out.strip()
+    elif rc in (0, 1):  # a missing domain or key is a normal exit 1
+        sparkle = "absent"
+    else:
+        sparkle = "error %s" % _reason(rc)
+    lines = ["hunt-process: %s" % process,
              "hunt-sparkle: %s" % sparkle,
              "hunt-fixture-text: %s" % (fixture_text if fixture_text in FIXTURE_VALUES else "unknown")]
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -135,7 +153,8 @@ def verdict(run_dir: Path, case_dir: Path) -> Tuple[int, str]:
     if not usable_ax_value(ax_value):
         missing.append("ax-value")
     hunt = parse_hunt((case_dir / HUNT_FILE).read_text()) if (case_dir / HUNT_FILE).exists() else {}
-    if len(hunt) < 3 or hunt.get("hunt-fixture-text") not in FIXTURE_VALUES:
+    errored = any(hunt.get(k, "").startswith("error") for k in ("hunt-process", "hunt-sparkle"))
+    if len(hunt) < 3 or errored or hunt.get("hunt-fixture-text") not in FIXTURE_VALUES:
         missing.append("hunt-checks")
     if missing:
         return 2, "BLOCKED evidence-incomplete %s" % missing[0]
