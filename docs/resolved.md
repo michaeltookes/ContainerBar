@@ -1,5 +1,9 @@
 # ContainerBar - Resolved Items
 
+## ~~CB-137: QA lane: status item and panel discovery through the AX tree of the released PID~~
+**Resolved**: 2026-11-17 (branch feat/cb-137-status-item-discovery)
+**Description**: Peekaboo's `menubar list` and `see --app` cannot see the ContainerBar status item or its panel on the QA Mini, so every UI case was BLOCKED. New `scripts/qa-lane/lane_discovery.py` and `cbqa_lane.py find-status-item | open-panel | close-panel`: Peekaboo first, then the AX tree of the released PID only (bar-1 app-menu items and the hunt build are never used); positional click with AXPress fallback; the panel is an AX menu captured by region; one `BLOCKED status-item-not-found|status-item-ambiguous|panel-not-capturable` line per pass with `ax-dump.txt`. Recipe: Status item step, TC-CB-02 passes on `found-by: ax`, new TC-CB-33. 17 new tests in `scripts/tests/test_qa_lane_discovery.py` (lane suite 200 tests). Verified on the QA Mini against 2.0.4-7: panel captured, QA Runtime Test Connection Connected. No app code change. Leftovers: CB-138.
+
 ## ~~CB-132: Hourly QA check: app RSS limit 400 MB, three consecutive samples~~
 **Resolved 2026-11-17** (branch `fix/cb-132-hourly-rss`). `lane_hourly.py` now alerts `app-rss-high` only after `RSS_STREAK` (3) consecutive hourly samples at or above the limit; the limit is `CBQA_RSS_LIMIT_MB` from `lane.env` (default 400; empty, non-numeric, zero or negative falls back to 400 with a log warning). Recent samples persist in `hourly-state.json` (`rss_samples`). Tests in `scripts/tests/test_qa_lane_hourly.py` (300 and 450 MB, two-of-three vs three-of-three, restart survival, one recovered message, invalid values); documented in `scripts/qa-lane/README.md`. `install.sh --apply` no longer reverts the Mini's behaviour. Follow-up for homelab-it: re-run `install.sh --apply` and confirm; record the reason for the 2026-10-26 patch.
 
