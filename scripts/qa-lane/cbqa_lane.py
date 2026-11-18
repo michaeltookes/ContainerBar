@@ -17,6 +17,8 @@
   find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax)
   open-panel --run-dir D [--shot F]   find, open and capture the panel (02-panel-open.png)
   close-panel                Escape the open status menu
+  grant-probe --run-dir D --identity I --ref R --result connected|failed|timeout
+                             CB-134: classify the one Test Connection attempt, write the grant line
   hold --run ID              internal: the lock holder's child process
 Exit codes: 0 ok/ready, 1 failure, 2 blocked, 3 needs-normalise.
 """
@@ -28,6 +30,7 @@ from pathlib import Path
 
 from lane_core import Lane, case_gate, ci_busy
 from lane_discovery import close_panel, find_status_item, open_panel
+from lane_grant import grant_probe
 from lane_hourly import append_log, hourly
 from lane_preflight import hold, normalise_after_dialogs, preflight, print_result, release_lock
 from lane_prefs import drift_files
@@ -66,6 +69,13 @@ def main(argv=None) -> int:
     opn.add_argument("--run-dir", required=True)
     opn.add_argument("--shot", default="")
     sub.add_parser("close-panel")
+    gp = sub.add_parser("grant-probe")
+    gp.add_argument("--run-dir", required=True)
+    gp.add_argument("--identity", required=True)
+    gp.add_argument("--ref", required=True)
+    gp.add_argument("--result", required=True, choices=["connected", "failed", "timeout"])
+    gp.add_argument("--error-text", default="")
+    gp.add_argument("--elapsed", type=float, default=0.0)
     hold_p = sub.add_parser("hold")
     hold_p.add_argument("--run", required=True)
     hold_p.add_argument("--release-file")
@@ -136,6 +146,11 @@ def main(argv=None) -> int:
     if args.cmd == "close-panel":
         close_panel(lane)
         return 0
+    if args.cmd == "grant-probe":
+        code, lines = grant_probe(lane, Path(args.run_dir), args.identity, args.ref, args.result,
+                                  args.error_text, args.elapsed)
+        print("\n".join(lines))
+        return code
     if args.cmd == "hold":
         return hold(lane, args.run, args.release_file, args.until)
     return 1

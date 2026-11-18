@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from pathlib import Path
 import sys
 import time
 import unittest
@@ -14,6 +16,7 @@ import unittest
 from qa_lane_fakes import FakeClock, FakeRunner, make_lane, status_json
 
 import lane_core
+import lane_grant
 import lane_preflight
 from lane_core import case_gate, ci_busy
 from lane_preflight import BLOCKED, NEEDS_NORMALISE, READY, normalise_after_dialogs, preflight
@@ -684,6 +687,175 @@ class RealLockHolderTests(unittest.TestCase):
             os.waitpid(pid, 0)
         except ChildProcessError:
             pass
+
+
+class GrantProbeTests(unittest.TestCase):
+    """CB-134: preflight 0g records the Local Network grant only after a dialog-free Connected."""
+
+    HASH = "ab" * 20  # synthetic, never a real identity
+
+    def setUp(self):
+        self.runner = FakeRunner()
+        self.lane, self.root = make_lane(self, self.runner)
+        self.run_dir = self.root / "run"
+        self.log = self.lane.state_dir / "local-network-grants.log"
+        self.dialog_out = ""
+        self.runner.on("osascript", lambda a: (0, self.dialog_out))
+        self.runner.on("screencapture", lambda a: (0, ""))
+
+    def probe(self, result="connected", identity="developer-id", ref="-", error="", elapsed=3.0, run_dir=None):
+        return lane_grant.grant_probe(self.lane, run_dir or self.run_dir, identity, ref, result, error, elapsed)
+
+    def lines(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_connect_without_dialog_writes_one_line_and_opens_the_gate(self):
+        code, out = self.probe()
+        self.assertEqual(code, 0)
+        self.assertIn("grant: proven by probe", out)
+        self.assertEqual(len(self.lines()), 1)
+        self.assertRegex(self.lines()[0], r"^\d{4}-\d{2}-\d{2} \| developer-id \| - \| lane$")
+        self.assertFalse(any("ASK" in line for line in out))
+
+    def test_second_run_writes_none(self):
+        self.probe()
+        code, out = self.probe(run_dir=self.root / "run2")
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.lines()), 1)
+        self.assertIn("grant: proven by probe", out)
+
+    def test_one_attempt_per_run_folder(self):
+        self.probe()
+        code, _ = self.probe()
+        self.assertEqual(code, 1)
+
+    def test_dialog_present_writes_none_blocks_and_clicks_nothing(self):
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices on local networks?;|10,20,300,200\n'
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED local-network-denied"))
+        self.assertEqual(sum(1 for line in out if line.startswith("ASK owner")), 1)
+        self.assertTrue(self.runner.ran("screencapture"))
+        self.assertFalse(self.runner.ran("peekaboo", "click"))
+        self.assertFalse(any(c[0] == "osascript" and "click" in c[-1] for c in self.runner.calls))
+
+    def test_inspection_failure_never_records_a_grant(self):
+        self.runner.handlers.insert(0, ("osascript", lambda a: (124, "")))
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED dialog-inspection-failed"))
+
+    def test_dialog_screenshot_is_cropped_to_the_dialog_bounds(self):
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices?;|100,200,260,180\n'
+        self.probe()
+        shots = [c for c in self.runner.calls if c[0] == "screencapture"]
+        self.assertEqual(len(shots), 1)
+        self.assertEqual(shots[0][shots[0].index("-R") + 1], "100,200,260,180")
+
+    def test_dialog_without_bounds_keeps_no_image(self):
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices?;\n'
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertFalse(self.runner.ran("screencapture"))
+        self.assertTrue(any(line.startswith("screenshot: omitted") for line in out))
+
+    def test_another_apps_local_network_prompt_is_a_system_prompt(self):
+        self.dialog_out = 'UserNotificationCenter|Local Network|Allow "OtherApp" to find devices on local networks?;|1,2,3,4\n'
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertTrue(out[0].startswith("BLOCKED system-prompt"))
+        self.assertFalse(any("ContainerBar Local Network dialog" in line for line in out))
+
+    def test_every_module_cbqa_lane_imports_is_installed(self):
+        lane_dir = Path(__file__).resolve().parent.parent / "qa-lane"
+        src = (lane_dir / "cbqa_lane.py").read_text()
+        modules = set(re.findall(r"^(?:from|import) (\w+)", src, re.M))
+        local = {m for m in modules if (lane_dir / (m + ".py")).exists()}
+        install = (lane_dir / "install.sh").read_text()
+        self.assertIn("lane_grant", local)
+        for m in sorted(local):
+            self.assertIn(m + ".py", install, "install.sh does not copy %s.py" % m)
+
+    def test_unreadable_window_list_blocks_without_a_line(self):
+        self.dialog_out = "Finder||;|0,0,10,10\n!ERR|Safari||\n"
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED dialog-inspection-failed"))
+        self.assertIn("!ERR|", lane_grant.DIALOG_SCRIPT)
+
+    def test_other_system_prompt_beats_the_local_network_dialog(self):
+        self.dialog_out = ('ContainerBar|Local Network|Allow "ContainerBar" to find devices?;|1,2,3,4\n'
+                           "SecurityAgent|Authenticate|Type your password;|5,6,7,8\n")
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertTrue(out[0].startswith("BLOCKED system-prompt"))
+        self.assertEqual(self.lines(), [])
+
+    def test_other_system_prompt_blocks_without_a_line(self):
+        self.dialog_out = "UserNotificationCenter|Keychain|ContainerBar wants to use the keychain;\n"
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertTrue(out[0].startswith("BLOCKED system-prompt"))
+        self.assertEqual(self.lines(), [])
+
+    def test_no_route_to_host_without_dialog_names_the_privacy_toggle(self):
+        code, out = self.probe("failed", error="connect: No route to host\nmore")
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED local-network-denied"))
+        self.assertTrue(any("Privacy & Security > Local Network" in line for line in out))
+        self.assertFalse(self.runner.ran("screencapture"))
+
+    def test_timeout_writes_none_and_fails_tc_cb_03(self):
+        code, out = self.probe("timeout", elapsed=20)
+        self.assertEqual(code, 1)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("FAIL TC-CB-03"))
+        self.assertIn("blocked app-cannot-connect", out[1])
+
+    def test_connected_after_the_bound_or_unrelated_error_writes_none(self):
+        self.assertEqual(self.probe(elapsed=21)[0], 1)
+        code, out = self.probe("failed", error="Authentication failed", run_dir=self.root / "r2")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.lines(), [])
+        self.assertIn("Authentication failed", out[0])
+
+    def test_empty_log_still_probes(self):
+        self.assertFalse(self.log.exists())
+        self.assertEqual(self.probe()[0], 0)
+        self.assertEqual(len(self.lines()), 1)
+
+    def test_apple_development_identity_writes_its_own_line(self):
+        self.probe()
+        code, out = self.probe(identity="apple-development", ref=self.HASH, run_dir=self.root / "r2")
+        self.assertEqual(code, 0)
+        self.assertEqual(len(self.lines()), 2)
+        self.assertRegex(self.lines()[1], r"\| apple-development \| %s \| lane$" % self.HASH)
+
+    def test_adhoc_line_is_per_build(self):
+        self.probe(identity="adhoc", ref="2.0.4-7")
+        self.probe(identity="adhoc", ref="2.0.4-8", run_dir=self.root / "r2")
+        self.assertEqual(len(self.lines()), 2)
+
+    def test_shell_down_means_no_probe_and_no_line(self):
+        self.runner.status = [None]
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertIn("qa-runtime-down", out[0])
+        self.assertEqual(self.lines(), [])
+
+    def test_bad_identity_or_ref_is_refused(self):
+        self.assertEqual(self.probe(identity="developer-id", ref="2.0.4-7")[0], 64)
+        self.assertEqual(self.probe(identity="apple-development", ref="short")[0], 64)
+        self.assertEqual(self.probe(identity="other", ref="-")[0], 64)
+        self.assertEqual(self.lines(), [])
+
+    def test_cli_wires_the_probe(self):
+        import cbqa_lane
+        self.assertIn("grant_probe", vars(cbqa_lane))
 
 
 if __name__ == "__main__":
