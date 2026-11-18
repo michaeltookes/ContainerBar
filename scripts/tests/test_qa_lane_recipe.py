@@ -270,7 +270,7 @@ class RecipeTests(unittest.TestCase):
         case = self.text[self.text.index("**TC-CB-08 Settings"):self.text.index("**TC-CB-14 Check for Updates")]
         flat = " ".join(case.split())
         for needed in ("fixed display region", "never the app window", "one `assets/TC-CB-08.mp4`",
-                       "join them into that one file", "`missing (recorder)`", "first error line",
+                       "join them into that one file", "`missing (recorder)`", "`missing (background-not-clear)`", "pre-capture", "first error line",
                        "never `FAIL TC-CB-08` for the video alone"):
             self.assertIn(needed, flat)
         self.assertIn("except TC-CB-08", self.text)

@@ -778,6 +778,22 @@ class GrantProbeTests(unittest.TestCase):
         for m in sorted(local):
             self.assertIn(m + ".py", install, "install.sh does not copy %s.py" % m)
 
+    def test_unreadable_window_list_blocks_without_a_line(self):
+        self.dialog_out = "Finder||;|0,0,10,10\n!ERR|Safari||\n"
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED dialog-inspection-failed"))
+        self.assertIn("!ERR|", lane_grant.DIALOG_SCRIPT)
+
+    def test_other_system_prompt_beats_the_local_network_dialog(self):
+        self.dialog_out = ('ContainerBar|Local Network|Allow "ContainerBar" to find devices?;|1,2,3,4\n'
+                           "SecurityAgent|Authenticate|Type your password;|5,6,7,8\n")
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertTrue(out[0].startswith("BLOCKED system-prompt"))
+        self.assertEqual(self.lines(), [])
+
     def test_other_system_prompt_blocks_without_a_line(self):
         self.dialog_out = "UserNotificationCenter|Keychain|ContainerBar wants to use the keychain;\n"
         code, out = self.probe()

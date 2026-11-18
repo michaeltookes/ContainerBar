@@ -30,7 +30,7 @@ NO_ROUTE = re.compile(r"no route to host|local network", re.I)
 LOCAL_NETWORK_TEXT = re.compile(r"local network|find devices", re.I)
 SYSTEM_PROMPT_PROCESSES = ("UserNotificationCenter", "CoreServicesUIAgent", "SecurityAgent")
 
-# One line per window of every foreground process: process|window name|static texts joined by ;|x,y,w,h.
+# One line per window of every foreground process: process|window name|static texts joined by ;|x,y,w,h; a read failure is a `!ERR|process` line.
 DIALOG_SCRIPT = """tell application "System Events"
  set out to ""
  repeat with p in (every process whose background only is false)
@@ -41,6 +41,8 @@ DIALOG_SCRIPT = """tell application "System Events"
      repeat with s in (every static text of w)
       set t to t & (value of s as text) & ";"
      end repeat
+    on error
+     set out to out & "!ERR|" & (name of p) & "||" & linefeed
     end try
     set b to ""
     try
@@ -48,6 +50,8 @@ DIALOG_SCRIPT = """tell application "System Events"
     end try
     set out to out & (name of p) & "|" & (name of w as text) & "|" & t & "|" & b & linefeed
    end repeat
+  on error
+   set out to out & "!ERR|" & (name of p) & "||" & linefeed
   end try
  end repeat
  return out
@@ -68,17 +72,24 @@ def dialog_visible(lane: Lane) -> Tuple[Optional[str], str]:
     for line in out.splitlines():
         parts = line.split("|")
         proc = parts[0].strip()
+        if proc == "!ERR":
+            return "inspect-failed", ""  # a window list could not be read: absence is unproven
         texts = parts[2] if len(parts) > 2 else ""
         bounds = parts[3].strip() if len(parts) > 3 else ""
         rows.append((proc, texts, bounds if BOUNDS.fullmatch(bounds) else ""))
-    for proc, texts, bounds in rows:
+
+    def own_local_network(proc: str, texts: str) -> bool:
         # Only ContainerBar's own prompt: another app's "find devices" dialog is a system prompt.
-        if LOCAL_NETWORK_TEXT.search(texts) and (proc == "ContainerBar" or
-                                                 (proc in SYSTEM_PROMPT_PROCESSES and "ContainerBar" in texts)):
-            return "local-network", bounds
+        return bool(LOCAL_NETWORK_TEXT.search(texts)) and (
+            proc == "ContainerBar" or (proc in SYSTEM_PROMPT_PROCESSES and "ContainerBar" in texts))
+
+    # Any other system prompt wins over the Local Network exception (Stop and ask rule).
     for proc, texts, bounds in rows:
-        if proc in SYSTEM_PROMPT_PROCESSES:
+        if proc in SYSTEM_PROMPT_PROCESSES and not own_local_network(proc, texts):
             return "system-prompt", bounds
+    for proc, texts, bounds in rows:
+        if own_local_network(proc, texts):
+            return "local-network", bounds
     return None, ""
 
 

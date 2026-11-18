@@ -208,6 +208,8 @@ local-network-denied (CB-116)` and the case verdict comes from the other steps. 
 restored values.
 Record TC-CB-08 at a fixed display region (the screen area where the Settings window opens), never the app window, so Quit and relaunch stay in one
 `assets/TC-CB-08.mp4` from baseline to restored; if the recorder cannot outlive the window, record two region clips and join them into that one file before the report.
+Before recording, hide other apps and take one pre-capture of the region: it must show only the desktop and the Settings window; any other window, notification or text
+in it means record nothing and mark the asset `missing (background-not-clear)`, an evidence gap, never `FAIL TC-CB-08` (the five screenshots decide the verdict).
 Recording missing or failed: the verdict comes from the five screenshots, the asset is `missing (recorder)` plus the recorder's first error line, and it is an evidence gap, never
 `FAIL TC-CB-08` for the video alone.
 
