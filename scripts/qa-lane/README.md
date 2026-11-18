@@ -15,7 +15,7 @@ sourced.
 
 | File | Role |
 |---|---|
-| `cbqa_lane.py` | command line: `preflight`, `normalise`, `case-gate`, `restore`, `release`, `forward-start`, `forward-stop`, `prefs-drift`, `ci-busy`, `hourly-checks` |
+| `cbqa_lane.py` | command line: `preflight`, `normalise`, `case-gate`, `restore`, `release`, `forward-start`, `forward-stop`, `prefs-drift`, `ci-busy`, `hourly-checks`, `find-status-item`, `open-panel`, `close-panel` |
 | `lane_core.py` | paths, private settings, the run deadline, the CI-busy predicate, the fixture baseline |
 | `lane_preflight.py` | step 0: CI wait, lock wait, marker recovery with the app quit and relaunched |
 | `lane_restore.py` | the no-GUI restore and the SSH-forwarded Unix socket |
@@ -25,6 +25,7 @@ sourced.
 | `containerbar-hourly.sh` | launchd entry point; runs the checks under the shared lock, skips when it is held |
 | `com.genkeilabs.containerbar-hourly.plist.template` | launchd agent, hourly at :40 from 08:00 to 20:00 |
 | `CONTAINERBAR_QA.md` | the standing recipe the daily brief hands to the agent (CB-101): selectors, cases runnable today, evidence, restore, report; installed as `<workspace>/CONTAINERBAR_QA.md` |
+| `lane_discovery.py` | CB-137: status item found through Peekaboo or the AX tree of the released PID, panel opened and captured, one `BLOCKED` line with `ax-dump.txt` per pass |
 | `resign.sh` | CB-124: stage, sign (identity by hash from `lane.env`), verify, then install a branch build; `--provenance` for TC-CB-01 (see `RESIGN.md`) |
 | `install.sh` | copies the tools into `<workspace>/tools/containerbar-qa/` and the recipe to `<workspace>/CONTAINERBAR_QA.md`, renders and loads the agent, optionally adds the OpenClaw cron job; dry run unless `--apply` |
 

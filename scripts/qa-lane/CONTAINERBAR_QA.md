@@ -32,11 +32,11 @@ is its `<version>-<build>`) or `apple-development` (a re-signed branch build, CB
 - **Hunt build** (Prowl PR gate): bundle id `com.tookes.ContainerBar.hunt`, path containing
   `/.prowl/DerivedData/`, same name and title; never click, quit or screenshot it. Released PID: the one
   whose command starts `/Applications/ContainerBar.app/` (`pgrep -x ContainerBar | xargs -n1 ps -o pid=,command= -p`).
-- **Status item.** `peekaboo menubar list --json`; pick the entry titled `ContainerBar` (from the
-  release containing CB-107: identifier `containerBarStatusItem`). If two `ContainerBar` entries
-  exist (hunt build left running) and the frames cannot be tied to the released PID, the step is
-  `blocked` with the list. Open it by clicking the frame centre (re-read the frame each time):
-  `peekaboo click --at <x>,<y> --global --foreground --no-auto-focus` (y = 15), wait 0.8 s, screenshot.
+- **Status item (CB-137).** Never read `menubar list` by hand: run `python3 -B tools/containerbar-qa/cbqa_lane.py find-status-item --run-dir "$RUN"`
+  (prints `found-by: peekaboo|ax` and `frame:`; the AX tree of the released PID is the fallback, bar-1 app-menu items and the hunt build are never used).
+  Open and capture: `cbqa_lane.py open-panel --run-dir "$RUN" --shot "$RUN/02-panel-open.png"` (positional click at the centre, AXPress fallback; the panel is an AX menu, captured by region);
+  `cbqa_lane.py close-panel` ends it. Exit 2 prints one `BLOCKED status-item-not-found|status-item-ambiguous|panel-not-capturable menubar=<n> ax=<n>` line per pass,
+  saves `$RUN/ax-dump.txt`, and every UI case is `blocked <reason>` (never FAIL; later calls repeat the block silently). Record `found-by` in each report.
 - Settings panes: **General**, **Connections**, **Sections**, **About**; open from the panel's gear, close with its close button.
 - **Selectors are release-aware**: identifiers only when installed >= the item's `fixed-in` (table at the end), else labels.
 
@@ -160,14 +160,18 @@ PASS: the pre-preflight signature checks passed and tag (without `v`) = appcast 
 disagree: `FAIL TC-CB-01` with the four values.
 
 **TC-CB-02 Status item present and named.** If `pgrep -x ContainerBar` has no released PID: `open
-/Applications/ContainerBar.app`; within 10 s the status item shows. Then: `01-status-item.png` (menu bar strip
-cropped to the item), the item's title and accessibility value from `menubar list` (value non-empty), `02-panel-open.png` after opening it. No item in 10 s: FAIL
+/Applications/ContainerBar.app`; within 10 s the status item shows. Then `find-status-item` (record `found-by`; PASS on `found-by: ax` too), `01-status-item.png` (menu bar strip
+cropped to the item), the item's AX title and value (value non-empty), `02-panel-open.png` from `open-panel`. Neither path finds it in 10 s: FAIL
 with the last 50 lines of `log show --last 2m
 --predicate 'process == "ContainerBar"'` and the newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips`
 file name. Hunt build checks (recorded under TC-CB-02): the released panel never shows the host `Fixture Docker` or `fixture log line` text (seeing it is `FAIL P1`:
 hunt mode in a release, CB-090); note whether a hunt-build process was running; `defaults read com.tookes.ContainerBar.hunt SULastCheckTime` should report the key
 missing
 (present: finding linked to CB-074).
+
+**TC-CB-33 Status item and panel found when Peekaboo's menu-bar list misses ContainerBar** (lane check, CB-137). With the released app running: `find-status-item`
+exits 0 and prints `found-by: ax` (or `peekaboo`), `open-panel` exits 0 and `02-panel-open.png` shows the cards or the empty state, not the bare menu bar. Exit 2: `blocked <reason>`
+with `ax-dump.txt` attached; FAIL only if the app is running and TC-CB-02 also failed.
 
 **Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is installed, verified and running) and before TC-CB-14 and any SSH-dependent
 case or step. **Open** when the grant log has a `developer-id` line and TC-CB-01 found the Developer ID authority (any installed version), an `adhoc` line naming the
