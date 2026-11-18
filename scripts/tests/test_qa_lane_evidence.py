@@ -148,7 +148,7 @@ class VerdictTests(Fixture):
         self.override("pgrep", lambda a: (124, ""))
         self.override("defaults read", lambda a: (124, ""))
         _, lines = hunt_checks(self.lane, self.case, "absent")
-        self.assertEqual(lines[:2], ["hunt-process: error timeout", "hunt-sparkle: error timeout"])
+        self.assertEqual(lines[:2], ["hunt-process: error pgrep timeout", "hunt-sparkle: error timeout"])
         self.assertEqual(verdict(self.run_dir, self.case), (2, "BLOCKED evidence-incomplete hunt-checks"))
 
     def test_fixture_text_present_is_fail_p1(self):

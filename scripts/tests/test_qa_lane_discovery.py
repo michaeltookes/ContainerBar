@@ -64,8 +64,9 @@ class Fixture(unittest.TestCase):
     def on_see(self, argv):
         self.regions.append(argv[argv.index("--region") + 1])
         if self.shot_ok:
-            opened = self.state["clicked"] or self.state["pressed"]
-            Path(argv[argv.index("--path") + 1]).write_text("panel" if opened and self.menu_opens_on != "never" else "bare")
+            opened = {"click": self.state["clicked"], "axpress": self.state["pressed"],
+                      "never": False}[self.menu_opens_on]
+            Path(argv[argv.index("--path") + 1]).write_text("panel" if opened else "bare")
         return (0, "{}") if self.shot_ok else (1, "")
 
     def on_osascript(self, argv):
