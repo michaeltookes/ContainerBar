@@ -25,10 +25,16 @@ from lane_core import APP_NAME, Lane, read_json, write_json
 DISCOVERY_BUDGET_S = 10.0   # item must be found within 10 s
 PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click
 POLL_S = 1.0
+DUMP_BUDGET_S = 5.0        # diagnostics after a failed pass are bounded too
 PANEL_SIZE = (400, 720)     # fallback region under the item when AX gives no menu frame
 STATE_FILE = "status-item.json"
 DUMP_FILE = "ax-dump.txt"
 FIELD = "|"
+
+DISPLAYS_SCRIPT = (
+    "ObjC.import('AppKit'); var s=$.NSScreen.screens; var h=s.objectAtIndex(0).frame.size.height; var o=[];"
+    "for (var i=0;i<s.count;i++){var f=s.objectAtIndex(i).frame;"
+    "o.push([f.origin.x,h-f.origin.y-f.size.height,f.size.width,f.size.height].join('|'));} o.join('\\n');")
 
 # One line per menu bar item: bar index, item index, x, y, w, h, title, description, value.
 AX_ITEMS_SCRIPT = """on run argv
@@ -151,9 +157,9 @@ def peekaboo_bin(lane: Lane) -> str:
     return "/opt/homebrew/bin/peekaboo" if os.path.exists("/opt/homebrew/bin/peekaboo") else "peekaboo"
 
 
-def released_pids(lane: Lane) -> List[int]:
+def released_pids(lane: Lane, deadline: Optional[float] = None) -> List[int]:
     """PIDs of ContainerBar whose command starts with the released app path (never the hunt build)."""
-    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
+    rc, out = lane.call(["pgrep", "-x", APP_NAME], 5, deadline)
     pids: List[int] = []
     if rc != 0:
         return pids
@@ -161,22 +167,22 @@ def released_pids(lane: Lane) -> List[int]:
     for word in out.split():
         if not word.isdigit():
             continue
-        rc, cmd = lane.run(["ps", "-o", "command=", "-p", word], 5)
+        rc, cmd = lane.call(["ps", "-o", "command=", "-p", word], 5, deadline)
         if rc == 0 and cmd.strip().startswith(prefix):
             pids.append(int(word))
     return pids
 
 
-def hunt_running(lane: Lane) -> bool:
-    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
+def hunt_running(lane: Lane, deadline: Optional[float] = None) -> bool:
+    rc, out = lane.call(["pgrep", "-x", APP_NAME], 5, deadline)
     if rc != 0:
         return False
-    return len(out.split()) > len(released_pids(lane))
+    return len(out.split()) > len(released_pids(lane, deadline))
 
 
-def peekaboo_items(lane: Lane) -> Tuple[List[Item], int]:
+def peekaboo_items(lane: Lane, deadline: Optional[float] = None) -> Tuple[List[Item], int]:
     """(ContainerBar entries, total entries) from `peekaboo menubar list --json`."""
-    rc, out = lane.run([peekaboo_bin(lane), "menubar", "list", "--json"], 20)
+    rc, out = lane.call([peekaboo_bin(lane), "menubar", "list", "--json"], 20, deadline)
     try:
         items = json.loads(out)["data"]["items"] if rc == 0 else []
     except (ValueError, KeyError, TypeError):
@@ -184,8 +190,8 @@ def peekaboo_items(lane: Lane) -> Tuple[List[Item], int]:
     return [i for i in items if isinstance(i, dict) and is_containerbar(i)], len(items)
 
 
-def ax_items(lane: Lane, pid: int) -> List[Item]:
-    rc, out = lane.run(["osascript", "-e", AX_ITEMS_SCRIPT, str(pid)], 20)
+def ax_items(lane: Lane, pid: int, deadline: Optional[float] = None) -> List[Item]:
+    rc, out = lane.call(["osascript", "-e", AX_ITEMS_SCRIPT, str(pid)], 20, deadline)
     return parse_ax_items(out) if rc == 0 else []
 
 
@@ -197,14 +203,14 @@ def ax_panel_frame(lane: Lane, pid: int, item: Item) -> Optional[List[int]]:
 # ---------------------------------------------------------------- discovery
 
 
-def discover_once(lane: Lane) -> Dict[str, object]:
+def discover_once(lane: Lane, deadline: Optional[float] = None) -> Dict[str, object]:
     """One look. Returns {"status": "found"|"missing"|"ambiguous", ...} with the evidence."""
-    pids = released_pids(lane)
-    peek, peek_total = peekaboo_items(lane)
+    pids = released_pids(lane, deadline)
+    peek, peek_total = peekaboo_items(lane, deadline)
     ax: List[Item] = []
     pid = pids[0] if len(pids) == 1 else 0
     if pid:
-        ax = [i for i in ax_items(lane, pid) if is_status_item(i)]
+        ax = [i for i in ax_items(lane, pid, deadline) if is_status_item(i)]
     evidence = {"pids": pids, "menubar_total": peek_total, "menubar_matches": len(peek),
                 "ax_matches": len(ax), "peekaboo": peek, "ax": ax}
     if len(pids) > 1 or len(ax) > 1:
@@ -214,10 +220,10 @@ def discover_once(lane: Lane) -> Dict[str, object]:
         tied = [p for p in peek if contains(peekaboo_frame(p) or [0, 0, 0, 0], center(frame))]
         return dict(evidence, status="found", found_by="peekaboo" if tied else "ax",
                     frame=(peekaboo_frame(tied[0]) if tied else frame), pid=pid, item=ax[0])
-    if len(peek) == 1 and pids and not hunt_running(lane):
+    if len(peek) == 1 and pids and not hunt_running(lane, deadline):
         return dict(evidence, status="found", found_by="peekaboo", frame=peekaboo_frame(peek[0]),
                     pid=pids[0], item=None)
-    if len(peek) > 1 or (peek and hunt_running(lane)):
+    if len(peek) > 1 or (peek and hunt_running(lane, deadline)):
         return dict(evidence, status="ambiguous")
     return dict(evidence, status="missing")
 
@@ -230,7 +236,7 @@ def save_dump(lane: Lane, run_dir: Path, result: Dict[str, object]) -> None:
                                                                  result.get("menubar_matches"))]
     for pid in result.get("pids", []):  # type: ignore[union-attr]
         lines.append("ax items of pid %s (bar|item|x|y|w|h|title|description|value):" % pid)
-        for item in ax_items(lane, int(pid)):
+        for item in ax_items(lane, int(pid), lane.clock.now() + DUMP_BUDGET_S):
             frame = item["frame"]
             lines.append("  %s|%s|%s|%s|%s|%s|%s|%s|%s" % (item["bar"], item["index"], *frame, item["title"],
                                                            item["description"], item["value"]))  # type: ignore[misc]
@@ -254,7 +260,9 @@ def find_status_item(lane: Lane, run_dir: Path) -> Tuple[int, List[str], Optiona
         return 2, ["blocked %s (already reported once this pass; see %s)" % (state.get("reason"), DUMP_FILE)], None
     deadline = lane.clock.now() + DISCOVERY_BUDGET_S
     while True:
-        result = discover_once(lane)
+        result = discover_once(lane, deadline)
+        if result["status"] == "found" and lane.clock.now() > deadline:
+            result = dict(result, status="missing")  # observed after the 10 s window: not accepted
         if result["status"] in ("found", "ambiguous") or lane.clock.now() >= deadline:
             break
         lane.clock.sleep(POLL_S)
@@ -277,11 +285,33 @@ def _block(lane: Lane, run_dir: Path, result: Dict[str, object],
 # -------------------------------------------------------------------- panel
 
 
-def panel_region(item_frame: Sequence[int], menu_frame: Optional[Sequence[int]]) -> List[int]:
-    """The capture region: the panel's AX menu frame, else a fixed rectangle under the item."""
+def displays(lane: Lane) -> List[List[int]]:
+    """Display frames in top-left screen coordinates, from AppKit (never hard-coded)."""
+    rc, out = lane.run(["osascript", "-l", "JavaScript", "-e", DISPLAYS_SCRIPT], 10)
+    frames = [parse_frame(line) for line in out.splitlines()] if rc == 0 else []
+    return [f for f in frames if f]
+
+
+def display_for(frames: Sequence[Sequence[int]], point: Tuple[int, int]) -> Optional[List[int]]:
+    for f in frames:
+        if contains(f, point):
+            return list(f)
+    return None
+
+
+def panel_region(item_frame: Sequence[int], menu_frame: Optional[Sequence[int]],
+                 display: Optional[Sequence[int]] = None) -> List[int]:
+    """The capture region: the panel's AX menu frame, else a rectangle under the item kept on its display."""
     if menu_frame:
         return list(menu_frame)
-    return [max(0, item_frame[0] - 3), item_frame[1] + item_frame[3] + 4, PANEL_SIZE[0], PANEL_SIZE[1]]
+    x, y = item_frame[0] - 3, item_frame[1] + item_frame[3] + 4
+    w, h = PANEL_SIZE
+    if display:
+        dx, dy, dw, dh = display
+        w, h = min(w, dw), min(h, dh)
+        x = max(dx, min(x, dx + dw - w))
+        h = min(h, dy + dh - y)
+    return [x, y, w, h]
 
 
 def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
@@ -292,6 +322,11 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     pid, item, frame = found["pid"], found.get("item"), list(found["frame"])  # type: ignore[arg-type]
     ax = item or next((i for i in ax_items(lane, int(pid)) if is_status_item(i)), None)  # type: ignore[arg-type]
     cx, cy = center(frame)
+    region_guess = panel_region(frame, None, display_for(displays(lane), (cx, cy)))
+    before = shot.with_name(shot.stem + ".before.png")
+    shot.parent.mkdir(parents=True, exist_ok=True)
+    lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region_guess),
+              "--no-elements", "--path", str(before), "--json"], 20)
     start = lane.clock.now()
     lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
               "--no-auto-focus"], 15)
@@ -301,12 +336,15 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
         lane.run(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10)
         opened_by = "axpress"
         menu = _wait_menu(lane, int(pid), ax, lane.clock.now())  # type: ignore[arg-type]
-    region = panel_region(frame, menu)
+    region = panel_region(frame, menu, display_for(displays(lane), (cx, cy)))
     source = "ax-menu" if menu else "region-under-item"
-    shot.parent.mkdir(parents=True, exist_ok=True)
     rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
                       "--no-elements", "--path", str(shot), "--json"], 20)
-    if rc != 0 or not shot.exists() or (menu is None and ax is not None):
+    # Readiness is panel evidence: the AX menu frame, or a capture that differs from the pre-click region.
+    changed = shot.exists() and (not before.exists() or before.read_bytes() != shot.read_bytes())
+    if before.exists():
+        before.unlink()
+    if rc != 0 or not shot.exists() or (menu is None and not changed):
         # Nothing opened (click and AXPress both tried), or no capture: one BLOCKED line for the pass.
         result = {"pids": [pid], "menubar_total": found.get("menubar_total", 0),
                   "ax_matches": found.get("ax_matches", 0), "peekaboo": found.get("peekaboo", [])}

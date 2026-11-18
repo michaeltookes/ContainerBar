@@ -42,6 +42,8 @@ class Fixture(unittest.TestCase):
         self.menu_opens_on = "click"  # "click", "axpress" or "never"
         self.state = {"clicked": False, "pressed": False}
         self.shot_ok = True
+        self.regions = []
+        self.display_out = "0|0|1920|1080\n"
         self.runner.on("pgrep -x ContainerBar", lambda a: (0, "\n".join(str(p) for p in self.pids) + "\n"))
         self.runner.on("ps -o command=", lambda a: (0, self.pids[int(a[-1])] + "\n"))
         self.runner.on("peekaboo menubar list", lambda a: (0, self.peek))
@@ -57,11 +59,15 @@ class Fixture(unittest.TestCase):
         return 0, "{}"
 
     def on_see(self, argv):
+        self.regions.append(argv[argv.index("--region") + 1])
         if self.shot_ok:
-            Path(argv[argv.index("--path") + 1]).write_text("png")
+            opened = self.state["clicked"] or self.state["pressed"]
+            Path(argv[argv.index("--path") + 1]).write_text("panel" if opened and self.menu_opens_on != "never" else "bare")
         return (0, "{}") if self.shot_ok else (1, "")
 
     def on_osascript(self, argv):
+        if argv[1] == "-l":
+            return 0, self.display_out
         script = argv[2]
         if "click menu bar item" in script:
             self.state["pressed"] = True
@@ -210,6 +216,62 @@ class PanelTests(Fixture):
     def test_close_panel_sends_escape(self):
         close_panel(self.lane)
         self.assertTrue(any("key code 53" in " ".join(c) for c in self.runner.calls))
+
+
+class CodexRound1Tests(Fixture):
+    def test_failed_click_with_no_ax_is_not_a_panel(self):
+        # Peekaboo lists the item, AX does not, the click opens nothing, the capture succeeds (bare desktop).
+        self.peek = peek_json(("ContainerBar", 1440))
+        self.ax = {100: AX_NONE}
+        self.menu_opens_on = "never"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+
+    def test_visible_panel_without_ax_menu_frame_is_accepted(self):
+        # AX has the item but exposes no menu frame; the region capture changed after the click.
+        self.menu = ""
+        self.runner.on("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
+                       ((0, "") if "unix id" not in a[2] else (0, AX_RELEASED)))
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("panel-capture: region-under-item", lines)
+        self.assertFalse((self.root / "p.before.png").exists())
+
+    def test_slow_discovery_past_the_ten_second_window_is_not_found(self):
+        def slow(argv):
+            self.lane.clock.sleep(20)
+            return 0, self.peek
+        self.runner.on("peekaboo menubar list", slow)
+        code, lines, _ = find_status_item(self.lane, self.run_dir)
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED status-item-not-found"), lines[0])
+
+    def test_probe_timeouts_are_capped_by_the_remaining_deadline(self):
+        timeouts = []
+        real = self.lane.run
+        self.lane.run = lambda argv, timeout: (timeouts.append(timeout), real(argv, timeout))[1]
+        find_status_item(self.lane, self.run_dir)
+        self.assertTrue(timeouts and max(timeouts[:4]) <= 10, timeouts[:4])
+
+    def test_right_edge_fallback_stays_on_a_1920_display(self):
+        region = panel_region([1840, 3, 54, 24], None, [0, 0, 1920, 1080])
+        self.assertEqual(region, [1520, 31, 400, 720])
+        self.assertLessEqual(region[0] + region[2], 1920)
+
+    def test_left_hand_display_is_not_clamped_to_zero(self):
+        region = panel_region([-1900, 3, 54, 24], None, [-1920, 0, 1920, 1080])
+        self.assertEqual(region[0], -1903)
+        self.assertGreaterEqual(region[0], -1920)
+
+    def test_fallback_uses_the_display_that_owns_the_item(self):
+        self.display_out = "0|0|1920|1080\n1920|0|1440|900\n"
+        self.menu = ""
+        self.runner.on("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
+                       ((0, "") if "unix id" not in a[2] else (0, "2|1|3300|3|54|24|5|ContainerBar|x\n")))
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(self.regions[-1], "2960,31,400,720")
 
 
 if __name__ == "__main__":
