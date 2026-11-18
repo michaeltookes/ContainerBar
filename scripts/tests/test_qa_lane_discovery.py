@@ -12,7 +12,6 @@ import lane_core
 from lane_discovery import (STATE_FILE, close_panel, find_status_item, open_panel, panel_region,
                             parse_ax_items, parse_frame)
 
-RELEASED = "/Applications/ContainerBar.app/Contents/MacOS/ContainerBar"
 HUNT = "/work/x/.prowl/DerivedData/Build/Products/Debug/ContainerBar.app/Contents/MacOS/ContainerBar"
 
 # Recorded shape of the QA Mini's System Events output: the application menu is bar 1 (zero size),
@@ -36,7 +35,7 @@ class Fixture(unittest.TestCase):
         self.runner = FakeRunner()
         self.lane, self.root = make_lane(self, self.runner, extra_env={"CBQA_PEEKABOO": "peekaboo"})
         self.run_dir = self.root / "run"
-        self.pids = {100: RELEASED}
+        self.pids = {100: self.lane.app_path + "/Contents/MacOS/ContainerBar"}
         self.ax = {100: AX_RELEASED}
         self.peek = peek_json()
         self.menu = ""               # AX menu frame, "" = no menu
@@ -49,6 +48,9 @@ class Fixture(unittest.TestCase):
         self.runner.on("peekaboo click", self.on_click)
         self.runner.on("peekaboo see", self.on_see)
         self.runner.on("osascript", self.on_osascript)
+
+    def released(self):
+        return self.lane.app_path + "/Contents/MacOS/ContainerBar"
 
     def on_click(self, argv):
         self.state["clicked"] = True
@@ -137,7 +139,7 @@ class DiscoveryTests(Fixture):
         self.assertEqual(dump.count('"title": "ContainerBar"'), 2)
 
     def test_hunt_build_is_never_read_or_clicked(self):
-        self.pids = {100: RELEASED, 200: HUNT}
+        self.pids = {100: self.released(), 200: HUNT}
         self.ax = {100: AX_RELEASED, 200: AX_HUNT}
         code, lines, found = find_status_item(self.lane, self.run_dir)
         self.assertEqual((code, found["pid"], found["frame"]), (0, 100, [1453, 3, 54, 24]))
@@ -152,7 +154,7 @@ class DiscoveryTests(Fixture):
         self.assertIn("BLOCKED", lines[0])
 
     def test_hunt_running_with_a_peekaboo_entry_and_no_ax_tie_is_blocked(self):
-        self.pids = {100: RELEASED, 200: HUNT}
+        self.pids = {100: self.released(), 200: HUNT}
         self.ax = {100: AX_NONE, 200: AX_HUNT}
         self.peek = peek_json(("ContainerBar", 1190))
         code, lines, _ = find_status_item(self.lane, self.run_dir)
