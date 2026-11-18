@@ -25,7 +25,7 @@ sourced.
 | `containerbar-hourly.sh` | launchd entry point; runs the checks under the shared lock, skips when it is held |
 | `com.genkeilabs.containerbar-hourly.plist.template` | launchd agent, hourly at :40 from 08:00 to 20:00 |
 | `CONTAINERBAR_QA.md` | the standing recipe the daily brief hands to the agent (CB-101): selectors, cases runnable today, evidence, restore, report; installed as `<workspace>/CONTAINERBAR_QA.md` |
-| `lane_discovery.py` | CB-137: status item found through Peekaboo or the AX tree of the released PID, panel opened and captured, one `BLOCKED` line with `ax-dump.txt` per pass |
+| `lane_discovery.py` | CB-137: status item found through Peekaboo or the AX tree of the released PID, panel opened and captured, one `BLOCKED` line with `ax-dump.txt` per pass. CB-141: a 5 s System Events liveness check runs first and a hung AppleScript is `BLOCKED ax-timeout system-events 5s`, never `status-item-not-found`. Discovery runs from the agent shell (the daily pass's context), not from a bare LaunchAgent or launchd job, which has no Accessibility grant |
 | `resign.sh` | CB-124: stage, sign (identity by hash from `lane.env`), verify, then install a branch build; `--provenance` for TC-CB-01 (see `RESIGN.md`) |
 | `install.sh` | copies the tools into `<workspace>/tools/containerbar-qa/` and the recipe to `<workspace>/CONTAINERBAR_QA.md`, renders and loads the agent, optionally adds the OpenClaw cron job; dry run unless `--apply` |
 

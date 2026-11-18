@@ -22,6 +22,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from lane_core import APP_NAME, Lane, read_json, write_json
 
+LIVENESS_S = 5   # System Events liveness bound (CB-141)
+LIVENESS_SCRIPT = 'tell application "System Events" to count processes'
 DISCOVERY_BUDGET_S = 10.0   # item must be found within 10 s
 PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click (one absolute deadline)
 CLICK_WINDOW_S = 1.0        # the click gets this long before the AXPress fallback; AXPress shares the same deadline
@@ -192,9 +194,25 @@ def peekaboo_items(lane: Lane, deadline: Optional[float] = None) -> Tuple[List[I
     return [i for i in items if isinstance(i, dict) and is_containerbar(i)], len(items)
 
 
-def ax_items(lane: Lane, pid: int, deadline: Optional[float] = None) -> List[Item]:
+class AxTimeout(Exception):
+    """System Events did not answer in time (CB-141): a hang is not "no items"."""
+
+    def __init__(self, seconds: float):
+        super().__init__("ax-timeout %ss" % seconds)
+        self.seconds = seconds
+
+
+def ax_items(lane: Lane, pid: int, deadline: Optional[float] = None, strict: bool = False) -> List[Item]:
     rc, out = lane.call(["osascript", "-e", AX_ITEMS_SCRIPT, str(pid)], 20, deadline)
+    if strict and rc == 124:
+        raise AxTimeout(20)
     return parse_ax_items(out) if rc == 0 else []
+
+
+def system_events_alive(lane: Lane) -> bool:
+    """One trivial Apple Event bounded at LIVENESS_S; only a timeout (124) counts as not answering."""
+    rc, _ = lane.run(["osascript", "-e", LIVENESS_SCRIPT], LIVENESS_S)
+    return rc != 124
 
 
 def ax_panel_frame(lane: Lane, pid: int, item: Item, deadline: Optional[float] = None) -> Optional[List[int]]:
@@ -216,7 +234,7 @@ def discover_once(lane: Lane, deadline: Optional[float] = None) -> Dict[str, obj
     ax: List[Item] = []
     pid = pids[0] if len(pids) == 1 else 0
     if pid:
-        ax = [i for i in ax_items(lane, pid, deadline) if is_status_item(i)]
+        ax = [i for i in ax_items(lane, pid, deadline, strict=True) if is_status_item(i)]
     evidence = {"pids": pids, "menubar_total": peek_total, "menubar_matches": len(peek),
                 "ax_matches": len(ax), "peekaboo": peek, "ax": ax}
     if len(pids) > 1 or len(ax) > 1:
@@ -264,9 +282,14 @@ def find_status_item(lane: Lane, run_dir: Path) -> Tuple[int, List[str], Optiona
     state = read_json(run_dir / STATE_FILE)
     if state and state.get("status") == "blocked":
         return 2, ["blocked %s (already reported once this pass; see %s)" % (state.get("reason"), DUMP_FILE)], None
+    if not system_events_alive(lane):
+        return _block_timeout(lane, run_dir, LIVENESS_S)
     deadline = lane.clock.now() + DISCOVERY_BUDGET_S
     while True:
-        result = discover_once(lane, deadline)
+        try:
+            result = discover_once(lane, deadline)
+        except AxTimeout as exc:
+            return _block_timeout(lane, run_dir, exc.seconds)
         if result["status"] == "found" and lane.clock.now() > deadline:
             result = dict(result, status="missing")  # observed after the 10 s window: not accepted
         if result["status"] in ("found", "ambiguous") or lane.clock.now() >= deadline:
@@ -280,6 +303,15 @@ def find_status_item(lane: Lane, run_dir: Path) -> Tuple[int, List[str], Optiona
                    "frame: %s" % ",".join(str(v) for v in frame)], result  # type: ignore[union-attr]
     return _block(lane, run_dir, result, "status-item-ambiguous" if result["status"] == "ambiguous"
                   else "status-item-not-found")
+
+
+def _block_timeout(lane: Lane, run_dir: Path, seconds: float) -> Tuple[int, List[str], Optional[Dict[str, object]]]:
+    """BLOCKED ax-timeout: System Events did not answer. No further AX call is made for the dump."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / DUMP_FILE).write_text("ax-timeout: System Events did not answer within %ss; discovery ran no "
+                                     "further AX call (run it from the agent shell, not a LaunchAgent)\n" % seconds)
+    write_json(run_dir / STATE_FILE, {"status": "blocked", "reason": "ax-timeout", "menubar": None, "ax": None})
+    return 2, ["BLOCKED ax-timeout system-events %ss (ax-dump: %s)" % (seconds, DUMP_FILE)], None
 
 
 def _block(lane: Lane, run_dir: Path, result: Dict[str, object],
