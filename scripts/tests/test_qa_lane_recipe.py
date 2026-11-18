@@ -254,6 +254,25 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("peekaboo window close", row)
         self.assertIn("close button", row)
 
+    def test_update_check_runs_last_with_a_bound_and_a_way_out(self):
+        """CB-139: an unresolved Sparkle check may block only TC-CB-14."""
+        case = self.text.index("**TC-CB-14 Check for Updates")
+        for earlier in ("**TC-CB-08 Settings", "- **TC-CB-11 Unix-socket", "- TC-CB-17 stale stop"):
+            self.assertLess(self.text.index(earlier), case, earlier)
+        self.assertLess(self.text.index("**Local Network gate (CB-116).**"), case)
+        self.assertLess(case, self.text.index("## Stop and ask"))
+        self.assertLess(case, self.text.index("## Restore and release"))
+        body = self.text[case:self.text.index("## Stop and ask")]
+        for needed in ("+90 s", "+5 s", "+30 s", "elapsed: <s>", "Cancel", "update-check-unresolved",
+                       "update-window-stuck", "sparkle-error", "osascript -e 'quit app \"ContainerBar\"'"):
+            self.assertIn(needed, body)
+
+    def test_forbidden_list_keeps_install_and_skip_and_limits_cancel(self):
+        forbidden = self.text.split("**Forbidden, always:**", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("Install Update or Skip This Version", forbidden)
+        self.assertIn("Remind Me Later only", forbidden)
+        self.assertIn('Cancel only in the "Checking for updates..." window', forbidden)
+
     def test_no_private_values(self):
         self.assertIsNone(re.search(r"\b\d{1,3}(\.\d{1,3}){3}\b", self.text))
         self.assertNotRegex(self.text, r"channel:\d|/Users/[a-z]")
