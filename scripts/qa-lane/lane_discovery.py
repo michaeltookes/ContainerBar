@@ -23,7 +23,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from lane_core import APP_NAME, Lane, read_json, write_json
 
 DISCOVERY_BUDGET_S = 10.0   # item must be found within 10 s
-PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click
+PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click (one absolute deadline)
+CLICK_WINDOW_S = 1.0        # the click gets this long before the AXPress fallback; AXPress shares the same deadline
+PANEL_POLL_S = 0.5
 POLL_S = 1.0
 DUMP_BUDGET_S = 5.0        # diagnostics after a failed pass are bounded too
 PANEL_SIZE = (400, 720)     # fallback region under the item when AX gives no menu frame
@@ -195,8 +197,12 @@ def ax_items(lane: Lane, pid: int, deadline: Optional[float] = None) -> List[Ite
     return parse_ax_items(out) if rc == 0 else []
 
 
-def ax_panel_frame(lane: Lane, pid: int, item: Item) -> Optional[List[int]]:
-    rc, out = lane.run(["osascript", "-e", AX_MENU_SCRIPT, str(pid), str(item["index"]), str(item["bar"])], 10)
+def ax_panel_frame(lane: Lane, pid: int, item: Item, deadline: Optional[float] = None) -> Optional[List[int]]:
+    """The AX menu frame, or None. With a deadline the call is capped to it and an answer after it is rejected."""
+    rc, out = lane.call(["osascript", "-e", AX_MENU_SCRIPT, str(pid), str(item["index"]), str(item["bar"])],
+                        10, deadline)
+    if deadline is not None and lane.clock.now() > deadline:
+        return None
     return parse_frame(out) if rc == 0 else None
 
 
@@ -329,47 +335,52 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     shot.parent.mkdir(parents=True, exist_ok=True)
     if before.exists():
         before.unlink()
-    base_rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region",
-                           ",".join(str(v) for v in region_guess), "--no-elements", "--path", str(before), "--json"], 20)
+    see = [peekaboo_bin(lane), "see", "--mode", "area", "--region"]
+    base_rc, _ = lane.run(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(before),
+                                 "--json"], 20)
     have_base = base_rc == 0 and before.exists()
-    start = lane.clock.now()
     lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
               "--no-auto-focus"], 15)
-    opened_by = "click"
-    menu = _wait_menu(lane, int(pid), ax, start) if ax else None  # type: ignore[arg-type]
-    if menu is None and ax:
-        lane.run(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10)
-        opened_by = "axpress"
-        menu = _wait_menu(lane, int(pid), ax, lane.clock.now())  # type: ignore[arg-type]
-    region = panel_region(frame, menu, display_for(displays(lane), (cx, cy)))
-    source = "ax-menu" if menu else "region-under-item"
-    rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
-                      "--no-elements", "--path", str(shot), "--json"], 20)
-    # Readiness is panel evidence: the AX menu frame, or a capture that differs from the pre-click region.
-    # A missing baseline cannot establish that the panel opened.
-    changed = shot.exists() and have_base and before.read_bytes() != shot.read_bytes()
+    # One absolute deadline from the click: the AX frame, the AXPress fallback, every probe and the
+    # capture all run inside it, with their timeouts capped to what is left (CB-138).
+    start = lane.clock.now()
+    deadline = start + PANEL_BUDGET_S
+    opened_by, pressed, menu, changed = "click", False, None, False
+    while lane.clock.now() < deadline:
+        if ax:
+            menu = ax_panel_frame(lane, int(pid), ax, deadline)  # type: ignore[arg-type]
+            if menu:
+                break
+            if not pressed and lane.clock.now() - start >= CLICK_WINDOW_S:
+                lane.call(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10, deadline)
+                opened_by, pressed = "axpress", True
+                continue  # look at the AX menu again straight away; the timer is not reset
+        if (not ax or pressed) and have_base:
+            # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
+            rc, _ = lane.call(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(shot),
+                                     "--json"], 20, deadline)
+            changed = (rc == 0 and shot.exists() and lane.clock.now() <= deadline
+                       and before.read_bytes() != shot.read_bytes())
+            if changed:
+                break
+        lane.clock.sleep(PANEL_POLL_S)
+    region, source, ok = region_guess, "region-under-item", changed
+    if menu:
+        region, source = list(menu), "ax-menu"
+        rc, _ = lane.call(see + [",".join(str(v) for v in region), "--no-elements", "--path", str(shot), "--json"],
+                          20, deadline)
+        ok = rc == 0 and shot.exists() and lane.clock.now() <= deadline
     if before.exists():
         before.unlink()
-    if rc != 0 or not shot.exists() or (menu is None and not changed):
+    if not ok:
         if shot.exists():
             shot.unlink()  # unverified region capture (desktop or another app): keep only the diagnostic text
-        # Nothing opened (click and AXPress both tried), or no capture: one BLOCKED line for the pass.
+        # Nothing opened inside the budget (click and AXPress both tried), or no capture: one BLOCKED line.
         result = {"pids": [pid], "menubar_total": found.get("menubar_total", 0),
                   "ax_matches": found.get("ax_matches", 0), "peekaboo": found.get("peekaboo", [])}
         return _block(lane, run_dir, result, "panel-not-capturable")[:2]
     return 0, lines + ["opened-by: %s" % opened_by, "panel-capture: %s" % source,
                        "panel-region: %s" % ",".join(str(v) for v in region), "screenshot: %s" % shot]
-
-
-def _wait_menu(lane: Lane, pid: int, ax: Item, start: float) -> Optional[List[int]]:
-    """Poll the AX menu frame until it exists or the 2 s panel budget (from `start`) runs out."""
-    while True:
-        frame = ax_panel_frame(lane, pid, ax)
-        if frame:
-            return frame
-        if lane.clock.now() - start >= PANEL_BUDGET_S:
-            return None
-        lane.clock.sleep(0.5)
 
 
 def close_panel(lane: Lane) -> None:
