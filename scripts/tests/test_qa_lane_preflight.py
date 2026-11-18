@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from pathlib import Path
 import sys
 import time
 import unittest
@@ -737,6 +739,44 @@ class GrantProbeTests(unittest.TestCase):
         self.assertTrue(self.runner.ran("screencapture"))
         self.assertFalse(self.runner.ran("peekaboo", "click"))
         self.assertFalse(any(c[0] == "osascript" and "click" in c[-1] for c in self.runner.calls))
+
+    def test_inspection_failure_never_records_a_grant(self):
+        self.runner.on("osascript", lambda a: (124, ""))
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertEqual(self.lines(), [])
+        self.assertTrue(out[0].startswith("BLOCKED dialog-inspection-failed"))
+
+    def test_dialog_screenshot_is_cropped_to_the_dialog_bounds(self):
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices?;|100,200,260,180\n'
+        self.probe()
+        shots = [c for c in self.runner.calls if c[0] == "screencapture"]
+        self.assertEqual(len(shots), 1)
+        self.assertEqual(shots[0][shots[0].index("-R") + 1], "100,200,260,180")
+
+    def test_dialog_without_bounds_keeps_no_image(self):
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices?;\n'
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertFalse(self.runner.ran("screencapture"))
+        self.assertTrue(any(line.startswith("screenshot: omitted") for line in out))
+
+    def test_another_apps_local_network_prompt_is_a_system_prompt(self):
+        self.dialog_out = 'UserNotificationCenter|Local Network|Allow "OtherApp" to find devices on local networks?;|1,2,3,4\n'
+        code, out = self.probe()
+        self.assertEqual(code, 2)
+        self.assertTrue(out[0].startswith("BLOCKED system-prompt"))
+        self.assertFalse(any("ContainerBar Local Network dialog" in line for line in out))
+
+    def test_every_module_cbqa_lane_imports_is_installed(self):
+        lane_dir = Path(__file__).resolve().parent.parent / "qa-lane"
+        src = (lane_dir / "cbqa_lane.py").read_text()
+        modules = set(re.findall(r"^(?:from|import) (\w+)", src, re.M))
+        local = {m for m in modules if (lane_dir / (m + ".py")).exists()}
+        install = (lane_dir / "install.sh").read_text()
+        self.assertIn("lane_grant", local)
+        for m in sorted(local):
+            self.assertIn(m + ".py", install, "install.sh does not copy %s.py" % m)
 
     def test_other_system_prompt_blocks_without_a_line(self):
         self.dialog_out = "UserNotificationCenter|Keychain|ContainerBar wants to use the keychain;\n"

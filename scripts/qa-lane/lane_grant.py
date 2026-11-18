@@ -30,7 +30,7 @@ NO_ROUTE = re.compile(r"no route to host|local network", re.I)
 LOCAL_NETWORK_TEXT = re.compile(r"local network|find devices", re.I)
 SYSTEM_PROMPT_PROCESSES = ("UserNotificationCenter", "CoreServicesUIAgent", "SecurityAgent")
 
-# One line per window of every foreground process: process|window name|static texts joined by ;.
+# One line per window of every foreground process: process|window name|static texts joined by ;|x,y,w,h.
 DIALOG_SCRIPT = """tell application "System Events"
  set out to ""
  repeat with p in (every process whose background only is false)
@@ -42,7 +42,11 @@ DIALOG_SCRIPT = """tell application "System Events"
       set t to t & (value of s as text) & ";"
      end repeat
     end try
-    set out to out & (name of p) & "|" & (name of w as text) & "|" & t & linefeed
+    set b to ""
+    try
+     set b to ((item 1 of (position of w)) as integer as text) & "," & ((item 2 of (position of w)) as integer as text) & "," & ((item 1 of (size of w)) as integer as text) & "," & ((item 2 of (size of w)) as integer as text)
+    end try
+    set out to out & (name of p) & "|" & (name of w as text) & "|" & t & "|" & b & linefeed
    end repeat
   end try
  end repeat
@@ -50,19 +54,32 @@ DIALOG_SCRIPT = """tell application "System Events"
 end tell"""
 
 
-def dialog_visible(lane: Lane) -> Optional[str]:
-    """'local-network' or 'system-prompt' when such a dialog is on screen, else None."""
+BOUNDS = re.compile(r"\d+,\d+,\d+,\d+")
+
+
+def dialog_visible(lane: Lane) -> Tuple[Optional[str], str]:
+    """(kind, bounds): kind is 'local-network' (ContainerBar's own dialog), 'system-prompt',
+    'inspect-failed' (the AX inspection itself failed, so absence is unproven) or None.
+    bounds is 'x,y,w,h' of the dialog window, or '' when unknown."""
     rc, out = lane.run(["osascript", "-e", DIALOG_SCRIPT], DIALOG_BUDGET_S)
     if rc != 0:
-        return None
+        return "inspect-failed", ""
+    rows = []
     for line in out.splitlines():
-        proc, _, rest = line.partition("|")
-        if LOCAL_NETWORK_TEXT.search(rest) and proc.strip() in ("ContainerBar", *SYSTEM_PROMPT_PROCESSES):
-            return "local-network"
-    for line in out.splitlines():
-        if line.partition("|")[0].strip() in SYSTEM_PROMPT_PROCESSES:
-            return "system-prompt"
-    return None
+        parts = line.split("|")
+        proc = parts[0].strip()
+        texts = parts[2] if len(parts) > 2 else ""
+        bounds = parts[3].strip() if len(parts) > 3 else ""
+        rows.append((proc, texts, bounds if BOUNDS.fullmatch(bounds) else ""))
+    for proc, texts, bounds in rows:
+        # Only ContainerBar's own prompt: another app's "find devices" dialog is a system prompt.
+        if LOCAL_NETWORK_TEXT.search(texts) and (proc == "ContainerBar" or
+                                                 (proc in SYSTEM_PROMPT_PROCESSES and "ContainerBar" in texts)):
+            return "local-network", bounds
+    for proc, texts, bounds in rows:
+        if proc in SYSTEM_PROMPT_PROCESSES:
+            return "system-prompt", bounds
+    return None, ""
 
 
 def has_line(log: Path, identity: str, ref: str) -> bool:
@@ -89,10 +106,13 @@ def append_line(lane: Lane, identity: str, ref: str) -> bool:
     return True
 
 
-def _screenshot(lane: Lane, run_dir: Path) -> str:
+def _screenshot(lane: Lane, run_dir: Path, bounds: str) -> str:
+    """Capture only the dialog window; with no known bounds keep no image (evidence rules)."""
+    if not bounds:
+        return "omitted (dialog bounds unknown; the full display is never kept)"
     shot = run_dir / "assets" / "TC-CB-03" / DIALOG_SHOT
     shot.parent.mkdir(parents=True, exist_ok=True)
-    rc, _ = lane.run(["screencapture", "-x", str(shot)], 10)
+    rc, _ = lane.run(["screencapture", "-x", "-R", bounds, str(shot)], 10)
     return str(shot) if rc == 0 else "screenshot failed"
 
 
@@ -119,17 +139,23 @@ def grant_probe(lane: Lane, run_dir: Path, identity: str, ref: str, result: str,
         return 2, ["BLOCKED qa-runtime-down: the shell ssh cbqa-ctl status failed; no probe, no grant line"]
     run_dir.mkdir(parents=True, exist_ok=True)
     record = {"identity": identity, "ref": ref, "result": result}
-    dialog = dialog_visible(lane)
+    dialog, bounds = dialog_visible(lane)
+    if dialog == "inspect-failed":
+        write_json(marker, dict(record, verdict="inspect-failed"))
+        return 2, ["BLOCKED dialog-inspection-failed: osascript could not list windows (timeout or Accessibility "
+                   "permission missing), so a system dialog cannot be ruled out; no grant line, gate stays closed",
+                   "ASK owner: allow Accessibility for the lane's osascript host in System Settings > Privacy & Security, "
+                   "then the next pass probes again"]
     if dialog == "system-prompt":
         write_json(marker, dict(record, verdict="system-prompt"))
         return 2, ["BLOCKED system-prompt: a system dialog is on screen during the probe; nothing clicked, "
                    "no grant line (CB-116 rule for other prompts)",
-                   "screenshot: %s" % _screenshot(lane, run_dir),
+                   "screenshot: %s" % _screenshot(lane, run_dir, bounds),
                    "ASK owner: answer the system dialog over the remote desktop, then the next pass proves the grant"]
     if dialog == "local-network":
         write_json(marker, dict(record, verdict="dialog"))
         return 2, ["BLOCKED local-network-denied: the Local Network dialog is on screen; nothing clicked, no grant line",
-                   "screenshot: %s" % _screenshot(lane, run_dir),
+                   "screenshot: %s" % _screenshot(lane, run_dir, bounds),
                    "ASK owner: click Allow on the ContainerBar Local Network dialog over the remote desktop; "
                    "the next pass's probe proves the grant and writes the line"]
     if result == "connected" and elapsed <= PROBE_BUDGET_S:
