@@ -299,6 +299,15 @@ class RecipeTests(unittest.TestCase):
         self.assertNotRegex(self.text, r"channel:\d|/Users/[a-z]")
 
 
+class AxTimeoutRecipeTests(unittest.TestCase):
+    def test_ax_timeout_reason_and_agent_shell_sentence(self):
+        text = RECIPE.read_text()
+        self.assertIn("ax-timeout", text)
+        self.assertIn("agent shell, never a bare LaunchAgent or launchd job", text)
+        self.assertIn("ax-timeout", Path(LANE_DIR, "README.md").read_text())
+        self.assertIn("agent shell", Path(LANE_DIR, "README.md").read_text())
+
+
 class InstallCopiesRecipeTests(unittest.TestCase):
     def setUp(self):
         if not os.path.exists("/bin/zsh") or not os.path.exists("/usr/bin/plutil"):

@@ -81,6 +81,8 @@ class Fixture(unittest.TestCase):
             return 0, (self.menu if opened else "")
         if "key code 53" in script:
             return 0, ""
+        if "count processes" in script:
+            return 0, "400"
         return 0, self.ax[int(argv[3])]
 
     def ran_peekaboo(self, verb):
@@ -153,7 +155,7 @@ class DiscoveryTests(Fixture):
         self.ax = {100: AX_RELEASED, 200: AX_HUNT}
         code, lines, found = find_status_item(self.lane, self.run_dir)
         self.assertEqual((code, found["pid"], found["frame"]), (0, 100, [1453, 3, 54, 24]))
-        self.assertFalse(any(c[:1] == ["osascript"] and c[3] == "200" for c in self.runner.calls))
+        self.assertFalse(any(c[:1] == ["osascript"] and c[-1] == "200" for c in self.runner.calls))
 
     def test_hunt_build_alone_is_not_the_released_app(self):
         self.pids = {200: HUNT}
@@ -170,6 +172,39 @@ class DiscoveryTests(Fixture):
         code, lines, _ = find_status_item(self.lane, self.run_dir)
         self.assertEqual(code, 2)
         self.assertTrue(lines[0].startswith("BLOCKED status-item-ambiguous"), lines[0])
+
+    def test_liveness_timeout_blocks_ax_timeout_not_not_found(self):
+        calls = []
+
+        def hung(argv):
+            calls.append(argv)
+            return (124, "") if "count processes" in argv[2] else self.on_osascript(argv)
+        self.override("osascript", hung)
+        code, lines, _ = find_status_item(self.lane, self.run_dir)
+        self.assertEqual(code, 2)
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("BLOCKED ax-timeout system-events 5"), lines[0])
+        self.assertNotIn("status-item-not-found", lines[0])
+        self.assertIn("ax-timeout", (self.run_dir / "ax-dump.txt").read_text())
+        self.assertEqual(len(calls), 1)  # nothing else asked of System Events
+        self.assertLess(self.lane.clock.now() - self.lane.clock.start, 7)
+
+    def test_items_call_timeout_in_discovery_is_ax_timeout(self):
+        def hung(argv):
+            if "count processes" in argv[2] or argv[1] == "-l":
+                return self.on_osascript(argv)
+            return 124, ""
+        self.override("osascript", hung)
+        code, lines, _ = find_status_item(self.lane, self.run_dir)
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED ax-timeout"), lines[0])
+        self.assertNotIn("status-item-not-found", lines[0])
+
+    def test_healthy_liveness_with_empty_items_stays_not_found(self):
+        self.override("osascript", lambda argv: (0, "400") if "count processes" in argv[2] else (0, ""))
+        code, lines, _ = find_status_item(self.lane, self.run_dir)
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED status-item-not-found"), lines[0])
 
 
 class PanelTests(Fixture):

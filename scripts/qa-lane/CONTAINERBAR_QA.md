@@ -35,7 +35,7 @@ is its `<version>-<build>`) or `apple-development` (a re-signed branch build, CB
 - **Status item (CB-137).** Never read `menubar list` by hand: run `python3 -B tools/containerbar-qa/cbqa_lane.py find-status-item --run-dir "<run>"`
   (prints `found-by: peekaboo|ax` and `frame:`; the AX tree of the released PID is the fallback, bar-1 app-menu items and the hunt build are never used).
   Open and capture: `cbqa_lane.py open-panel --run-dir "<run>" --shot "<run>/assets/<TC-id>/02-panel-open.png"` (positional click at the centre, AXPress fallback; the panel is an AX menu, captured by region);
-  `cbqa_lane.py close-panel` ends it. Exit 2 prints one `BLOCKED status-item-not-found|status-item-ambiguous|panel-not-capturable menubar=<n> ax=<n>` line per pass,
+  `cbqa_lane.py close-panel` ends it. Exit 2 prints one `BLOCKED status-item-not-found|status-item-ambiguous|panel-not-capturable|ax-timeout` line per pass (ax-timeout = System Events hung, 5 s check; discovery runs from the agent shell, never a bare LaunchAgent or launchd job),
   saves `<run>/ax-dump.txt`, and every UI case is `blocked <reason>` (never FAIL; later calls repeat the block silently). Record `found-by` in each report.
 - Settings panes: **General**, **Connections**, **Sections**, **About**; open from the panel's gear, close with its close button.
 - **Selectors are release-aware**: identifiers only when installed >= the item's `fixed-in` (table at the end), else labels.
