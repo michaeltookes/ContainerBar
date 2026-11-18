@@ -56,7 +56,7 @@ is its `<version>-<build>`) or `apple-development` (a re-signed branch build, CB
 
 **Forbidden, always:** Remove container on any container; any action on a card whose name does not start with `cbqa-` (stop, start, restart: `cbqa-target` only),
 else stop the step and mark the run BLOCKED `scope-guard`; Remove Host or Delete Section on anything the run did not create; Install Update or Skip This Version
-(Remind Me Later only); the Launch at Login toggle; the shortcut recorder; setting `CONTAINERBAR_HUNT_MODE`; typing a password or granting any permission.
+(Remind Me Later only; Cancel only in the "Checking for updates..." window, TC-CB-14); the Launch at Login toggle; the shortcut recorder; setting `CONTAINERBAR_HUNT_MODE`; typing a password or granting any permission.
 
 ## QA runtime
 
@@ -191,11 +191,6 @@ the error verbatim, SSH cases `blocked app-cannot-connect`. **Closed** (no line;
 "Allow "ContainerBar" to find devices on local networks?" (it can appear at any launch): leave it
 untouched, note `local-network-prompt-open`; it alone does not stop the pass (CB-116).
 
-**TC-CB-14 Check for Updates when current.** First `curl -sSfI https://michaeltookes.github.io/ContainerBar/appcast.xml`; non-zero: `blocked
-appcast-unreachable`, capture any Sparkle error text. Settings > About: `01-about.png` (version and build visible), press Check for Updates, `02-sparkle-result.png`.
-"You're up to date": PASS, close the dialog. Newer version offered: note `update-available <v>`, press Remind Me Later, PASS with note. Button does nothing: finding
-linked to CB-074. Close Settings.
-
 **TC-CB-08 Settings persist across relaunch** (video). General: `01-general-baseline.png` (10 seconds, show
 stopped on); set Refresh Interval to 30 seconds and Show Stopped Containers off, `02-general-changed.png`; Quit; `open /Applications/ContainerBar.app`; General shows
 30 s and off (`03-after-relaunch.png`); Connections lists `QA Runtime` and `QA Runtime (socket)` with the same types, `QA Runtime` currently active
@@ -224,6 +219,20 @@ Gate open only, on `QA Runtime`; read the runtime with `ssh cbqa-ctl status`.
 - TC-CB-15 restart (video): `startedAt` later within 30 s; no Restart control: `blocked` with the element list, propose a defect (CB-082).
 - TC-CB-16 runtime away (video): `ssh cbqa-ctl api-stop`, two intervals, message verbatim, nothing stale shown running; `ssh cbqa-ctl api-start`, six cards back without relaunch (CB-071, CB-077 known texts).
 - TC-CB-17 stale stop (video): `ssh cbqa-ctl target-stop`, then Stop in the app before a refresh; banner or no-op, stopped after refresh, no hang; banner text verbatim, dismiss; restart `cbqa-target` with `ssh cbqa-ctl reset`.
+
+### Last case: TC-CB-14 (CB-139)
+
+**TC-CB-14 Check for Updates when current.** Runs after every other runnable case (SSH and socket cases included) and the Local Network gate, immediately before the
+restore, so an unresolved check blocks only this case. First `curl -sSfI https://michaeltookes.github.io/ContainerBar/appcast.xml`; non-zero: `blocked
+appcast-unreachable`, capture any Sparkle error text. Settings > About: `01-about.png`, press Check for Updates and note the click time. Capture `02-sparkle-5s.png`,
+`03-sparkle-30s.png` and `04-sparkle-90s.png` at +5 s, +30 s and +90 s (pixels are valid evidence: the Software Update window can be invisible to AX), stop at the
+first result and record `elapsed: <s>` on every pass. The bound is 90 s: Sparkle 2.10.0 sets no appcast request timeout, so Foundation's 60 s idle default applies.
+- "You're up to date": PASS, close with OK. Newer version offered: note `update-available <v>`, press Remind Me Later, PASS with note. Button does nothing: finding linked to CB-074.
+- Sparkle error dialog inside the bound: text verbatim, `FAIL TC-CB-14 sparkle-error` (CB-140), close with its only button.
+- Still "Checking for updates..." at +90 s: press Cancel in that window (the only Cancel the recipe allows), `05-cancelled.png` within 10 s shows the window gone, record
+  `BLOCKED update-check-unresolved <elapsed>s (CB-140)`, close Settings, go on to the restore.
+- Cancel leaves the window open after 10 s, or no window found by AX or pixels: `osascript -e 'quit app "ContainerBar"'` (never `kill`), `BLOCKED update-window-stuck`;
+  the restore relaunches through the UI path. Close Settings.
 
 ## Stop and ask
 
@@ -271,7 +280,7 @@ Blocked reasons: `ci-busy` (a runner job on this Mac), `desktop-busy` (lock held
 present, app still cannot connect: TC-CB-03 FAIL), `forward-failed`
 (no socket in 10 s), `time-budget` (case would start after T0 + 1380 s; `lock-not-owned`: hold ran
 out), `signature-failed` (a signature or Authority check failed before preflight: nothing launched), `scope-guard` (action about to hit a non-`cbqa-` card),
-`appcast-unreachable`. FAIL reason: `stale-install`. Notes and findings, never a verdict: `runner-api-unavailable`, `windows-normalised`, `previous run left state`,
+`appcast-unreachable`, `update-check-unresolved`, `update-window-stuck`. FAIL reasons: `stale-install`, `sparkle-error`. Notes and findings, never a verdict: `runner-api-unavailable`, `windows-normalised`, `previous run left state`,
 `unexpected update prompt`, `post-failed`.
 
 ## Known failures (quiet while installed < `fixed-in`, recomputed at each tag; at or above it: FAIL)
