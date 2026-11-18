@@ -730,7 +730,7 @@ class GrantProbeTests(unittest.TestCase):
         self.assertEqual(code, 1)
 
     def test_dialog_present_writes_none_blocks_and_clicks_nothing(self):
-        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices on local networks?;\n'
+        self.dialog_out = 'ContainerBar|Local Network|Allow "ContainerBar" to find devices on local networks?;|10,20,300,200\n'
         code, out = self.probe()
         self.assertEqual(code, 2)
         self.assertEqual(self.lines(), [])
@@ -741,7 +741,7 @@ class GrantProbeTests(unittest.TestCase):
         self.assertFalse(any(c[0] == "osascript" and "click" in c[-1] for c in self.runner.calls))
 
     def test_inspection_failure_never_records_a_grant(self):
-        self.runner.on("osascript", lambda a: (124, ""))
+        self.runner.handlers.insert(0, ("osascript", lambda a: (124, "")))
         code, out = self.probe()
         self.assertEqual(code, 2)
         self.assertEqual(self.lines(), [])
