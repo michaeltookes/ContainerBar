@@ -51,6 +51,9 @@ class Fixture(unittest.TestCase):
         self.runner.on("peekaboo see", self.on_see)
         self.runner.on("osascript", self.on_osascript)
 
+    def override(self, prefix, handler):
+        self.runner.handlers.insert(0, (prefix, handler))
+
     def released(self):
         return self.lane.app_path + "/Contents/MacOS/ContainerBar"
 
@@ -231,7 +234,7 @@ class CodexRound1Tests(Fixture):
     def test_visible_panel_without_ax_menu_frame_is_accepted(self):
         # AX has the item but exposes no menu frame; the region capture changed after the click.
         self.menu = ""
-        self.runner.on("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
+        self.override("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
                        ((0, "") if "unix id" not in a[2] else (0, AX_RELEASED)))
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 0, lines)
@@ -242,7 +245,7 @@ class CodexRound1Tests(Fixture):
         def slow(argv):
             self.lane.clock.sleep(20)
             return 0, self.peek
-        self.runner.on("peekaboo menubar list", slow)
+        self.override("peekaboo menubar list", slow)
         code, lines, _ = find_status_item(self.lane, self.run_dir)
         self.assertEqual(code, 2)
         self.assertTrue(lines[0].startswith("BLOCKED status-item-not-found"), lines[0])
@@ -267,8 +270,8 @@ class CodexRound1Tests(Fixture):
     def test_fallback_uses_the_display_that_owns_the_item(self):
         self.display_out = "0|0|1920|1080\n1920|0|1440|900\n"
         self.menu = ""
-        self.runner.on("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
-                       ((0, "") if "unix id" not in a[2] else (0, "2|1|3300|3|54|24|5|ContainerBar|x\n")))
+        self.override("osascript", lambda a: (0, self.display_out) if a[1] == "-l" else
+                       ((0, "2|1|3300|3|54|24|5|ContainerBar|x\n") if "position of mi" in a[2] else (0, "")))
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.regions[-1], "2960,31,400,720")

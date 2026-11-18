@@ -266,6 +266,8 @@ def find_status_item(lane: Lane, run_dir: Path) -> Tuple[int, List[str], Optiona
         if result["status"] in ("found", "ambiguous") or lane.clock.now() >= deadline:
             break
         lane.clock.sleep(POLL_S)
+        if lane.clock.now() >= deadline:
+            break  # no probe left in the window; keep the last in-window evidence for the block
     if result["status"] == "found":
         frame = result["frame"]
         return 0, ["found-by: %s" % result["found_by"],
