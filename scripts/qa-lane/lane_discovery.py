@@ -116,6 +116,13 @@ def is_containerbar(item: Item) -> bool:
                         str(item.get("axDescription", "")))
 
 
+def is_status_item(item: Item) -> bool:
+    """An AX menu bar item that is ContainerBar's status item, not its application menu (bar 1)."""
+    frame = item.get("frame") or [0, 0, 0, 0]
+    return (is_containerbar(item) and frame[2] > 0 and frame[3] > 0  # type: ignore[index]
+            and (int(item.get("bar", 0)) >= 2 or "status menu" in str(item.get("description", ""))))
+
+
 def peekaboo_frame(item: Item) -> Optional[List[int]]:
     """Peekaboo's `frame` is [[x, y], [w, h]]; return [x, y, w, h]."""
     try:
@@ -196,7 +203,7 @@ def discover_once(lane: Lane) -> Dict[str, object]:
     ax: List[Item] = []
     pid = pids[0] if len(pids) == 1 else 0
     if pid:
-        ax = [i for i in ax_items(lane, pid) if is_containerbar(i)]
+        ax = [i for i in ax_items(lane, pid) if is_status_item(i)]
     evidence = {"pids": pids, "menubar_total": peek_total, "menubar_matches": len(peek),
                 "ax_matches": len(ax), "peekaboo": peek, "ax": ax}
     if len(pids) > 1 or len(ax) > 1:
@@ -282,7 +289,7 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     if code != 0 or not found:
         return 2, lines
     pid, item, frame = found["pid"], found.get("item"), list(found["frame"])  # type: ignore[arg-type]
-    ax = item or next((i for i in ax_items(lane, int(pid)) if is_containerbar(i)), None)  # type: ignore[arg-type]
+    ax = item or next((i for i in ax_items(lane, int(pid)) if is_status_item(i)), None)  # type: ignore[arg-type]
     cx, cy = center(frame)
     start = lane.clock.now()
     lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
