@@ -155,7 +155,7 @@ class DiscoveryTests(Fixture):
         self.ax = {100: AX_RELEASED, 200: AX_HUNT}
         code, lines, found = find_status_item(self.lane, self.run_dir)
         self.assertEqual((code, found["pid"], found["frame"]), (0, 100, [1453, 3, 54, 24]))
-        self.assertFalse(any(c[:1] == ["osascript"] and c[3] == "200" for c in self.runner.calls))
+        self.assertFalse(any(c[:1] == ["osascript"] and c[-1] == "200" for c in self.runner.calls))
 
     def test_hunt_build_alone_is_not_the_released_app(self):
         self.pids = {200: HUNT}
