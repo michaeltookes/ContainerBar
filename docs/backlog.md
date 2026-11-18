@@ -181,6 +181,20 @@ QA runtime (solution architect, 2026-10-14): rootless Podman owned by the unpriv
 
 **Test cases**: TC-CB-08 (asset rule corrected); proposed **TC-CB-31** "Preflight records the Local Network grant only after a dialog-free Test Connection" (lane check, for the planner).
 
+### CB-138: QA lane: panel-open readiness and deadline hardening in lane_discovery.open_panel (CB-137 leftovers, Codex PR 88 round 2)
+**Priority**: Medium (P2; the fallback works on the QA Mini today, these are timing edge cases)
+**Rank**: after CB-134, before CB-131
+**Source**: Codex review of PR 88 round 2, 2026-11-17; leftovers at the two-round cap (orchestrator ruling in genkei-ops inbox 2026-11-17).
+**Description**: (1) When Peekaboo supplies the status-item frame but AX cannot supply an item, `_wait_menu` is skipped and the first post-click screenshot is taken with no readiness retry; ContainerBar builds its menu asynchronously, so a capture before the first render records a `panel-not-capturable` block for the whole pass even when the panel appears within the 2 s budget. Poll the region fallback within the readiness budget before blocking. (2) `ax_panel_frame` has a 10 s timeout and its frame is accepted before the 2 s post-click budget is checked, the AXPress fallback resets the timer, and the display lookup and screenshot sit outside it. Carry one absolute post-click deadline through both attempts and the capture, cap subprocess timeouts to the remaining budget, and reject evidence that arrives after it. Owner builder, size S.
+
+**Acceptance**:
+- Given Peekaboo finds the frame and AX has no item, when the panel renders 1.5 s after the click, then open_panel returns success with the region capture and no blocked line.
+- Given the panel never renders, then it blocks after the 2 s budget, not before.
+- Given `ax_panel_frame` answers after 9 s, then the frame is rejected and the pass blocks within the budget.
+- Unit tests for each, mocked clock.
+
+**Test cases**: TC-CB-33 (extend), TC-CB-02.
+
 ### CB-131: QA-lane operator docs: SSH PATH, manual preflight lock lifetime, and signature-authority semantics
 **Priority**: High
 **Rank**: immediately after CB-124 activation, before CB-130 and unattended deep passes (BA 2026-10-23).
