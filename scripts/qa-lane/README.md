@@ -110,8 +110,8 @@ The recipe also reads `qa/containerbar/local-network-grants.log`, one line per
 Local Network grant (CB-116): `<YYYY-MM-DD> | <identity> | <build> | <who>`.
 A `developer-id` line (build `-`) covers every Developer ID release; an `adhoc`
 line covers only the `<version>-<build>` it names; an `apple-development` line (CB-124) names the signing
-certificate's SHA-1, so rebuilds signed by the same identity keep the gate open. Without a matching line the
-recipe marks every SSH case `blocked local-network-denied (CB-116)`.
+certificate's SHA-1, so rebuilds signed by the same identity keep the gate open. The lane writes these lines itself: `cbqa_lane.py grant-probe` (CB-134) after one dialog-free
+Connected Test Connection; nobody edits the log by hand.
 
 Optional: `CBQA_RUNNER_REPOS` (default `michaeltookes/ContainerBar,michaeltookes/sentwise`),
 `CBQA_WEBHOOK_KEY` (default `CONTAINERBAR_QA_WEBHOOK`).
