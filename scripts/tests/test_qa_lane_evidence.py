@@ -96,16 +96,6 @@ class HuntTests(Fixture):
         self.assertEqual(lines[1], "hunt-sparkle: 2026-11-18 07:08:25 +0000")
         self.assertEqual(lines[2], "hunt-fixture-text: present")
 
-    def test_probe_timeouts_are_errors_not_none_or_absent_and_block_the_verdict(self):
-        self.override("pgrep", lambda a: (124, ""))
-        self.override("defaults read", lambda a: (124, ""))
-        case = self.root / "case"
-        capture_status_item(self.lane, self.run_dir, case)
-        (case / PANEL).write_text("panel")
-        _, lines = hunt_checks(self.lane, case, "absent")
-        self.assertEqual(lines[:2], ["hunt-process: error timeout", "hunt-sparkle: error timeout"])
-        self.assertEqual(verdict(self.run_dir, case), (2, "BLOCKED evidence-incomplete hunt-checks"))
-
     def test_pgrep_no_match_and_defaults_exit_1_stay_none_and_absent(self):
         self.override("pgrep", lambda a: (1, ""))
         self.override("defaults read", lambda a: (1, ""))
@@ -146,6 +136,13 @@ class VerdictTests(Fixture):
     def test_oversized_strip_record_is_not_evidence(self):
         (self.case / "status-item-capture.json").write_text('{"frame": [0,0,54,24], "region": [0,0,200,40]}')
         self.assertEqual(verdict(self.run_dir, self.case), (2, "BLOCKED evidence-incomplete %s" % STRIP))
+
+    def test_probe_timeouts_are_errors_not_none_or_absent_and_block_the_verdict(self):
+        self.override("pgrep", lambda a: (124, ""))
+        self.override("defaults read", lambda a: (124, ""))
+        _, lines = hunt_checks(self.lane, self.case, "absent")
+        self.assertEqual(lines[:2], ["hunt-process: error timeout", "hunt-sparkle: error timeout"])
+        self.assertEqual(verdict(self.run_dir, self.case), (2, "BLOCKED evidence-incomplete hunt-checks"))
 
     def test_fixture_text_present_is_fail_p1(self):
         hunt_checks(self.lane, self.case, "present")
