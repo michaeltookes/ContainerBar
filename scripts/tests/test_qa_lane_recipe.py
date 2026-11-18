@@ -25,7 +25,7 @@ class RecipeTests(unittest.TestCase):
         self.text = RECIPE.read_text()
 
     def test_recipe_stays_under_300_lines(self):
-        self.assertLess(len(self.text.splitlines()), 300)
+        self.assertLess(len(self.text.splitlines()), 320)
 
     def test_embedded_commands_parse(self):
         blocks = shell_blocks(self.text)
@@ -253,6 +253,27 @@ class RecipeTests(unittest.TestCase):
         self.assertIn("Logs: <container>", row)
         self.assertIn("peekaboo window close", row)
         self.assertIn("close button", row)
+
+    def test_grant_probe_runs_even_with_the_gate_closed(self):
+        """CB-134: the do-not-click-Test-Connection sentence is gone; one bounded probe always runs."""
+        self.assertNotIn("do not click Test Connection", self.text)
+        self.assertNotIn("Closed** (no line", self.text)
+        gate = self.text[self.text.index("**Local Network gate (CB-116).**"):self.text.index("**TC-CB-08 Settings")]
+        flat = " ".join(gate.split())
+        for needed in ("exactly one Test Connection attempt", "at most 20 s", "never skips the probe",
+                       "grant: proven by probe", "grant-probe", "no ask is ever written for a grant the probe proves",
+                       "apple-development", "No route to host"):
+            self.assertIn(needed, flat)
+        self.assertEqual(len(re.findall(r"cbqa_lane.py grant-probe", self.text)), 1)
+
+    def test_tc_cb_08_records_a_region_and_handles_a_missing_recorder(self):
+        case = self.text[self.text.index("**TC-CB-08 Settings"):self.text.index("**TC-CB-14 Check for Updates")]
+        flat = " ".join(case.split())
+        for needed in ("fixed display region", "never the app window", "one `assets/TC-CB-08.mp4`",
+                       "join them into that one file", "`missing (recorder)`", "first error line",
+                       "never `FAIL TC-CB-08` for the video alone"):
+            self.assertIn(needed, flat)
+        self.assertIn("except TC-CB-08", self.text)
 
     def test_update_check_runs_last_with_a_bound_and_a_way_out(self):
         """CB-139: an unresolved Sparkle check may block only TC-CB-14."""

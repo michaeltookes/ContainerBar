@@ -71,7 +71,7 @@ Six fixtures, label `com.tookes.containerbar.qa=1`: `cbqa-web` (running, `18080:
 
 Root: `artifacts/containerbar-qa/runs/<YYYY-MM-DD>-daily-<HHMM>/` (`<run>` below). It holds `report.md`, `defaults-before.plist`, `assets/<TC-id>/NN-<slug>.png` (one
 per step, e.g. `01-status-item.png`), and `assets/<TC-id>.mp4` for exactly TC-CB-08, 10, 13, 15, 16, 17 (no other video; the `peekaboo` skill's recording command,
-scoped to the ContainerBar window). Screenshot with `peekaboo see --app com.tookes.ContainerBar
+scoped to the ContainerBar window, except TC-CB-08). Screenshot with `peekaboo see --app com.tookes.ContainerBar
 --annotate --path "<run>/assets/<TC-id>/NN-<slug>.png" --json`; a capture showing more than the app panel or
 Settings window is cropped (`sips -c`) or deleted. Where a capture cannot be kept for privacy, the step's asset is `NN-<slug>.txt` with the redacted text. Command
 output, dialog text and element lists go into `report.md` verbatim, except that every connection error (Test Connection, banners, ssh lines) is redacted first
@@ -173,9 +173,25 @@ missing
 exits 0 and prints `found-by: ax` (or `peekaboo`), `open-panel` exits 0 and `02-panel-open.png` shows the cards or the empty state, not the bare menu bar. Exit 2: `blocked <reason>`
 with `ax-dump.txt` attached; FAIL only if the app is running and TC-CB-02 also failed.
 
-**Local Network gate (CB-116).** Run it once here: after TC-CB-01 and TC-CB-02 (the app is installed, verified and running) and before TC-CB-14 and any SSH-dependent
-case or step. **Open** when the grant log has a `developer-id` line and TC-CB-01 found the Developer ID authority (any installed version), an `adhoc` line naming the
-installed `<version>-<build>`, or an `apple-development` line naming the verified identity hash (a branch candidate, non-empty `HASH`, is opened by that line alone):
+**Local Network gate (CB-116).** Grant probe (CB-134, preflight 0g). Run once here: after TC-CB-01 and TC-CB-02 (the app is installed, verified and running) and before
+TC-CB-14 and any SSH-dependent case or step. The probe always runs, whether or not the grant log has a line for the installed identity. Only when `ssh cbqa-ctl status`
+succeeds (else `BLOCKED qa-runtime-down`), make exactly one Test Connection attempt on `QA Runtime`: `open-panel`, Settings > Connections, click Test Connection, wait at most
+20 s, then record the result and seconds taken with `grant-probe` (the lane re-checks the shell, looks for a system dialog, classifies, and writes the line itself):
+
+```sh
+python3 -B tools/containerbar-qa/cbqa_lane.py grant-probe --run-dir "<run>" --identity "$IDENT" --ref "$REF" --result "$RESULT" --elapsed "$SECS" --error-text "$ERR"
+```
+
+`IDENT`/`REF`: `developer-id` / `-` (Developer ID authority found), `adhoc` / `<version>-<build>`, or `apple-development` / the verified identity SHA-1 (a re-signed branch
+candidate). `RESULT`: `connected`, `failed` (with the redacted first error line in `ERR`) or `timeout`. Exit 0: the gate is open, the report says `grant: proven by probe`
+(the lane appended `<date> | <identity> | <ref> | lane` unless an equal line existed); no ask is ever written for a grant the probe proves. Exit 2 `BLOCKED
+local-network-denied` (dialog on screen, or `No route to host` / the Local Network message with no dialog): click nothing, keep its screenshot and `ASK` line, post that
+one line to `CBQA_ALERT_TARGET`, SSH cases `blocked local-network-denied`. Exit 1 `FAIL TC-CB-03` (timeout, other error): SSH cases `blocked app-cannot-connect`. Exit 2
+`system-prompt`: the Stop and ask rule. The log is never edited by hand. The system dialog "Allow "ContainerBar" to find devices on local networks?" seen outside the probe
+(it can appear at any launch): leave it untouched, note `local-network-prompt-open`; the probe then decides.
+
+Read the log first for the report only (it never skips the probe): the gate reads **open** when the log has a `developer-id` line and TC-CB-01 found the Developer ID
+authority, an `adhoc` line for the installed `<version>-<build>`, or an `apple-development` line for the verified identity hash (non-empty `HASH`, a branch candidate):
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
@@ -184,19 +200,16 @@ HASH=''           # identity= from the provenance check on a branch candidate; e
 awk -F' *[|] *' -v b="$BUILD" -v h="$HASH" 'h!="" {ok = ($2=="apple-development" && $3==h) ? 1 : ok; next} $2=="developer-id" || ($2=="adhoc" && $3==b) {ok=1} END {exit !ok}' qa/containerbar/local-network-grants.log && echo gate-open || echo gate-closed
 ```
 
-Then Settings > Connections > `QA Runtime` > Test Connection must show success, the only proof. `No route to host` or the Local Network message while `ssh cbqa-ctl
-status` worked: BLOCKED `local-network-denied`, one line to `CBQA_ALERT_TARGET`, SSH cases `blocked local-network-denied`. Any other failure: `FAIL TC-CB-03` with
-the error verbatim, SSH cases `blocked app-cannot-connect`. **Closed** (no line; the state until CB-116 lands): do not click Test Connection; every SSH case is
-`blocked local-network-denied (CB-116)`. The system dialog
-"Allow "ContainerBar" to find devices on local networks?" (it can appear at any launch): leave it
-untouched, note `local-network-prompt-open`; it alone does not stop the pass (CB-116).
-
-**TC-CB-08 Settings persist across relaunch** (video). General: `01-general-baseline.png` (10 seconds, show
+**TC-CB-08 Settings persist across relaunch** (video: one region recording, below). General: `01-general-baseline.png` (10 seconds, show
 stopped on); set Refresh Interval to 30 seconds and Show Stopped Containers off, `02-general-changed.png`; Quit; `open /Applications/ContainerBar.app`; General shows
 30 s and off (`03-after-relaunch.png`); Connections lists `QA Runtime` and `QA Runtime (socket)` with the same types, `QA Runtime` currently active
 (`04-connections.png`; a missing host is `FAIL P1`, CB-075). Dashboard hides `cbqa-stopped`: run it only with the gate open, else that step is `blocked
 local-network-denied (CB-116)` and the case verdict comes from the other steps. Restore: 10 seconds, show stopped on, Quit, relaunch, `05-restored.png`; note the
 restored values.
+Record TC-CB-08 at a fixed display region (the screen area where the Settings window opens), never the app window, so Quit and relaunch stay in one
+`assets/TC-CB-08.mp4` from baseline to restored; if the recorder cannot outlive the window, record two region clips and join them into that one file before the report.
+Recording missing or failed: the verdict comes from the five screenshots, the asset is `missing (recorder)` plus the recorder's first error line, and it is an evidence gap, never
+`FAIL TC-CB-08` for the video alone.
 
 **Unix-socket leg (Wed and Sat only; runs with the gate closed: the forward is the lane's shell `ssh`).**
 - **TC-CB-12 Missing socket shows a useful error.** `cbqa_lane.py forward-stop` (full path as above); select `QA Runtime (socket)` (host pill or Settings > Connections > Set as Active
