@@ -112,8 +112,9 @@ def parse_frame(text: str) -> Optional[List[int]]:
 
 
 def is_containerbar(item: Item) -> bool:
+    """The status item's AX description is `ContainerBar`; its title is the running count (e.g. `5`)."""
     return APP_NAME in (str(item.get("title", "")), str(item.get("axTitle", "")),
-                        str(item.get("axDescription", "")))
+                        str(item.get("axDescription", "")), str(item.get("description", "")))
 
 
 def is_status_item(item: Item) -> bool:
