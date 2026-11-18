@@ -187,7 +187,7 @@ candidate). `RESULT`: `connected`, `failed` (with the redacted first error line 
 (the lane appended `<date> | <identity> | <ref> | lane` unless an equal line existed); no ask is ever written for a grant the probe proves. Exit 2 `BLOCKED
 local-network-denied` (dialog on screen, or `No route to host` / the Local Network message with no dialog): click nothing, keep its screenshot and `ASK` line, post that
 one line to `CBQA_ALERT_TARGET`, SSH cases `blocked local-network-denied`. Exit 1 `FAIL TC-CB-03` (timeout, other error): SSH cases `blocked app-cannot-connect`. Exit 2
-`system-prompt`: the Stop and ask rule. The log is never edited by hand. The system dialog "Allow "ContainerBar" to find devices on local networks?" seen outside the probe
+`system-prompt` or `dialog-inspection-failed`: the Stop and ask rule (SSH cases blocked, no grant line). The log is never edited by hand. The system dialog "Allow "ContainerBar" to find devices on local networks?" seen outside the probe
 (it can appear at any launch): leave it untouched, note `local-network-prompt-open`; the probe then decides.
 
 Read the log first for the report only (it never skips the probe): the gate reads **open** when the log has a `developer-id` line and TC-CB-01 found the Developer ID
