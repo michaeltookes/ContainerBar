@@ -327,8 +327,11 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     region_guess = panel_region(frame, None, display_for(displays(lane), (cx, cy)))
     before = shot.with_name(shot.stem + ".before.png")
     shot.parent.mkdir(parents=True, exist_ok=True)
-    lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region_guess),
-              "--no-elements", "--path", str(before), "--json"], 20)
+    if before.exists():
+        before.unlink()
+    base_rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region",
+                           ",".join(str(v) for v in region_guess), "--no-elements", "--path", str(before), "--json"], 20)
+    have_base = base_rc == 0 and before.exists()
     start = lane.clock.now()
     lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
               "--no-auto-focus"], 15)
@@ -343,10 +346,13 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
                       "--no-elements", "--path", str(shot), "--json"], 20)
     # Readiness is panel evidence: the AX menu frame, or a capture that differs from the pre-click region.
-    changed = shot.exists() and (not before.exists() or before.read_bytes() != shot.read_bytes())
+    # A missing baseline cannot establish that the panel opened.
+    changed = shot.exists() and have_base and before.read_bytes() != shot.read_bytes()
     if before.exists():
         before.unlink()
     if rc != 0 or not shot.exists() or (menu is None and not changed):
+        if shot.exists():
+            shot.unlink()  # unverified region capture (desktop or another app): keep only the diagnostic text
         # Nothing opened (click and AXPress both tried), or no capture: one BLOCKED line for the pass.
         result = {"pids": [pid], "menubar_total": found.get("menubar_total", 0),
                   "ax_matches": found.get("ax_matches", 0), "peekaboo": found.get("peekaboo", [])}

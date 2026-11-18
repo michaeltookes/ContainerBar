@@ -241,6 +241,28 @@ class CodexRound1Tests(Fixture):
         self.assertIn("panel-capture: region-under-item", lines)
         self.assertFalse((self.root / "p.before.png").exists())
 
+    def test_missing_baseline_cannot_prove_the_panel_opened(self):
+        self.menu_opens_on = "never"
+
+        def on_see(argv):
+            self.regions.append(argv[argv.index("--region") + 1])
+            if len(self.regions) == 1:
+                return 1, ""  # the baseline capture fails
+            Path(argv[argv.index("--path") + 1]).write_text("bare desktop")
+            return 0, "{}"
+        self.override("peekaboo see", on_see)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+
+    def test_blocked_panel_deletes_unverified_captures(self):
+        self.menu_opens_on = "never"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertFalse((self.root / "p.png").exists())
+        self.assertFalse((self.root / "p.before.png").exists())
+        self.assertTrue((self.run_dir / "ax-dump.txt").exists())
+
     def test_slow_discovery_past_the_ten_second_window_is_not_found(self):
         def slow(argv):
             self.lane.clock.sleep(20)
