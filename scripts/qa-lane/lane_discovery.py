@@ -44,7 +44,7 @@ tell application "System Events"
    set mi to menu bar item i of menu bar b of p
    set pos to position of mi
    set sz to size of mi
-   set end of out to ({b, i, item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz, (title of mi) as text, (description of mi) as text, (value of mi) as text} as text)
+   set end of out to (b as text) & "|" & (i as text) & "|" & ((item 1 of pos) as text) & "|" & ((item 2 of pos) as text) & "|" & ((item 1 of sz) as text) & "|" & ((item 2 of sz) as text) & "|" & ((title of mi) as text) & "|" & ((description of mi) as text) & "|" & ((value of mi) as text)
   end repeat
  end repeat
 end tell
@@ -62,7 +62,7 @@ tell application "System Events"
   set m to menu 1 of menu bar item (item 2 of argv as integer) of menu bar (item 3 of argv as integer) of p
   set pos to position of m
   set sz to size of m
-  return {item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz} as text
+  return ((item 1 of pos) as text) & "|" & ((item 2 of pos) as text) & "|" & ((item 1 of sz) as text) & "|" & ((item 2 of sz) as text)
  on error
   return ""
  end try
