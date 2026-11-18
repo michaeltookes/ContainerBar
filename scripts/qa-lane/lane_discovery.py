@@ -41,10 +41,10 @@ tell application "System Events"
  repeat with b from 1 to bars
   set n to count of menu bar items of menu bar b of p
   repeat with i from 1 to n
-   set it to menu bar item i of menu bar b of p
-   set pos to position of it
-   set sz to size of it
-   set end of out to ({b, i, item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz, (title of it) as text, (description of it) as text, (value of it) as text} as text)
+   set mi to menu bar item i of menu bar b of p
+   set pos to position of mi
+   set sz to size of mi
+   set end of out to ({b, i, item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz, (title of mi) as text, (description of mi) as text, (value of mi) as text} as text)
   end repeat
  end repeat
 end tell
