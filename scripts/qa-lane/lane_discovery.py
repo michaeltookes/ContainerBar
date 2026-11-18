@@ -203,9 +203,10 @@ class AxTimeout(Exception):
 
 
 def ax_items(lane: Lane, pid: int, deadline: Optional[float] = None, strict: bool = False) -> List[Item]:
+    budget = 20.0 if deadline is None else min(20.0, deadline - lane.clock.now())
     rc, out = lane.call(["osascript", "-e", AX_ITEMS_SCRIPT, str(pid)], 20, deadline)
-    if strict and rc == 124:
-        raise AxTimeout(20)
+    if strict and rc == 124 and budget > 0:  # the call really ran and hung; past the deadline nothing ran
+        raise AxTimeout(int(round(budget)))
     return parse_ax_items(out) if rc == 0 else []
 
 
