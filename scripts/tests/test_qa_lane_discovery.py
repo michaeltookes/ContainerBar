@@ -64,8 +64,9 @@ class Fixture(unittest.TestCase):
     def on_see(self, argv):
         self.regions.append(argv[argv.index("--region") + 1])
         if self.shot_ok:
-            opened = self.state["clicked"] or self.state["pressed"]
-            Path(argv[argv.index("--path") + 1]).write_text("panel" if opened and self.menu_opens_on != "never" else "bare")
+            opened = {"click": self.state["clicked"], "axpress": self.state["pressed"],
+                      "never": False}[self.menu_opens_on]
+            Path(argv[argv.index("--path") + 1]).write_text("panel" if opened else "bare")
         return (0, "{}") if self.shot_ok else (1, "")
 
     def on_osascript(self, argv):
@@ -297,6 +298,125 @@ class CodexRound1Tests(Fixture):
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.regions[-1], "2960,31,400,720")
+
+
+class Cb138ReadinessTests(Fixture):
+    """CB-138: readiness polling and one absolute post-click deadline, with the fake clock."""
+
+    def peekaboo_only(self, renders_after):
+        """Peekaboo has the frame, AX has no item; the panel renders `renders_after` seconds after the click."""
+        self.peek = peek_json(("ContainerBar", 1440))
+        self.ax = {100: AX_NONE}
+        self.clicked_at = []
+
+        def on_click(argv):
+            self.clicked_at.append(self.lane.clock.now())
+            return 0, "{}"
+
+        def on_see(argv):
+            Path(argv[argv.index("--path") + 1]).write_text(
+                "panel" if self.clicked_at and renders_after is not None
+                and self.lane.clock.now() - self.clicked_at[0] >= renders_after else "bare")
+            return 0, "{}"
+        self.override("peekaboo click", on_click)
+        self.override("peekaboo see", on_see)
+
+    def test_panel_rendering_at_1_5_s_is_a_success_with_the_region_capture(self):
+        self.peekaboo_only(1.5)
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 0, lines)
+        self.assertIn("panel-capture: region-under-item", lines)
+        self.assertFalse(any(l.startswith("BLOCKED") for l in lines))
+        self.assertEqual(shot.read_text(), "panel")
+        self.assertFalse((self.run_dir / "status-item.json").exists())
+
+    def test_panel_that_never_renders_blocks_after_the_budget_not_before(self):
+        self.peekaboo_only(None)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+        waited = self.lane.clock.now() - self.clicked_at[0]
+        self.assertGreaterEqual(waited, 2.0)
+        self.assertLess(waited, 3.0)
+        self.assertGreater(len(self.ran_peekaboo("see")), 3)  # polled, not one capture
+
+    def test_ax_frame_answered_after_9_s_is_rejected_and_the_pass_blocks_in_budget(self):
+        self.menu = "1450|31|400|720"
+
+        def slow(argv):
+            if "menu 1 of menu bar item" in argv[2]:
+                self.lane.clock.sleep(9)  # ignores the timeout it was given
+                return 0, self.menu
+            return self.on_osascript(argv)
+        self.override("osascript", slow)
+        self.menu_opens_on = "never"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+        self.assertLess(self.lane.clock.now() - self.lane.clock.start, 20)
+
+    def test_ax_frame_call_is_capped_to_the_remaining_budget(self):
+        self.menu_opens_on = "never"
+        timeouts = []
+        real = self.lane.run
+        self.lane.run = lambda argv, timeout: (timeouts.append((argv[0], " ".join(argv), timeout)), real(argv, timeout))[1]
+        open_panel(self.lane, self.run_dir, self.root / "p.png")
+        menu_calls = [t for a, j, t in timeouts if "menu 1 of menu bar item" in j]
+        self.assertTrue(menu_calls)
+        self.assertLessEqual(max(menu_calls), 2.0)
+
+    def test_axpress_fallback_does_not_reset_the_deadline(self):
+        self.menu, self.menu_opens_on = "1450|31|400|720", "never"
+        clicks = []
+        self.override("peekaboo click", lambda a: (clicks.append(self.lane.clock.now()), (0, "{}"))[1])
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2)
+        self.assertTrue(self.state["pressed"])
+        self.assertLessEqual(self.lane.clock.now() - clicks[0], 2.5)
+
+    def test_axpress_opening_late_inside_the_budget_still_succeeds(self):
+        self.menu, self.menu_opens_on = "1450|31|400|720", "axpress"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("opened-by: axpress", lines)
+
+    def test_delayed_ax_frame_with_the_panel_already_open_is_not_pressed_again(self):
+        self.menu = "1450|31|400|720"
+        clicked = []
+        self.override("peekaboo click", lambda a: (clicked.append(self.lane.clock.now()), self.state.update(clicked=True), (0, "{}"))[2])
+        orig = self.on_osascript
+        self.override("osascript", lambda a: ((0, self.menu) if self.lane.clock.now() - clicked[0] >= 1.5 else (0, ""))
+                      if len(a) > 2 and "menu 1 of menu bar item" in a[2] else orig(a))
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertFalse(self.state["pressed"])
+        self.assertIn("opened-by: click", lines)
+
+    def test_slow_click_does_not_extend_the_deadline(self):
+        self.peekaboo_only(9)  # the panel renders 9 s after the click was dispatched
+
+        def slow_click(argv):
+            self.clicked_at.append(self.lane.clock.now())
+            self.lane.clock.sleep(8)  # the click command itself returns after 8 s
+            return 0, "{}"
+        self.override("peekaboo click", slow_click)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+
+    def test_screenshot_after_the_deadline_is_rejected(self):
+        self.menu = "1450|31|400|720"
+
+        def slow_see(argv):
+            if "--path" in argv and not argv[argv.index("--path") + 1].endswith(".before.png"):
+                self.lane.clock.sleep(3)  # the capture itself lands after the 2 s budget
+            return self.on_see(argv)
+        self.override("peekaboo see", slow_see)
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 2)
+        self.assertFalse(shot.exists())
 
 
 if __name__ == "__main__":

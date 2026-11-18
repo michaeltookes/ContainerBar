@@ -159,15 +159,23 @@ curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Cask
 PASS: the pre-preflight signature checks passed and tag (without `v`) = appcast = cask = installed. Installed differs: FAIL `stale-install`, continue. Versions
 disagree: `FAIL TC-CB-01` with the four values.
 
-**TC-CB-02 Status item present and named.** If `pgrep -x ContainerBar` has no released PID: `open
-/Applications/ContainerBar.app`; within 10 s the status item shows. Then `find-status-item` (record `found-by`; PASS on `found-by: ax` too), `01-status-item.png` (menu bar strip
-cropped to the item), the item's AX title and value (value non-empty), `02-panel-open.png` from `open-panel`. Neither path finds it in 10 s: FAIL
-with the last 50 lines of `log show --last 2m
---predicate 'process == "ContainerBar"'` and the newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips`
-file name. Hunt build checks (recorded under TC-CB-02): the released panel never shows the host `Fixture Docker` or `fixture log line` text (seeing it is `FAIL P1`:
-hunt mode in a release, CB-090); note whether a hunt-build process was running; `defaults read com.tookes.ContainerBar.hunt SULastCheckTime` should report the key
-missing
-(present: finding linked to CB-074).
+**TC-CB-02 Status item present and named.** Case folder `<run>/assets/TC-CB-02/` (`C`). If `pgrep -x ContainerBar` has no released PID: `open
+/Applications/ContainerBar.app`; within 10 s the status item shows. Neither path finds it in 10 s: FAIL with the last 50 lines of `log show --last 2m
+--predicate 'process == "ContainerBar"'` and the newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips` file name. Otherwise run, in this order (CB-138):
+
+```sh
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
+C="<run>/assets/TC-CB-02"
+python3 -B tools/containerbar-qa/cbqa_lane.py capture-status-item --run-dir "<run>" --case-dir "$C"   # 01-status-item.png and the AX value
+python3 -B tools/containerbar-qa/cbqa_lane.py open-panel --run-dir "<run>" --shot "$C/02-panel-open.png"
+python3 -B tools/containerbar-qa/cbqa_lane.py hunt-checks --case-dir "$C" --fixture-text absent   # absent|present: `Fixture Docker` or `fixture log line` in 02-panel-open.png
+python3 -B tools/containerbar-qa/cbqa_lane.py tc-cb-02-verdict --run-dir "<run>" --case-dir "$C"
+```
+
+Paste the three `hunt-*` lines verbatim (`hunt-process: none|<pid>`, `hunt-sparkle: absent|<value>` (a value links CB-074; a missing domain still passes),
+`hunt-fixture-text`; a `hunt-process: error <reason>` or `hunt-sparkle: error <reason>` probe failure is `BLOCKED evidence-incomplete hunt-checks`, never `none`/`absent`). The verdict line is the result: `PASS`; `FAIL P1` (fixture text seen: hunt mode in a release, CB-090); `BLOCKED evidence-incomplete <item>`
+(`01-status-item.png`, `02-panel-open.png`, `ax-value` or `hunt-checks` missing; this case only, no other verdict changes); `BLOCKED status-item-frame-missing` (the frame lies off
+every display; attach `ax-dump.txt`). Record `found-by` too (PASS on `found-by: ax` as well).
 
 **TC-CB-33 Status item and panel found when Peekaboo's menu-bar list misses ContainerBar** (lane check, CB-137). With the released app running: `find-status-item`
 exits 0 and prints `found-by: ax` (or `peekaboo`), `open-panel` exits 0 and `02-panel-open.png` shows the cards or the empty state, not the bare menu bar. Exit 2: `blocked <reason>`

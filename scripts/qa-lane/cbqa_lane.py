@@ -17,6 +17,9 @@
   find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax)
   open-panel --run-dir D [--shot F]   find, open and capture the panel (02-panel-open.png)
   close-panel                Escape the open status menu
+  capture-status-item --run-dir D --case-dir C   CB-138: 01-status-item.png strip and the AX value
+  hunt-checks --case-dir C --fixture-text absent|present   CB-138: the three hunt lines, recorded verbatim
+  tc-cb-02-verdict --run-dir D --case-dir C   CB-138: PASS, FAIL P1 or BLOCKED evidence-incomplete <item>
   grant-probe --run-dir D --identity I --ref R --result connected|failed|timeout
                              CB-134: classify the one Test Connection attempt, write the grant line
   hold --run ID              internal: the lock holder's child process
@@ -30,6 +33,7 @@ from pathlib import Path
 
 from lane_core import Lane, case_gate, ci_busy
 from lane_discovery import close_panel, find_status_item, open_panel
+from lane_evidence import capture_status_item, hunt_checks, verdict
 from lane_grant import grant_probe
 from lane_hourly import append_log, hourly
 from lane_preflight import hold, normalise_after_dialogs, preflight, print_result, release_lock
@@ -69,6 +73,15 @@ def main(argv=None) -> int:
     opn.add_argument("--run-dir", required=True)
     opn.add_argument("--shot", default="")
     sub.add_parser("close-panel")
+    cap = sub.add_parser("capture-status-item")
+    cap.add_argument("--run-dir", required=True)
+    cap.add_argument("--case-dir", required=True)
+    hunt = sub.add_parser("hunt-checks")
+    hunt.add_argument("--case-dir", required=True)
+    hunt.add_argument("--fixture-text", default="", choices=["", "absent", "present"])
+    ver = sub.add_parser("tc-cb-02-verdict")
+    ver.add_argument("--run-dir", required=True)
+    ver.add_argument("--case-dir", required=True)
     gp = sub.add_parser("grant-probe")
     gp.add_argument("--run-dir", required=True)
     gp.add_argument("--identity", required=True)
@@ -146,6 +159,18 @@ def main(argv=None) -> int:
     if args.cmd == "close-panel":
         close_panel(lane)
         return 0
+    if args.cmd == "capture-status-item":
+        code, lines = capture_status_item(lane, Path(args.run_dir), Path(args.case_dir))
+        print("\n".join(lines))
+        return code
+    if args.cmd == "hunt-checks":
+        code, lines = hunt_checks(lane, Path(args.case_dir), args.fixture_text)
+        print("\n".join(lines))
+        return code
+    if args.cmd == "tc-cb-02-verdict":
+        code, line = verdict(Path(args.run_dir), Path(args.case_dir))
+        print(line)
+        return code
     if args.cmd == "grant-probe":
         code, lines = grant_probe(lane, Path(args.run_dir), args.identity, args.ref, args.result,
                                   args.error_text, args.elapsed)

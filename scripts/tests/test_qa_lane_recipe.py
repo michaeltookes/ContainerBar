@@ -323,5 +323,37 @@ class InstallCopiesRecipeTests(unittest.TestCase):
                             for l in plan))
 
 
+class Tc02RecipeTests(unittest.TestCase):
+    """CB-138: TC-CB-02 steps are commands, and an incomplete evidence set is never PASS."""
+
+    def setUp(self):
+        text = RECIPE.read_text()
+        self.tc02 = text.split("**TC-CB-02 Status item", 1)[1].split("**TC-CB-33", 1)[0]
+
+    def test_steps_run_in_order_through_the_lane_commands(self):
+        order = ["capture-status-item", "open-panel", "hunt-checks", "tc-cb-02-verdict"]
+        positions = [self.tc02.index(c) for c in order]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("01-status-item.png", self.tc02)
+
+    def test_evidence_incomplete_rule_and_frame_missing_are_stated(self):
+        self.assertIn("BLOCKED evidence-incomplete <item>", self.tc02)
+        self.assertIn("no other verdict changes", self.tc02)
+        self.assertIn("BLOCKED status-item-frame-missing", self.tc02)
+        for line in ("hunt-process:", "hunt-sparkle:", "hunt-fixture-text"):
+            self.assertIn(line, self.tc02)
+
+    def test_no_command_variable_in_the_tc_cb_02_block(self):
+        # zsh does not word-split $L: every command is written out directly.
+        block = "\n".join(shell_blocks(self.tc02))
+        self.assertNotRegex(block, r"(?m)^\$[A-Za-z_]+ ")
+        self.assertNotIn('L="python3', block)
+        self.assertEqual(block.count("python3 -B tools/containerbar-qa/cbqa_lane.py"), 4)
+
+    def test_new_module_is_installed(self):
+        install = Path(LANE_DIR, "install.sh").read_text()
+        self.assertIn("lane_evidence.py", install)
+
+
 if __name__ == "__main__":
     unittest.main()
