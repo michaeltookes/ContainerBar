@@ -14,6 +14,9 @@
   ci-busy                    print busy/idle and the predicate's notes
   hourly-checks              the launchd hourly check (run under the lock)
   hourly-log TEXT            append one line to hourly.log
+  find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax)
+  open-panel --run-dir D [--shot F]   find, open and capture the panel (02-panel-open.png)
+  close-panel                Escape the open status menu
   hold --run ID              internal: the lock holder's child process
 Exit codes: 0 ok/ready, 1 failure, 2 blocked, 3 needs-normalise.
 """
@@ -21,8 +24,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from lane_core import Lane, case_gate, ci_busy
+from lane_discovery import close_panel, find_status_item, open_panel
 from lane_hourly import append_log, hourly
 from lane_preflight import hold, normalise_after_dialogs, preflight, print_result, release_lock
 from lane_prefs import drift_files
@@ -55,6 +60,12 @@ def main(argv=None) -> int:
     hourly_p.add_argument("--any-hour", action="store_true")
     log = sub.add_parser("hourly-log")
     log.add_argument("text")
+    find = sub.add_parser("find-status-item")
+    find.add_argument("--run-dir", required=True)
+    opn = sub.add_parser("open-panel")
+    opn.add_argument("--run-dir", required=True)
+    opn.add_argument("--shot", default="")
+    sub.add_parser("close-panel")
     hold_p = sub.add_parser("hold")
     hold_p.add_argument("--run", required=True)
     hold_p.add_argument("--release-file")
@@ -112,6 +123,18 @@ def main(argv=None) -> int:
         return 0
     if args.cmd == "hourly-log":
         append_log(lane, args.text)
+        return 0
+    if args.cmd == "find-status-item":
+        code, lines, _ = find_status_item(lane, Path(args.run_dir))
+        print("\n".join(lines))
+        return code
+    if args.cmd == "open-panel":
+        shot = Path(args.shot) if args.shot else Path(args.run_dir) / "02-panel-open.png"
+        code, lines = open_panel(lane, Path(args.run_dir), shot)
+        print("\n".join(lines))
+        return code
+    if args.cmd == "close-panel":
+        close_panel(lane)
         return 0
     if args.cmd == "hold":
         return hold(lane, args.run, args.release_file, args.until)

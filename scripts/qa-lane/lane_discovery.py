@@ -1,0 +1,323 @@
+"""Status-item and panel discovery for the ContainerBar QA lane (CB-137).
+
+`peekaboo menubar list` and `peekaboo see --app` cannot see ContainerBar on the
+agent Mini (the item is listed under neither, and the app has no regular
+window). This module finds the item through the accessibility tree of the
+released process, opens it, and captures the panel, modelled on the Sentwise
+lane's explicit status-menu route (open the item, then capture the popover).
+
+Only the released app is ever touched: the PID whose command starts
+`/Applications/ContainerBar.app/`, never a hunt build. One BLOCKED line per
+pass: the first failure is recorded in `<run>/status-item.json` and later calls
+repeat it without a second BLOCKED line.
+
+Python 3.9 compatible.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Tuple
+
+from lane_core import APP_NAME, Lane, read_json, write_json
+
+DISCOVERY_BUDGET_S = 10.0   # item must be found within 10 s
+PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click
+POLL_S = 1.0
+PANEL_SIZE = (400, 720)     # fallback region under the item when AX gives no menu frame
+STATE_FILE = "status-item.json"
+DUMP_FILE = "ax-dump.txt"
+FIELD = "|"
+
+# One line per menu bar item: bar index, item index, x, y, w, h, title, description, value.
+AX_ITEMS_SCRIPT = """on run argv
+set pid to (item 1 of argv) as integer
+set AppleScript's text item delimiters to "|"
+set out to {}
+tell application "System Events"
+ set p to first process whose unix id is pid
+ set bars to count of menu bars of p
+ repeat with b from 1 to bars
+  set n to count of menu bar items of menu bar b of p
+  repeat with i from 1 to n
+   set it to menu bar item i of menu bar b of p
+   set pos to position of it
+   set sz to size of it
+   set end of out to ({b, i, item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz, (title of it) as text, (description of it) as text, (value of it) as text} as text)
+  end repeat
+ end repeat
+end tell
+set AppleScript's text item delimiters to linefeed
+return out as text
+end run"""
+
+# Panel frame (the status item's menu): x|y|w|h, empty when no menu is open.
+AX_MENU_SCRIPT = """on run argv
+set pid to (item 1 of argv) as integer
+set AppleScript's text item delimiters to "|"
+tell application "System Events"
+ set p to first process whose unix id is pid
+ try
+  set m to menu 1 of menu bar item (item 2 of argv as integer) of menu bar (item 3 of argv as integer) of p
+  set pos to position of m
+  set sz to size of m
+  return {item 1 of pos, item 2 of pos, item 1 of sz, item 2 of sz} as text
+ on error
+  return ""
+ end try
+end tell
+end run"""
+
+AX_PRESS_SCRIPT = """on run argv
+set pid to (item 1 of argv) as integer
+tell application "System Events"
+ set p to first process whose unix id is pid
+ click menu bar item (item 2 of argv as integer) of menu bar (item 3 of argv as integer) of p
+end tell
+end run"""
+
+Item = Dict[str, object]
+
+
+# ------------------------------------------------------------------ parsing
+
+
+def parse_ax_items(text: str) -> List[Item]:
+    """Parse AX_ITEMS_SCRIPT output into dicts; malformed lines are skipped."""
+    items: List[Item] = []
+    for line in text.splitlines():
+        parts = line.split(FIELD)
+        if len(parts) < 9:
+            continue
+        try:
+            bar, index, x, y, w, h = (int(float(p)) for p in parts[:6])
+        except ValueError:
+            continue
+        items.append({"bar": bar, "index": index, "frame": [x, y, w, h],
+                      "title": parts[6].strip(), "description": parts[7].strip(),
+                      "value": FIELD.join(parts[8:]).strip()})
+    return items
+
+
+def parse_frame(text: str) -> Optional[List[int]]:
+    parts = [p.strip() for p in text.strip().split(FIELD)]
+    if len(parts) != 4:
+        return None
+    try:
+        frame = [int(float(p)) for p in parts]
+    except ValueError:
+        return None
+    return frame if frame[2] > 0 and frame[3] > 0 else None
+
+
+def is_containerbar(item: Item) -> bool:
+    return APP_NAME in (str(item.get("title", "")), str(item.get("axTitle", "")),
+                        str(item.get("axDescription", "")))
+
+
+def peekaboo_frame(item: Item) -> Optional[List[int]]:
+    """Peekaboo's `frame` is [[x, y], [w, h]]; return [x, y, w, h]."""
+    try:
+        (x, y), (w, h) = item["frame"]  # type: ignore[misc]
+        return [int(x), int(y), int(w), int(h)]
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def center(frame: Sequence[int]) -> Tuple[int, int]:
+    return frame[0] + frame[2] // 2, frame[1] + frame[3] // 2
+
+
+def contains(outer: Sequence[int], point: Tuple[int, int]) -> bool:
+    return outer[0] <= point[0] <= outer[0] + outer[2] and outer[1] <= point[1] <= outer[1] + outer[3]
+
+
+# ------------------------------------------------------------------ sources
+
+
+def peekaboo_bin(lane: Lane) -> str:
+    configured = lane.setting("CBQA_PEEKABOO")
+    if configured:
+        return configured
+    return "/opt/homebrew/bin/peekaboo" if os.path.exists("/opt/homebrew/bin/peekaboo") else "peekaboo"
+
+
+def released_pids(lane: Lane) -> List[int]:
+    """PIDs of ContainerBar whose command starts with the released app path (never the hunt build)."""
+    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
+    pids: List[int] = []
+    if rc != 0:
+        return pids
+    prefix = lane.app_path.rstrip("/") + "/"
+    for word in out.split():
+        if not word.isdigit():
+            continue
+        rc, cmd = lane.run(["ps", "-o", "command=", "-p", word], 5)
+        if rc == 0 and cmd.strip().startswith(prefix):
+            pids.append(int(word))
+    return pids
+
+
+def hunt_running(lane: Lane) -> bool:
+    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
+    if rc != 0:
+        return False
+    return len(out.split()) > len(released_pids(lane))
+
+
+def peekaboo_items(lane: Lane) -> Tuple[List[Item], int]:
+    """(ContainerBar entries, total entries) from `peekaboo menubar list --json`."""
+    rc, out = lane.run([peekaboo_bin(lane), "menubar", "list", "--json"], 20)
+    try:
+        items = json.loads(out)["data"]["items"] if rc == 0 else []
+    except (ValueError, KeyError, TypeError):
+        items = []
+    return [i for i in items if isinstance(i, dict) and is_containerbar(i)], len(items)
+
+
+def ax_items(lane: Lane, pid: int) -> List[Item]:
+    rc, out = lane.run(["osascript", "-e", AX_ITEMS_SCRIPT, str(pid)], 20)
+    return parse_ax_items(out) if rc == 0 else []
+
+
+def ax_panel_frame(lane: Lane, pid: int, item: Item) -> Optional[List[int]]:
+    rc, out = lane.run(["osascript", "-e", AX_MENU_SCRIPT, str(pid), str(item["index"]), str(item["bar"])], 10)
+    return parse_frame(out) if rc == 0 else None
+
+
+# ---------------------------------------------------------------- discovery
+
+
+def discover_once(lane: Lane) -> Dict[str, object]:
+    """One look. Returns {"status": "found"|"missing"|"ambiguous", ...} with the evidence."""
+    pids = released_pids(lane)
+    peek, peek_total = peekaboo_items(lane)
+    ax: List[Item] = []
+    pid = pids[0] if len(pids) == 1 else 0
+    if pid:
+        ax = [i for i in ax_items(lane, pid) if is_containerbar(i)]
+    evidence = {"pids": pids, "menubar_total": peek_total, "menubar_matches": len(peek),
+                "ax_matches": len(ax), "peekaboo": peek, "ax": ax}
+    if len(pids) > 1 or len(ax) > 1:
+        return dict(evidence, status="ambiguous")
+    if len(ax) == 1:
+        frame = list(ax[0]["frame"])  # type: ignore[arg-type]
+        tied = [p for p in peek if contains(peekaboo_frame(p) or [0, 0, 0, 0], center(frame))]
+        return dict(evidence, status="found", found_by="peekaboo" if tied else "ax",
+                    frame=(peekaboo_frame(tied[0]) if tied else frame), pid=pid, item=ax[0])
+    if len(peek) == 1 and pids and not hunt_running(lane):
+        return dict(evidence, status="found", found_by="peekaboo", frame=peekaboo_frame(peek[0]),
+                    pid=pids[0], item=None)
+    if len(peek) > 1 or (peek and hunt_running(lane)):
+        return dict(evidence, status="ambiguous")
+    return dict(evidence, status="missing")
+
+
+def save_dump(lane: Lane, run_dir: Path, result: Dict[str, object]) -> None:
+    """The AX evidence for a blocked pass: every status item of the released PID, plus the Peekaboo counts."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    lines = ["released pids: %s" % ",".join(str(p) for p in result.get("pids", [])),  # type: ignore[union-attr]
+             "menubar list: %s entries, %s match ContainerBar" % (result.get("menubar_total"),
+                                                                 result.get("menubar_matches"))]
+    for pid in result.get("pids", []):  # type: ignore[union-attr]
+        lines.append("ax items of pid %s (bar|item|x|y|w|h|title|description|value):" % pid)
+        for item in ax_items(lane, int(pid)):
+            frame = item["frame"]
+            lines.append("  %s|%s|%s|%s|%s|%s|%s|%s|%s" % (item["bar"], item["index"], *frame, item["title"],
+                                                           item["description"], item["value"]))  # type: ignore[misc]
+    lines.append("peekaboo ContainerBar entries: %s" % json.dumps(result.get("peekaboo", []), sort_keys=True))
+    (run_dir / DUMP_FILE).write_text("\n".join(lines) + "\n")
+
+
+def blocked_line(reason: str, result: Dict[str, object]) -> str:
+    return "BLOCKED %s menubar=%s ax=%s (ax-dump: %s)" % (
+        reason, result.get("menubar_total", 0), result.get("ax_matches", 0), DUMP_FILE)
+
+
+def find_status_item(lane: Lane, run_dir: Path) -> Tuple[int, List[str], Optional[Dict[str, object]]]:
+    """Exit code (0 found, 2 blocked), lines to print, the found result.
+
+    A pass that already reported BLOCKED answers `blocked <reason>` without a
+    second BLOCKED line and without looking again.
+    """
+    state = read_json(run_dir / STATE_FILE)
+    if state and state.get("status") == "blocked":
+        return 2, ["blocked %s (already reported once this pass; see %s)" % (state.get("reason"), DUMP_FILE)], None
+    deadline = lane.clock.now() + DISCOVERY_BUDGET_S
+    while True:
+        result = discover_once(lane)
+        if result["status"] in ("found", "ambiguous") or lane.clock.now() >= deadline:
+            break
+        lane.clock.sleep(POLL_S)
+    if result["status"] == "found":
+        frame = result["frame"]
+        return 0, ["found-by: %s" % result["found_by"],
+                   "frame: %s" % ",".join(str(v) for v in frame)], result  # type: ignore[union-attr]
+    return _block(lane, run_dir, result, "status-item-ambiguous" if result["status"] == "ambiguous"
+                  else "status-item-not-found")
+
+
+def _block(lane: Lane, run_dir: Path, result: Dict[str, object],
+           reason: str) -> Tuple[int, List[str], Optional[Dict[str, object]]]:
+    save_dump(lane, run_dir, result)
+    write_json(run_dir / STATE_FILE, {"status": "blocked", "reason": reason,
+                                      "menubar": result.get("menubar_total"), "ax": result.get("ax_matches")})
+    return 2, [blocked_line(reason, result)], None
+
+
+# -------------------------------------------------------------------- panel
+
+
+def panel_region(item_frame: Sequence[int], menu_frame: Optional[Sequence[int]]) -> List[int]:
+    """The capture region: the panel's AX menu frame, else a fixed rectangle under the item."""
+    if menu_frame:
+        return list(menu_frame)
+    return [max(0, item_frame[0] - 3), item_frame[1] + item_frame[3] + 4, PANEL_SIZE[0], PANEL_SIZE[1]]
+
+
+def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
+    """Find, open (positional click, AXPress when that does not open it) and capture the panel."""
+    code, lines, found = find_status_item(lane, run_dir)
+    if code != 0 or not found:
+        return 2, lines
+    pid, item, frame = found["pid"], found.get("item"), list(found["frame"])  # type: ignore[arg-type]
+    ax = item or next((i for i in ax_items(lane, int(pid)) if is_containerbar(i)), None)  # type: ignore[arg-type]
+    cx, cy = center(frame)
+    start = lane.clock.now()
+    lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
+              "--no-auto-focus"], 15)
+    opened_by = "click"
+    menu = _wait_menu(lane, int(pid), ax, start) if ax else None  # type: ignore[arg-type]
+    if menu is None and ax:
+        lane.run(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10)
+        opened_by = "axpress"
+        menu = _wait_menu(lane, int(pid), ax, lane.clock.now())  # type: ignore[arg-type]
+    region = panel_region(frame, menu)
+    source = "ax-menu" if menu else "region-under-item"
+    shot.parent.mkdir(parents=True, exist_ok=True)
+    rc, _ = lane.run([peekaboo_bin(lane), "see", "--mode", "area", "--region", ",".join(str(v) for v in region),
+                      "--no-elements", "--path", str(shot), "--json"], 20)
+    if rc != 0 or not shot.exists() or (menu is None and ax is not None):
+        # Nothing opened (click and AXPress both tried), or no capture: one BLOCKED line for the pass.
+        result = {"pids": [pid], "menubar_total": found.get("menubar_total", 0),
+                  "ax_matches": found.get("ax_matches", 0), "peekaboo": found.get("peekaboo", [])}
+        return _block(lane, run_dir, result, "panel-not-capturable")[:2]
+    return 0, lines + ["opened-by: %s" % opened_by, "panel-capture: %s" % source,
+                       "panel-region: %s" % ",".join(str(v) for v in region), "screenshot: %s" % shot]
+
+
+def _wait_menu(lane: Lane, pid: int, ax: Item, start: float) -> Optional[List[int]]:
+    """Poll the AX menu frame until it exists or the 2 s panel budget (from `start`) runs out."""
+    while True:
+        frame = ax_panel_frame(lane, pid, ax)
+        if frame:
+            return frame
+        if lane.clock.now() - start >= PANEL_BUDGET_S:
+            return None
+        lane.clock.sleep(0.5)
+
+
+def close_panel(lane: Lane) -> None:
+    """Escape closes the open status menu (the click that opened it is not repeated)."""
+    lane.run(["osascript", "-e", 'tell application "System Events" to key code 53'], 10)
