@@ -40,7 +40,7 @@ class CaptureTests(Fixture):
         code, lines = capture_status_item(self.lane, self.run_dir, self.case)
         self.assertEqual(code, 0, lines)
         call = self.strip_calls()[0]
-        self.assertEqual(call[call.index("--region") + 1], "1449,-1,62,32")
+        self.assertEqual(call[call.index("--region") + 1], "1449,0,62,32")
         self.assertTrue((self.case / STRIP).exists())
         self.assertIn("ax-value: 5 of 6 containers running", (self.case / AX_FILE).read_text())
 

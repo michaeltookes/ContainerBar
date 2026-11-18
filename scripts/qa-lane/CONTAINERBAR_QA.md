@@ -164,7 +164,8 @@ disagree: `FAIL TC-CB-01` with the four values.
 --predicate 'process == "ContainerBar"'` and the newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips` file name. Otherwise run, in this order (CB-138):
 
 ```sh
-cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"; L="python3 -B tools/containerbar-qa/cbqa_lane.py"; C="<run>/assets/TC-CB-02"
+cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
+L="python3 -B tools/containerbar-qa/cbqa_lane.py"; C="<run>/assets/TC-CB-02"
 $L capture-status-item --run-dir "<run>" --case-dir "$C"   # 01-status-item.png (frame + 4 px, at most 32 px tall) and the AX value
 $L open-panel --run-dir "<run>" --shot "$C/02-panel-open.png"
 $L hunt-checks --case-dir "$C" --fixture-text absent       # absent|present: the host `Fixture Docker` or `fixture log line` visible in 02-panel-open.png
