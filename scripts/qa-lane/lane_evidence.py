@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from lane_core import APP_NAME, Lane, read_json, write_json
 from lane_discovery import (STATE_FILE, _block, ax_items, center, display_for, displays, find_status_item,
-                            is_status_item, peekaboo_bin, released_pids)
+                            is_status_item, peekaboo_bin)
 
 MARGIN = 4
 MAX_STRIP_HEIGHT = 32
@@ -95,6 +95,26 @@ def _reason(rc: int) -> str:
     return "timeout" if rc == 124 else "rc=%s" % rc
 
 
+def _hunt_process(lane: Lane) -> str:
+    """`none`, a hunt PID, or `error <reason>`: one enumeration, every probe failure is an error."""
+    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
+    if rc == 1:
+        return "none"
+    if rc != 0:
+        return "error pgrep %s" % _reason(rc)
+    prefix = lane.app_path.rstrip("/") + "/"
+    hunters = []
+    for word in out.split():
+        if not word.isdigit():
+            continue
+        rc, cmd = lane.run(["ps", "-o", "command=", "-p", word], 5)
+        if rc != 0:
+            return "error ps %s" % _reason(rc)
+        if not cmd.strip().startswith(prefix):
+            hunters.append(word)
+    return hunters[0] if hunters else "none"
+
+
 def hunt_checks(lane: Lane, case_dir: Path, fixture_text: str) -> Tuple[int, List[str]]:
     """The hunt lines, recorded verbatim in hunt-checks.txt and printed.
 
@@ -102,13 +122,7 @@ def hunt_checks(lane: Lane, case_dir: Path, fixture_text: str) -> Tuple[int, Lis
     hunt-sparkle: `absent` (no defaults domain or key) or the SULastCheckTime value.
     hunt-fixture-text: the caller's reading of the released panel capture (absent|present).
     """
-    released = set(released_pids(lane))
-    rc, out = lane.run(["pgrep", "-x", APP_NAME], 5)
-    hunters = [w for w in out.split() if rc == 0 and w.isdigit() and int(w) not in released]
-    if rc not in (0, 1):  # pgrep: 0 match, 1 no match; anything else is a probe error
-        process = "error %s" % _reason(rc)
-    else:
-        process = hunters[0] if hunters else "none"
+    process = _hunt_process(lane)
     rc, out = lane.run(["defaults", "read", HUNT_DOMAIN, "SULastCheckTime"], 5)
     if rc == 0 and out.strip():
         sparkle = out.strip()

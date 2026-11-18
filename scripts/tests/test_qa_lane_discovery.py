@@ -380,6 +380,30 @@ class Cb138ReadinessTests(Fixture):
         self.assertEqual(code, 0, lines)
         self.assertIn("opened-by: axpress", lines)
 
+    def test_delayed_ax_frame_with_the_panel_already_open_is_not_pressed_again(self):
+        self.menu = "1450|31|400|720"
+        clicked = []
+        self.override("peekaboo click", lambda a: (clicked.append(self.lane.clock.now()), self.state.update(clicked=True), (0, "{}"))[2])
+        orig = self.on_osascript
+        self.override("osascript", lambda a: ((0, self.menu) if self.lane.clock.now() - clicked[0] >= 1.5 else (0, ""))
+                      if len(a) > 2 and "menu 1 of menu bar item" in a[2] else orig(a))
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertFalse(self.state["pressed"])
+        self.assertIn("opened-by: click", lines)
+
+    def test_slow_click_does_not_extend_the_deadline(self):
+        self.peekaboo_only(9)  # the panel renders 9 s after the click was dispatched
+
+        def slow_click(argv):
+            self.clicked_at.append(self.lane.clock.now())
+            self.lane.clock.sleep(8)  # the click command itself returns after 8 s
+            return 0, "{}"
+        self.override("peekaboo click", slow_click)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+
     def test_screenshot_after_the_deadline_is_rejected(self):
         self.menu = "1450|31|400|720"
 

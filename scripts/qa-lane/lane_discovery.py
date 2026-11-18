@@ -339,30 +339,36 @@ def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
     base_rc, _ = lane.run(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(before),
                                  "--json"], 20)
     have_base = base_rc == 0 and before.exists()
-    lane.run([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
-              "--no-auto-focus"], 15)
-    # One absolute deadline from the click: the AX frame, the AXPress fallback, every probe and the
-    # capture all run inside it, with their timeouts capped to what is left (CB-138).
+    # One absolute deadline from the moment the click is dispatched: the click itself, the AX frame, the
+    # AXPress fallback, every probe and the capture all run inside it, with their timeouts capped to
+    # what is left, so a slow click cannot extend the evidence window (CB-138).
     start = lane.clock.now()
     deadline = start + PANEL_BUDGET_S
+    lane.call([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
+               "--no-auto-focus"], 15, deadline)
     opened_by, pressed, menu, changed = "click", False, None, False
+    def region_changed() -> bool:
+        # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
+        rc, _ = lane.call(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(shot),
+                                 "--json"], 20, deadline)
+        return (rc == 0 and shot.exists() and lane.clock.now() <= deadline
+                and before.read_bytes() != shot.read_bytes())
+
     while lane.clock.now() < deadline:
         if ax:
             menu = ax_panel_frame(lane, int(pid), ax, deadline)  # type: ignore[arg-type]
             if menu:
                 break
             if not pressed and lane.clock.now() - start >= CLICK_WINDOW_S:
+                if have_base and region_changed():
+                    changed = True  # the click already opened it: a second press could close it again
+                    break
                 lane.call(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10, deadline)
                 opened_by, pressed = "axpress", True
                 continue  # look at the AX menu again straight away; the timer is not reset
-        if (not ax or pressed) and have_base:
-            # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
-            rc, _ = lane.call(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(shot),
-                                     "--json"], 20, deadline)
-            changed = (rc == 0 and shot.exists() and lane.clock.now() <= deadline
-                       and before.read_bytes() != shot.read_bytes())
-            if changed:
-                break
+        if (not ax or pressed) and have_base and region_changed():
+            changed = True
+            break
         lane.clock.sleep(PANEL_POLL_S)
     region, source, ok = region_guess, "region-under-item", changed
     if menu:

@@ -96,6 +96,13 @@ class HuntTests(Fixture):
         self.assertEqual(lines[1], "hunt-sparkle: 2026-11-18 07:08:25 +0000")
         self.assertEqual(lines[2], "hunt-fixture-text: present")
 
+    def test_released_pid_identity_failure_is_a_probe_error_not_a_hunt_pid(self):
+        self.pids = {100: self.released()}
+        self.override("ps -o command=", lambda a: (124, ""))
+        self.override("defaults read", lambda a: (1, ""))
+        _, lines = hunt_checks(self.lane, self.root / "case", "absent")
+        self.assertEqual(lines[0], "hunt-process: error ps timeout")
+
     def test_pgrep_no_match_and_defaults_exit_1_stay_none_and_absent(self):
         self.override("pgrep", lambda a: (1, ""))
         self.override("defaults read", lambda a: (1, ""))
