@@ -50,10 +50,11 @@ def launch_app(lane: Lane, notes: List[str], old_pids: Sequence[int] = ()) -> Tu
 
 
 def wait_for_pid(lane: Lane) -> Optional[int]:
+    """The released pid within LAUNCH_WAIT_S; probes are capped by the deadline and a late answer is not accepted."""
     end = lane.clock.now() + LAUNCH_WAIT_S
     while True:
-        pids = released_pids(lane)
-        if pids:
+        pids = released_pids(lane, end)
+        if pids and lane.clock.now() <= end:
             return pids[0]
         if lane.clock.now() >= end:
             return None

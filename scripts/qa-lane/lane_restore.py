@@ -11,6 +11,8 @@ forward. Nothing is stopped by name or pattern.
 """
 from __future__ import annotations
 
+import shutil
+
 import os
 import signal
 import stat
@@ -188,7 +190,9 @@ def gui_done(lane: Lane, run_dir: Path) -> Tuple[bool, List[str]]:
     if not pids:
         return False, ["gui-done withheld: no released ContainerBar process"]
     # A fresh look in a scratch folder: a block cached for the pass neither decides this nor loses its evidence.
-    code, lines, _ = find_status_item(lane, run_dir / "gui-done")
+    scratch = run_dir / "gui-done"
+    shutil.rmtree(scratch, ignore_errors=True)  # each confirmation starts uncached; the pass's own files are elsewhere
+    code, lines, _ = find_status_item(lane, scratch)
     if code != 0:
         return False, ["gui-done withheld: pid %d, no status item (%s)" % (pids[0], lines[0])]
     try:
