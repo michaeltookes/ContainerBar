@@ -9,7 +9,7 @@ from test_qa_lane_discovery import AX_NONE, AX_RELEASED, HUNT, Fixture
 
 import lane_core
 from lane_discovery import STATE_FILE
-from lane_launch import ensure_running, find_with_launch, launch_app
+from lane_launch import ensure_running, find_with_launch, launch_app, relaunch
 from lane_restore import gui_done
 
 RECIPE = Path(__file__).resolve().parents[1] / "qa-lane" / "CONTAINERBAR_QA.md"
@@ -24,11 +24,13 @@ class LaunchFixture(Fixture):
         self.open_answers = [(0, "")]
         self.appears_after_open = 3.0   # seconds from the successful open until the process exists
         self.opened_at = None
-        self.runner.on("open -a", self.on_open)
+        self.runner.on("sh -c", self.on_open)
         self.runner.handlers.insert(0, ("pgrep -x ContainerBar", self.pgrep))
         self.runner.on("log show", lambda a: (0, "\n".join("line %d" % n for n in range(80))))
 
     def on_open(self, argv):
+        # the real command folds stderr into the output (2>&1): LaunchServices writes -600 on stderr
+        assert "2>&1" in argv[2] and argv[-1] == self.lane.app_path, argv
         self.opens.append(argv)
         rc, out = self.open_answers[min(len(self.opens), len(self.open_answers)) - 1]
         if rc == 0:
@@ -48,7 +50,8 @@ class LaunchTests(LaunchFixture):
         self.assertEqual(code, 0)
         self.assertEqual(lines[0], "app-launch: launched (was not running) pid 300")
         self.assertEqual(lines[1], "found-by: ax")
-        self.assertEqual(self.opens, [["open", "-a", self.lane.app_path]])
+        self.assertEqual(len(self.opens), 1)
+        self.assertIn("open -a", self.opens[0][2])
         self.assertEqual(found["pid"], 300)
 
     def test_already_running_is_untouched(self):
@@ -158,6 +161,58 @@ class LaunchTests(LaunchFixture):
         self.assertIn("released pids: 300\n", (self.run_dir / "ax-dump.txt").read_text())
 
 
+class RelaunchTests(LaunchFixture):
+    """Fix round 1: findings 1 (relaunch), 3 (restore-time block) and 4 (stderr -600)."""
+
+    def old_app(self, gone_after):
+        self.pids = {100: self.released()}
+        gone_at = self.lane.clock.now() + gone_after
+
+        def pgrep(argv):
+            if self.lane.clock.now() >= gone_at:
+                self.pids.pop(100, None)
+            if self.opened_at is not None and self.lane.clock.now() - self.opened_at >= 1:
+                self.pids[300] = self.released()
+            return (0, "\n".join(str(p) for p in self.pids) + "\n") if self.pids else (1, "")
+        self.override("pgrep -x ContainerBar", pgrep)
+
+    def test_relaunch_waits_for_a_lingering_old_pid_then_verifies_a_new_one(self):
+        self.old_app(gone_after=12)   # a graceful quit that lands late (-1712)
+        code, lines = relaunch(self.lane, self.run_dir)
+        self.assertEqual((code, lines), (0, ["app-launch: relaunched pid 300"]))
+        self.assertEqual(len(self.opens), 1)
+        self.assertNotIn(100, self.pids)
+
+    def test_relaunch_blocks_when_the_old_pid_never_exits_and_never_signals(self):
+        self.old_app(gone_after=9999)
+        code, lines = relaunch(self.lane, self.run_dir)
+        self.assertEqual(code, 2)
+        self.assertTrue(lines[0].startswith("BLOCKED app-launch-failed old-pid-still-running"), lines[0])
+        self.assertEqual(self.opens, [])
+        self.assertEqual([c for c in self.runner.calls if c[0] in ("kill", "pkill", "killall")], [])
+
+    def test_restore_time_launch_failure_keeps_the_earlier_block_evidence(self):
+        self.open_answers = [(1, "boom"), (1, "boom")]
+        find_with_launch(self.lane, self.run_dir)            # the pass blocked first
+        state = (self.run_dir / STATE_FILE).read_text()
+        dump = (self.run_dir / "ax-dump.txt").read_text()
+        log = (self.run_dir / "app-launch-log.txt").read_text()
+        code, lines = relaunch(self.lane, self.run_dir)       # restore tries again and fails again
+        self.assertEqual(code, 2)
+        self.assertIn("earlier block", lines[-1])
+        self.assertEqual((self.run_dir / STATE_FILE).read_text(), state)
+        self.assertEqual((self.run_dir / "ax-dump.txt").read_text(), dump)
+        self.assertEqual((self.run_dir / "app-launch-log.txt").read_text(), log)
+        self.assertIn("restore-time launch failed", (self.run_dir / "app-launch-restore.txt").read_text())
+
+    def test_error_600_is_recognised_from_stderr_text(self):
+        # the fake only returns the folded text, as `2>&1` does; rc 1 + "-600" must retry and report -600
+        self.open_answers = [(1, "kLSNoExecutableErr: error -600"), (1, "error -600")]
+        notes = []
+        self.assertEqual(launch_app(self.lane, notes), (False, "-600"))
+        self.assertEqual(notes, ["relaunch: retried after -600"])
+
+
 class GuiDoneTests(LaunchFixture):
     def flag(self):
         lane_core.write_json(self.lane.gui_flag, {"since": 1})
@@ -186,6 +241,20 @@ class GuiDoneTests(LaunchFixture):
         self.assertEqual((ok, notes), (True, ["gui-cleanup-pending cleared"]))
         self.assertFalse(self.lane.gui_flag.exists())
         self.assertEqual([c for c in self.runner.calls if "windows" in " ".join(c)], [])
+
+
+    def test_fresh_check_is_not_decided_by_a_cached_block_and_keeps_its_evidence(self):
+        self.open_answers = [(1, "boom"), (1, "boom")]
+        find_with_launch(self.lane, self.run_dir)             # pass blocked: state + dump on disk
+        state = (self.run_dir / STATE_FILE).read_text()
+        dump = (self.run_dir / "ax-dump.txt").read_text()
+        self.flag()
+        self.pids = {100: self.released()}
+        self.ax = {100: AX_RELEASED}                          # the app is now healthy
+        ok, notes = gui_done(self.lane, self.run_dir)
+        self.assertEqual((ok, notes), (True, ["gui-cleanup-pending cleared"]))
+        self.assertEqual((self.run_dir / STATE_FILE).read_text(), state)
+        self.assertEqual((self.run_dir / "ax-dump.txt").read_text(), dump)
 
 
 class RecipeTests(unittest.TestCase):

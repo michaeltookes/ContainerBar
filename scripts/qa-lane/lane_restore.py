@@ -187,7 +187,8 @@ def gui_done(lane: Lane, run_dir: Path) -> Tuple[bool, List[str]]:
     pids = released_pids(lane)
     if not pids:
         return False, ["gui-done withheld: no released ContainerBar process"]
-    code, lines, _ = find_status_item(lane, run_dir)
+    # A fresh look in a scratch folder: a block cached for the pass neither decides this nor loses its evidence.
+    code, lines, _ = find_status_item(lane, run_dir / "gui-done")
     if code != 0:
         return False, ["gui-done withheld: pid %d, no status item (%s)" % (pids[0], lines[0])]
     try:

@@ -15,7 +15,7 @@
   hourly-checks              the launchd hourly check (run under the lock)
   hourly-log TEXT            append one line to hourly.log
   find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax); CB-142 launches the app first
-  launch-app --run-dir D         CB-142: launch the released app if it is not running (BLOCKED app-launch-failed)
+  launch-app --run-dir D         CB-142: after a Quit, wait for the old process, relaunch, verify a new one (BLOCKED app-launch-failed)
   open-panel --run-dir D [--shot F]   find, open and capture the panel (02-panel-open.png)
   close-panel                Escape the open status menu
   capture-status-item --run-dir D --case-dir C   CB-138: 01-status-item.png strip and the AX value
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from lane_core import Lane, case_gate, ci_busy
 from lane_discovery import close_panel, find_status_item, open_panel
-from lane_launch import ensure_running, find_with_launch
+from lane_launch import find_with_launch, relaunch
 from lane_evidence import capture_status_item, hunt_checks, verdict
 from lane_grant import grant_probe
 from lane_hourly import append_log, hourly
@@ -158,7 +158,7 @@ def main(argv=None) -> int:
         print("\n".join(lines))
         return code
     if args.cmd == "launch-app":
-        code, lines = ensure_running(lane, Path(args.run_dir))
+        code, lines = relaunch(lane, Path(args.run_dir))
         print("\n".join(lines))
         return code
     if args.cmd == "open-panel":
