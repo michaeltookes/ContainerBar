@@ -9,6 +9,7 @@ from pathlib import Path
 from qa_lane_fakes import FakeRunner, make_lane
 
 import lane_core
+import lane_pixels
 from lane_discovery import (STATE_FILE, close_panel, find_status_item, open_panel, panel_region,
                             parse_ax_items, parse_frame)
 
@@ -538,15 +539,99 @@ class Cb143Tests(Fixture):
         self.assertFalse((self.root / "p.check.png").exists())
         self.assertIn("  region-changed: no\n", self.dump())
 
-    def test_ax_menu_elsewhere_is_checked_against_the_region_under_the_item(self):
-        self.menu = "10|40|300|500"  # not the baseline region: the baseline region is captured again to compare
+    # -- fix round 1: region-aware pixels (a fake screen that really differs per requested region) --------
+
+    PANEL_AWAY = [10, 40, 300, 500]  # an AX menu frame far from the region guess (1450,31,400,720)
+
+    def screen(self, panel=None, other=None):
+        """Install a fake Peekaboo `see` that returns the pixels of the requested region of a 1920x1080 screen.
+
+        Desktop colour depends on x and y blocks; `panel` (x,y,w,h) is drawn solid once the click has opened it
+        (`menu_opens_on`), `other` is an unrelated change drawn after the click (a window elsewhere).
+        """
+        rows = {}
+
+        def desktop(y):
+            if y not in rows:
+                rows[y] = b"".join(bytes([(x // 40) % 256, (y // 40) % 256, 60]) * 40 for x in range(0, 1920, 40))
+            return rows[y]
+
+        def paint(row, rect, color):
+            x0, w = max(rect[0], 0), rect[2]
+            row = bytearray(row)
+            row[x0 * 3:(x0 + w) * 3] = bytes(color) * w
+            return bytes(row)
+
+        def on_see(argv):
+            x, y, w, h = [int(v) for v in argv[argv.index("--region") + 1].split(",")]
+            self.regions.append("%d,%d,%d,%d" % (x, y, w, h))
+            opened = {"click": self.state["clicked"], "axpress": self.state["pressed"], "never": False}[self.menu_opens_on]
+            changed_after = self.state["clicked"]
+            out = []
+            for yy in range(y, y + h):
+                row = desktop(yy)
+                if panel and opened and panel[1] <= yy < panel[1] + panel[3]:
+                    row = paint(row, panel, (200, 10, 10))
+                if other and changed_after and other[1] <= yy < other[1] + other[3]:
+                    row = paint(row, other, (10, 200, 10))
+                out.append(row[x * 3:(x + w) * 3])
+            Path(argv[argv.index("--path") + 1]).write_bytes(lane_pixels.encode(w, h, out))
+            return 0, "{}"
+        self.override("peekaboo see", on_see)
+
+    def test_ax_menu_away_from_the_guess_is_compared_with_a_baseline_of_that_same_region(self):
+        # Codex P2 #1: a real panel that opens away from region_guess was rejected because the baseline
+        # (region_guess) never changed. The capture is judged against the pre-click pixels of ITS rectangle.
+        self.menu = "%d|%d|%d|%d" % tuple(self.PANEL_AWAY)
         self.menu_opens_on = "click"
+        self.screen(panel=self.PANEL_AWAY)
         shot = self.root / "p.png"
         code, lines = open_panel(self.lane, self.run_dir, shot)
         self.assertEqual(code, 0, lines)
         self.assertIn("panel-region: 10,40,300,500", lines)
-        self.assertIn("1450,31,400,720", self.regions)
-        self.assertFalse((self.root / "p.check.png").exists())
+        got = lane_pixels.decode(shot)
+        self.assertEqual((got.width, got.height, got.rows[0][:3]), (300, 500, bytes((200, 10, 10))))
+        for leftover in ("p.before.png", "p.wide.png", "p.check.png"):
+            self.assertFalse((self.root / leftover).exists(), leftover)
+
+    def test_ax_menu_away_from_the_guess_with_nothing_drawn_still_fails_the_2026_11_19_false_success(self):
+        # AX answers a frame, the rectangle looks as before; an unrelated change elsewhere (inside the region
+        # under the item) must not be taken for the panel either.
+        self.menu = "%d|%d|%d|%d" % tuple(self.PANEL_AWAY)
+        self.menu_opens_on = "never"
+        self.override("osascript", lambda a: (0, self.menu) if len(a) > 2 and "menu 1 of menu bar item" in a[2]
+                      else self.on_osascript(a))
+        self.screen(other=[1500, 100, 200, 200])
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(shot.exists())
+        self.assertIn("  region-changed: no\n", self.dump())
+
+    def test_axpress_is_not_recorded_when_the_deadline_was_gone_before_it_could_be_dispatched(self):
+        # Codex P2 #2: a click that eats the budget leaves no time to press; Lane.call returns 124 without
+        # running osascript, and the record must say skipped, not "axpress: yes".
+        self.menu_opens_on = "never"
+        see_calls = []
+
+        def slow_click(argv):
+            self.lane.clock.sleep(1.9)
+            return 0, "{}"
+
+        def slow_see(argv):
+            see_calls.append(argv)
+            if len(see_calls) > 2:  # the two pre-click baselines are quick; captures after the click are not
+                self.lane.clock.sleep(0.2)
+            Path(argv[argv.index("--path") + 1]).write_bytes(lane_pixels.encode(1, 1, [b"\x00\x00\x00"]))
+            return 0, "{}"
+        self.override("peekaboo click", slow_click)
+        self.override("peekaboo see", slow_see)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(any("click menu bar item" in " ".join(c) for c in self.runner.calls))  # never dispatched
+        text = self.dump()
+        self.assertNotIn("axpress: yes", text)
+        self.assertEqual(text.count("  axpress: skipped (no budget)"), 2)
 
     def test_no_baseline_never_claims_success_from_the_ax_frame(self):
         self.menu = self.MENU
