@@ -11,6 +11,8 @@ forward. Nothing is stopped by name or pattern.
 """
 from __future__ import annotations
 
+import shutil
+
 import os
 import signal
 import stat
@@ -181,13 +183,23 @@ def restore(lane: Lane, keep_marker: bool = False,
     return ok, notes
 
 
-def gui_done(lane: Lane) -> List[str]:
-    """The pass's GUI restore succeeded: clear the flag the restore left."""
+def gui_done(lane: Lane, run_dir: Path) -> Tuple[bool, List[str]]:
+    """The pass's GUI restore succeeded: clear the flag, but only with the released process and its status item (CB-142)."""
+    from lane_discovery import find_status_item, released_pids
+    pids = released_pids(lane)
+    if not pids:
+        return False, ["gui-done withheld: no released ContainerBar process"]
+    # A fresh look in a scratch folder: a block cached for the pass neither decides this nor loses its evidence.
+    scratch = run_dir / "gui-done"
+    shutil.rmtree(scratch, ignore_errors=True)  # each confirmation starts uncached; the pass's own files are elsewhere
+    code, lines, _ = find_status_item(lane, scratch)
+    if code != 0:
+        return False, ["gui-done withheld: pid %d, no status item (%s)" % (pids[0], lines[0])]
     try:
         lane.gui_flag.unlink()
-        return ["gui-cleanup-pending cleared"]
+        return True, ["gui-cleanup-pending cleared"]
     except FileNotFoundError:
-        return ["no gui-cleanup-pending flag"]
+        return True, ["no gui-cleanup-pending flag"]
 
 
 def is_socket(path: Path) -> bool:

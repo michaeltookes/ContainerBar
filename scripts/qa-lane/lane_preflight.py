@@ -31,6 +31,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from lane_core import (APP_NAME, CI_RECHECK_S, LOCK_RECHECK_S, Lane, ci_busy, load_session,
                        lock_owner_run,
                        new_session, publish_session, write_json)
+from lane_launch import launch_app
 from lane_restore import restore
 
 READY, BLOCKED, NEEDS_NORMALISE = "ready", "blocked", "needs-normalise"
@@ -207,7 +208,7 @@ def normalise_app(lane: Lane, notes: List[str]) -> bool:
         if pgrep_app(lane) is not None:
             notes.append("ContainerBar refused to quit (a modal sheet may block it)")
             return False
-    lane.run(["open", "-a", lane.app_path], 15)
+    launch_app(lane, notes)
     for _ in range(60):
         new = pgrep_app(lane)
         if new is not None and new != old:

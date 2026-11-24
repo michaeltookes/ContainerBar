@@ -7,6 +7,7 @@ import plistlib
 import re
 import socket
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from qa_lane_fakes import LANE_DIR, FakeRunner, make_lane, status_json
@@ -178,7 +179,9 @@ class CodexRoundTwoTests(unittest.TestCase):
         lane_core.write_json(self.lane.marker, {"t0": 1})
         restore(self.lane, terminate=self.terminate)
         self.assertTrue(self.lane.gui_flag.exists())
-        self.assertEqual(gui_done(self.lane), ["gui-cleanup-pending cleared"])
+        with mock.patch("lane_discovery.released_pids", return_value=[7]), \
+                mock.patch("lane_discovery.find_status_item", return_value=(0, ["found-by: ax"], {})):
+            self.assertEqual(gui_done(self.lane, self.root / "run"), (True, ["gui-cleanup-pending cleared"]))
         self.assertFalse(self.lane.gui_flag.exists())
 
     def test_restore_without_a_marker_sets_no_flag(self):

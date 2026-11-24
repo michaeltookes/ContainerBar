@@ -93,7 +93,7 @@ class FakeRunner:
             if self.quit_works:
                 self.app_pid = None
             return 0, ""
-        if argv[:2] == ["open", "-a"]:
+        if argv[:2] == ["open", "-a"] or (argv[:2] == ["sh", "-c"] and "open -a" in argv[2]):
             self.app_pid = self.next_app_pid
             self.next_app_pid += 1
             return 0, ""

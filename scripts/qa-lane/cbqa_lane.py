@@ -14,7 +14,8 @@
   ci-busy                    print busy/idle and the predicate's notes
   hourly-checks              the launchd hourly check (run under the lock)
   hourly-log TEXT            append one line to hourly.log
-  find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax)
+  find-status-item --run-dir D   CB-137: find the released app's status item (peekaboo or ax); CB-142 launches the app first
+  launch-app --run-dir D         CB-142: after a Quit, wait for the old process, relaunch, verify a new one (BLOCKED app-launch-failed)
   open-panel --run-dir D [--shot F]   find, open and capture the panel (02-panel-open.png)
   close-panel                Escape the open status menu
   capture-status-item --run-dir D --case-dir C   CB-138: 01-status-item.png strip and the AX value
@@ -33,6 +34,7 @@ from pathlib import Path
 
 from lane_core import Lane, case_gate, ci_busy
 from lane_discovery import close_panel, find_status_item, open_panel
+from lane_launch import find_with_launch, relaunch
 from lane_evidence import capture_status_item, hunt_checks, verdict
 from lane_grant import grant_probe
 from lane_hourly import append_log, hourly
@@ -54,7 +56,8 @@ def main(argv=None) -> int:
     gate.add_argument("--token", required=True)
     rest = sub.add_parser("restore")
     rest.add_argument("--keep-marker", action="store_true")
-    sub.add_parser("gui-done")
+    gd = sub.add_parser("gui-done")
+    gd.add_argument("--run-dir", required=True)
     rel = sub.add_parser("release")
     rel.add_argument("--token", required=True, help="the lock token from preflight's run notes")
     sub.add_parser("forward-start")
@@ -69,6 +72,8 @@ def main(argv=None) -> int:
     log.add_argument("text")
     find = sub.add_parser("find-status-item")
     find.add_argument("--run-dir", required=True)
+    launch = sub.add_parser("launch-app")
+    launch.add_argument("--run-dir", required=True)
     opn = sub.add_parser("open-panel")
     opn.add_argument("--run-dir", required=True)
     opn.add_argument("--shot", default="")
@@ -113,9 +118,10 @@ def main(argv=None) -> int:
         print("RESTORED" if ok else "RESTORE-FAILED")
         return 0 if ok else 1
     if args.cmd == "gui-done":
-        for line in gui_done(lane):
+        ok, notes = gui_done(lane, Path(args.run_dir))
+        for line in notes:
             print("restore: %s" % line)
-        return 0
+        return 0 if ok else 2
     if args.cmd == "release":
         ok, message = release_lock(lane, args.token)
         print(message)
@@ -148,7 +154,11 @@ def main(argv=None) -> int:
         append_log(lane, args.text)
         return 0
     if args.cmd == "find-status-item":
-        code, lines, _ = find_status_item(lane, Path(args.run_dir))
+        code, lines, _ = find_with_launch(lane, Path(args.run_dir))
+        print("\n".join(lines))
+        return code
+    if args.cmd == "launch-app":
+        code, lines = relaunch(lane, Path(args.run_dir))
         print("\n".join(lines))
         return code
     if args.cmd == "open-panel":

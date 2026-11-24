@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from lane_core import APP_NAME, Lane, read_json, write_json
+from lane_launch import find_with_launch
 from lane_discovery import (STATE_FILE, _block, ax_items, center, display_for, displays, find_status_item,
                             is_status_item, peekaboo_bin)
 
@@ -48,7 +49,7 @@ def usable_ax_value(value: str) -> bool:
 
 def capture_status_item(lane: Lane, run_dir: Path, case_dir: Path) -> Tuple[int, List[str]]:
     """Find the item, capture its strip, record its AX title and value. Exit 0 ok, 2 blocked."""
-    code, lines, found = find_status_item(lane, run_dir)
+    code, lines, found = find_with_launch(lane, run_dir)
     if code != 0 or not found:
         return 2, lines
     frame = list(found["frame"])  # type: ignore[arg-type]
