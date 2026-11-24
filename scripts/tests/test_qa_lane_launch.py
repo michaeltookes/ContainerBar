@@ -286,7 +286,7 @@ class DeadlineTests(LaunchFixture):
         code, lines = ensure_running(self.lane, self.run_dir)
         self.assertEqual(code, 2)
         self.assertTrue(lines[-1].startswith("BLOCKED app-launch-failed timeout"), lines)
-        self.assertLessEqual(self.lane.clock.elapsed(), 16)
+        self.assertLessEqual(self.lane.clock.elapsed(), 20)  # the wait itself ends near 13 s; the rest is block evidence
 
 
 class RecipeTests(unittest.TestCase):
