@@ -501,8 +501,8 @@ class Cb143Tests(Fixture):
         self.assertEqual((code, len(lines)), (2, 1))
         self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
         text = self.dump()
-        self.assertEqual(text.count("attempt 1:"), 1)
-        self.assertEqual(text.count("attempt 2:"), 1)
+        self.assertEqual(text.count("\nattempt 1:"), 1)
+        self.assertEqual(text.count("\nattempt 2:"), 1)
         self.assertEqual(text.count("  click rc: 0"), 2)
         self.assertEqual(text.count("  axpress: yes"), 2)  # no menu and no pixel change: AXPress ran each time
         self.assertEqual(text.count("  ax-menu: never"), 2)
