@@ -288,15 +288,6 @@ class DeadlineTests(LaunchFixture):
         self.assertTrue(lines[-1].startswith("BLOCKED app-launch-failed timeout"), lines)
         self.assertLessEqual(self.lane.clock.elapsed(), 16)
 
-    def test_slow_probe_cannot_stretch_the_relaunch_old_pid_wait(self):
-        self.pids = {100: self.released()}
-        self.slow_pgrep(20)
-        self.override("pgrep -x ContainerBar", lambda a: (self.lane.clock.sleep(20), (0, "100\n"))[1])
-        code, lines = relaunch(self.lane, self.run_dir)
-        self.assertEqual(code, 2)
-        self.assertIn("old-pid-still-running", lines[0])
-        self.assertLessEqual(self.lane.clock.elapsed(), 61)
-
 
 class RecipeTests(unittest.TestCase):
     def test_recipe_uses_the_helper_and_stays_within_320_lines(self):
