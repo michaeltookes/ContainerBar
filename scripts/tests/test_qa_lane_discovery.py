@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from qa_lane_fakes import FakeRunner, make_lane
@@ -543,7 +544,7 @@ class Cb143Tests(Fixture):
 
     PANEL_AWAY = [10, 40, 300, 500]  # an AX menu frame far from the region guess (1450,31,400,720)
 
-    def screen(self, panel=None, other=None):
+    def screen(self, panel=None, other=None, other_on="clicked"):
         """Install a fake Peekaboo `see` that returns the pixels of the requested region of a 1920x1080 screen.
 
         Desktop colour depends on x and y blocks; `panel` (x,y,w,h) is drawn solid once the click has opened it
@@ -566,7 +567,7 @@ class Cb143Tests(Fixture):
             x, y, w, h = [int(v) for v in argv[argv.index("--region") + 1].split(",")]
             self.regions.append("%d,%d,%d,%d" % (x, y, w, h))
             opened = {"click": self.state["clicked"], "axpress": self.state["pressed"], "never": False}[self.menu_opens_on]
-            changed_after = self.state["clicked"]
+            changed_after = self.state[other_on]
             out = []
             for yy in range(y, y + h):
                 row = desktop(yy)
@@ -632,6 +633,56 @@ class Cb143Tests(Fixture):
         text = self.dump()
         self.assertNotIn("axpress: yes", text)
         self.assertEqual(text.count("  axpress: skipped (no budget)"), 2)
+
+    def test_rejected_ax_menu_rectangle_is_not_rescued_by_a_change_in_the_guessed_region(self):
+        # Codex round 2 P2: after AXPress ran, a menu rect that failed the pixel check fell through to the
+        # region-under-item fallback, so an unrelated change there produced success.
+        self.menu = "%d|%d|%d|%d" % tuple(self.PANEL_AWAY)
+        self.menu_opens_on = "axpress"  # the AX menu frame appears once pressed, but nothing is drawn at it
+        self.screen(other=[1500, 100, 200, 200], other_on="pressed")
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(any(l.startswith("screenshot:") for l in lines))
+        self.assertIn("  axpress: yes", self.dump())
+
+    def test_verification_finishing_after_the_deadline_fails_as_late_and_records_its_cost(self):
+        # Codex round 2 P2: decode and compare ran after _capture's last clock check and were never rechecked.
+        self.menu = "%d|%d|%d|%d" % tuple(self.PANEL_AWAY)
+        self.menu_opens_on = "click"
+        self.screen(panel=self.PANEL_AWAY)
+        real = lane_pixels.decode
+
+        def slow_click(argv):
+            self.state["clicked"] = True
+            self.lane.clock.sleep(1.8)
+            return 0, "{}"
+
+        def slow_decode(path):
+            self.lane.clock.sleep(0.9)
+            return real(path)
+        self.override("peekaboo click", slow_click)
+        with mock.patch.object(lane_pixels, "decode", slow_decode):
+            code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(any(l.startswith("screenshot:") for l in lines))
+        text = self.dump()
+        self.assertIn("verification late", text)
+        self.assertIn("  verify: 9", text)  # 900 ms and a little more, in the record
+        self.assertLessEqual(self.lane.clock.now() - self.lane.clock.start, 20)
+
+    def test_click_that_used_the_whole_budget_is_not_reported_as_a_missing_ax_item(self):
+        # Codex round 2 P3: the polling loop never ran, so the record blamed missing accessibility data.
+        self.menu_opens_on = "never"
+
+        def hog_click(argv):
+            self.lane.clock.sleep(2.5)
+            return 0, "{}"
+        self.override("peekaboo click", hog_click)
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2, lines)
+        text = self.dump()
+        self.assertNotIn("no AX item", text)
+        self.assertEqual(text.count("  ax-menu: not probed (the click used the whole budget)"), 2)
 
     def test_no_baseline_never_claims_success_from_the_ax_frame(self):
         self.menu = self.MENU

@@ -388,7 +388,8 @@ def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_gu
     rec: Dict[str, object] = {"ok": False, "opened_by": "click", "source": "", "region": [], "click_rc": click_rc,
                               "click_ms": _ms(lane.clock.now() - start), "axpress": "no", "menu_ms": None,
                               "changed": "no-baseline" if not have_base else "no",
-                              "menu_run": 0, "menu_skip": 0, "check_run": 0, "check_skip": 0}
+                              "menu_run": 0, "menu_skip": 0, "check_run": 0, "check_skip": 0,
+                              "ax": ax is not None, "verify_ms": 0, "late": False}
     pressed, changed = False, False
 
     def dispatch(kind: str) -> bool:
@@ -404,10 +405,17 @@ def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_gu
 
     def region_changed() -> bool:
         # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
-        if capture(region_guess, shot) and before.read_bytes() != shot.read_bytes():
+        if not capture(region_guess, shot):
+            return False
+        t0 = lane.clock.now()
+        differs = before.read_bytes() != shot.read_bytes()
+        rec["verify_ms"] = int(rec["verify_ms"]) + _ms(lane.clock.now() - t0)  # type: ignore[call-overload]
+        if lane.clock.now() > deadline:
+            rec["late"] = True
+            return False
+        if differs:
             rec["changed"] = "yes"
-            return True
-        return False
+        return differs
 
     def menu_differs() -> Optional[bool]:
         """Does the capture of the AX menu's rectangle differ from the baseline of that same rectangle?
@@ -436,7 +444,12 @@ def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_gu
         if not have_base or not capture(menu, shot):
             return False
         menu_rect = menu
-        differs = menu_differs()
+        t0 = lane.clock.now()
+        differs = menu_differs()  # decode and compare: real time, so it is timed and the deadline rechecked
+        rec["verify_ms"] = int(rec["verify_ms"]) + _ms(lane.clock.now() - t0)  # type: ignore[call-overload]
+        if lane.clock.now() > deadline:
+            rec["late"] = True  # the result arrived after the budget: not accepted, and not "never appeared"
+            return False
         if differs is None:
             rec["changed"] = "no-baseline"
             return False
@@ -457,7 +470,7 @@ def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_gu
                 if shot.exists():
                     shot.unlink()  # AX says a menu, the pixels say nothing was drawn (or no baseline)
             elif not pressed and lane.clock.now() - start >= CLICK_WINDOW_S:
-                if have_base and region_changed():
+                if have_base and rec["menu_ms"] is None and region_changed():
                     changed = True  # the click already opened it: a second press could close it again
                     break
                 if lane.clock.now() >= deadline:
@@ -466,8 +479,13 @@ def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_gu
                 lane.call(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10, deadline)
                 rec["opened_by"], rec["axpress"], pressed = "axpress", "yes", True
                 continue  # look at the AX menu again straight away; the timer is not reset
-        if (not ax or pressed) and have_base and region_changed():
+        if rec["late"]:
+            break
+        # A rejected AX menu frame is a known rectangle: the region guess must not rescue it (Codex round 2).
+        if (not ax or pressed) and have_base and rec["menu_ms"] is None and region_changed():
             changed = True
+            break
+        if rec["late"]:
             break
         lane.clock.sleep(PANEL_POLL_S)
     if menu_ok:
@@ -498,11 +516,14 @@ def _attempt_lines(attempts: Sequence[Dict[str, object]], have_base: bool, have_
         elif rec["menu_run"]:
             menu = "never (%s)" % _probes(rec["menu_run"], rec["menu_skip"], "probe")
         else:
-            menu = "not probed (no budget)" if rec["menu_skip"] else "not probed (no AX item)"
+            menu = ("not probed (no budget)" if rec["menu_skip"] else
+                    "not probed (the click used the whole budget)" if rec["ax"] else "not probed (no AX item)")
         lines += ["attempt %d:" % n, "  click rc: %s (returned at %s ms)" % (rec["click_rc"], rec["click_ms"]),
                   "  axpress: %s" % rec["axpress"], "  ax-menu: %s" % menu,
                   "  region-changed: %s" % rec["changed"],
                   "  captures: %s" % _probes(rec["check_run"], rec["check_skip"], "capture"),
+                  "  verify: %s ms%s" % (rec["verify_ms"], " (verification late: result arrived after the budget)"
+                                         if rec["late"] else ""),
                   "  elapsed: %s ms" % rec["elapsed_ms"]]
         if n == 1 and len(attempts) > 1:
             lines.append("  escape rc before attempt 2: %s" % escape_rc)
