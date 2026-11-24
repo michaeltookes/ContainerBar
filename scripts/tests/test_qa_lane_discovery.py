@@ -371,9 +371,11 @@ class Cb138ReadinessTests(Fixture):
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 2)
         self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+        self.assertEqual(len(self.clicked_at), 2)  # CB-143: one second attempt, no third
+        self.assertGreaterEqual(self.clicked_at[1] - self.clicked_at[0], 3.0)  # 2 s budget + 1 s gap
         waited = self.lane.clock.now() - self.clicked_at[0]
-        self.assertGreaterEqual(waited, 2.0)
-        self.assertLess(waited, 3.0)
+        self.assertGreaterEqual(waited, 5.0)
+        self.assertLess(waited, 5.6)
         self.assertGreater(len(self.ran_peekaboo("see")), 3)  # polled, not one capture
 
     def test_ax_frame_answered_after_9_s_is_rejected_and_the_pass_blocks_in_budget(self):
@@ -389,7 +391,7 @@ class Cb138ReadinessTests(Fixture):
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 2)
         self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
-        self.assertLess(self.lane.clock.now() - self.lane.clock.start, 20)
+        self.assertLess(self.lane.clock.now() - self.lane.clock.start, 30)
 
     def test_ax_frame_call_is_capped_to_the_remaining_budget(self):
         self.menu_opens_on = "never"
@@ -408,7 +410,7 @@ class Cb138ReadinessTests(Fixture):
         code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
         self.assertEqual(code, 2)
         self.assertTrue(self.state["pressed"])
-        self.assertLessEqual(self.lane.clock.now() - clicks[0], 2.5)
+        self.assertLessEqual(self.lane.clock.now() - clicks[0], 5.5)  # two attempts, 2 s + 1 s + 2 s
 
     def test_axpress_opening_late_inside_the_budget_still_succeeds(self):
         self.menu, self.menu_opens_on = "1450|31|400|720", "axpress"
@@ -452,6 +454,127 @@ class Cb138ReadinessTests(Fixture):
         code, lines = open_panel(self.lane, self.run_dir, shot)
         self.assertEqual(code, 2)
         self.assertFalse(shot.exists())
+
+
+class Cb143Tests(Fixture):
+    """CB-143: second attempt, attempt record in ax-dump.txt, pixel check on the AX-menu path (fake clock)."""
+
+    MENU = "1450|31|400|720"
+
+    def dump(self):
+        return (self.run_dir / "ax-dump.txt").read_text()
+
+    def clicks(self):
+        return self.ran_peekaboo("click")
+
+    def test_first_attempt_success_prints_attempt_1_and_no_escape(self):
+        self.menu = self.MENU
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("attempt: 1", lines)
+        self.assertEqual(len(self.clicks()), 1)
+        self.assertFalse(any("key code 53" in " ".join(c) for c in self.runner.calls))
+
+    def test_second_attempt_success_after_the_first_click_is_ignored(self):
+        self.menu = self.MENU
+        times = []
+
+        def on_click(argv):
+            times.append(self.lane.clock.now())
+            self.state["clicked"] = len(times) == 2  # the first click is ignored
+            return 0, "{}"
+        self.override("peekaboo click", on_click)
+        self.menu_opens_on = "click"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("attempt: 2", lines)
+        self.assertTrue(any(l.startswith("opened-by:") for l in lines))
+        self.assertFalse(any(l.startswith("BLOCKED") for l in lines))
+        self.assertFalse((self.run_dir / STATE_FILE).exists())
+        self.assertTrue(any("key code 53" in " ".join(c) for c in self.runner.calls))  # Escape between
+        self.assertGreaterEqual(times[1] - times[0], 3.0)
+        self.assertLessEqual(self.lane.clock.now() - times[0], 5.0)
+
+    def test_both_attempts_fail_one_blocked_line_and_full_record(self):
+        self.menu_opens_on = "never"
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual((code, len(lines)), (2, 1))
+        self.assertTrue(lines[0].startswith("BLOCKED panel-not-capturable"), lines[0])
+        text = self.dump()
+        self.assertEqual(text.count("attempt 1:"), 1)
+        self.assertEqual(text.count("attempt 2:"), 1)
+        self.assertEqual(text.count("  click rc: 0"), 2)
+        self.assertEqual(text.count("  axpress: yes"), 2)  # no menu and no pixel change: AXPress ran each time
+        self.assertEqual(text.count("  ax-menu: never"), 2)
+        self.assertEqual(text.count("  region-changed: no\n"), 2)
+        self.assertEqual(text.count("  elapsed: "), 2)
+        self.assertIn("released pids: 100", text)  # the discovery lines are still there
+        self.assertEqual(len(self.clicks()), 2)
+        self.assertLessEqual(self.lane.clock.now() - self.lane.clock.start, 20)
+
+    def test_record_says_when_the_menu_was_seen_and_that_axpress_did_not_run(self):
+        self.menu_opens_on = "never"
+        self.override("osascript", lambda a: (0, self.MENU) if len(a) > 2 and "menu 1 of menu bar item" in a[2]
+                      else self.on_osascript(a))
+        self.state["clicked"] = True
+        self.override("peekaboo see", lambda a: (Path(a[a.index("--path") + 1]).write_text("same"), (0, "{}"))[1])
+        code, lines = open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertEqual(code, 2)
+        text = self.dump()
+        self.assertIn("  ax-menu: seen at 0 ms", text)
+        self.assertIn("  axpress: no", text)
+        self.assertIn("  region-changed: no", text)
+
+    def test_ax_frame_with_unchanged_pixels_fails_deletes_capture_and_blocks(self):
+        self.menu = self.MENU
+        self.menu_opens_on = "never"  # AX answers a menu frame below, but nothing is drawn
+        self.override("osascript", lambda a: (0, self.MENU) if len(a) > 2 and "menu 1 of menu bar item" in a[2]
+                      else self.on_osascript(a))
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(any(l.startswith("screenshot:") for l in lines))
+        self.assertFalse(shot.exists())
+        self.assertFalse((self.root / "p.check.png").exists())
+        self.assertIn("  region-changed: no\n", self.dump())
+
+    def test_ax_menu_elsewhere_is_checked_against_the_region_under_the_item(self):
+        self.menu = "10|40|300|500"  # not the baseline region: the baseline region is captured again to compare
+        self.menu_opens_on = "click"
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 0, lines)
+        self.assertIn("panel-region: 10,40,300,500", lines)
+        self.assertIn("1450,31,400,720", self.regions)
+        self.assertFalse((self.root / "p.check.png").exists())
+
+    def test_no_baseline_never_claims_success_from_the_ax_frame(self):
+        self.menu = self.MENU
+
+        def on_see(argv):
+            self.regions.append(argv[argv.index("--region") + 1])
+            if len(self.regions) == 1:
+                return 1, ""  # the pre-click capture fails
+            Path(argv[argv.index("--path") + 1]).write_text("panel")
+            return 0, "{}"
+        self.override("peekaboo see", on_see)
+        shot = self.root / "p.png"
+        code, lines = open_panel(self.lane, self.run_dir, shot)
+        self.assertEqual(code, 2, lines)
+        self.assertFalse(any(l.startswith("screenshot:") for l in lines))
+        self.assertFalse(shot.exists())
+        text = self.dump()
+        self.assertEqual(text.count("  region-changed: no-baseline"), 2)
+        self.assertIn("baseline: no", text)
+        self.assertIn("  ax-menu: seen at", text)
+
+    def test_two_attempts_stay_inside_five_seconds_of_the_first_click(self):
+        self.menu_opens_on = "never"
+        times = []
+        self.override("peekaboo click", lambda a: (times.append(self.lane.clock.now()), (0, "{}"))[1])
+        open_panel(self.lane, self.run_dir, self.root / "p.png")
+        self.assertLessEqual(self.lane.clock.now() - times[0], 5.5)
+        self.assertGreaterEqual(times[1] - times[0], 3.0)
 
 
 if __name__ == "__main__":

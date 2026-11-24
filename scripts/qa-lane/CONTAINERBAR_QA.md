@@ -34,7 +34,7 @@ is its `<version>-<build>`) or `apple-development` (a re-signed branch build, CB
   whose command starts `/Applications/ContainerBar.app/` (`pgrep -x ContainerBar | xargs -n1 ps -o pid=,command= -p`).
 - **Status item (CB-137).** Never read `menubar list` by hand: run `python3 -B tools/containerbar-qa/cbqa_lane.py find-status-item --run-dir "<run>"`
   (prints `found-by: peekaboo|ax` and `frame:`; the AX tree of the released PID is the fallback, bar-1 app-menu items and the hunt build are never used).
-  Open and capture: `cbqa_lane.py open-panel --run-dir "<run>" --shot "<run>/assets/<TC-id>/02-panel-open.png"` (positional click at the centre, AXPress fallback; the panel is an AX menu, captured by region);
+  Open and capture: `cbqa_lane.py open-panel --run-dir "<run>" --shot "<run>/assets/<TC-id>/02-panel-open.png"` (positional click at the centre, AXPress fallback, one second attempt after Escape and 1 s: 2 s + 1 s + 2 s, ends within 5 s of the first click, prints `attempt: 1|2`; a capture is kept only if it differs from the pre-click capture; a block lists each attempt in `ax-dump.txt`);
   `cbqa_lane.py close-panel` ends it. Exit 2 prints one `BLOCKED status-item-not-found|status-item-ambiguous|panel-not-capturable|ax-timeout` line per pass (ax-timeout = System Events hung, 5 s check; discovery runs from the agent shell, never a bare LaunchAgent or launchd job),
   saves `<run>/ax-dump.txt`, and every UI case is `blocked <reason>` (never FAIL; later calls repeat the block silently). Record `found-by` in each report.
 - Settings panes: **General**, **Connections**, **Sections**, **About**; open from the panel's gear, close with its close button.
