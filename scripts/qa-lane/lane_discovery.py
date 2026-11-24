@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import lane_pixels
 from lane_core import APP_NAME, Lane, read_json, write_json
 
 LIVENESS_S = 5   # System Events liveness bound (CB-141)
@@ -27,6 +28,7 @@ LIVENESS_SCRIPT = 'tell application "System Events" to count processes'
 DISCOVERY_BUDGET_S = 10.0   # item must be found within 10 s
 PANEL_BUDGET_S = 2.0        # panel must be open and captured within 2 s of the click (one absolute deadline)
 CLICK_WINDOW_S = 1.0        # the click gets this long before the AXPress fallback; AXPress shares the same deadline
+RETRY_GAP_S = 1.0           # Escape, then this long, before the one second attempt (CB-143)
 PANEL_POLL_S = 0.5
 POLL_S = 1.0
 DUMP_BUDGET_S = 5.0        # diagnostics after a failed pass are bounded too
@@ -355,71 +357,244 @@ def panel_region(item_frame: Sequence[int], menu_frame: Optional[Sequence[int]],
     return [x, y, w, h]
 
 
+def _capture(lane: Lane, see: List[str], region: Sequence[int], path: Path, deadline: float) -> bool:
+    """One area capture inside the deadline; True only if it ran, wrote the file and finished in time."""
+    rc, _ = lane.call(see + [",".join(str(v) for v in region), "--no-elements", "--path", str(path), "--json"],
+                      20, deadline)
+    return rc == 0 and path.exists() and lane.clock.now() <= deadline
+
+
+def _ms(seconds: float) -> int:
+    return int(round(seconds * 1000))
+
+
+def _attempt(lane: Lane, found: Dict[str, object], ax: Optional[Item], region_guess: List[int],
+             before: Path, have_base: bool, wide: Optional[lane_pixels.Image], display: Optional[List[int]],
+             shot: Path, see: List[str]) -> Dict[str, object]:
+    """One open-and-capture attempt with its own PANEL_BUDGET_S, measured from its click (CB-138, CB-143).
+
+    Returns the attempt record (ok, opened_by, source, region plus the diagnostics written to ax-dump.txt).
+    A probe is recorded as run only if its command was dispatched; one that found no budget left is counted as
+    skipped (Lane.call returns 124 without running it once the deadline has passed).
+    """
+    pid, (cx, cy) = found["pid"], center(list(found["frame"]))  # type: ignore[arg-type]
+    # One absolute deadline from the moment the click is dispatched: the click itself, the AX frame, the
+    # AXPress fallback, every probe and the capture all run inside it, with their timeouts capped to
+    # what is left, so a slow click cannot extend the evidence window (CB-138).
+    start = lane.clock.now()
+    deadline = start + PANEL_BUDGET_S
+    click_rc, _ = lane.call([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
+                             "--no-auto-focus"], 15, deadline)
+    rec: Dict[str, object] = {"ok": False, "opened_by": "click", "source": "", "region": [], "click_rc": click_rc,
+                              "click_ms": _ms(lane.clock.now() - start), "axpress": "no", "menu_ms": None,
+                              "changed": "no-baseline" if not have_base else "no",
+                              "menu_run": 0, "menu_skip": 0, "check_run": 0, "check_skip": 0,
+                              "ax": ax is not None, "verify_ms": 0, "late": False}
+    pressed, changed = False, False
+
+    def dispatch(kind: str) -> bool:
+        """True if budget is left to dispatch a probe; otherwise count it as skipped for lack of budget."""
+        if lane.clock.now() < deadline:
+            rec[kind + "_run"] = int(rec[kind + "_run"]) + 1  # type: ignore[call-overload]
+            return True
+        rec[kind + "_skip"] = int(rec[kind + "_skip"]) + 1  # type: ignore[call-overload]
+        return False
+
+    def capture(region: Sequence[int], path: Path) -> bool:
+        return dispatch("check") and _capture(lane, see, region, path, deadline)
+
+    def region_changed() -> bool:
+        # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
+        if not capture(region_guess, shot):
+            return False
+        t0 = lane.clock.now()
+        differs = before.read_bytes() != shot.read_bytes()
+        rec["verify_ms"] = int(rec["verify_ms"]) + _ms(lane.clock.now() - t0)  # type: ignore[call-overload]
+        if lane.clock.now() > deadline:
+            rec["late"] = True
+            return False
+        if differs:
+            rec["changed"] = "yes"
+        return differs
+
+    def menu_differs() -> Optional[bool]:
+        """Does the capture of the AX menu's rectangle differ from the baseline of that same rectangle?
+
+        Baseline design: the exact region_guess capture when the menu is that region, else the wide pre-click
+        capture of the whole display, decoded and cropped to the menu rectangle (scale = pixels per point).
+        None when no baseline covers the rectangle: the caller records no-baseline and fails.
+        """
+        if list(menu_rect) == list(region_guess):
+            return before.read_bytes() != shot.read_bytes()
+        if wide is None or display is None:
+            return None
+        dx, dy, dw, dh = display
+        mx, my, mw, mh = menu_rect
+        scale = wide.width / float(dw)
+        got = lane_pixels.decode(shot)
+        if got is None or abs(got.width - mw * scale) > 2 or abs(got.height - mh * scale) > 2:
+            return None
+        base = wide.crop(int(round((mx - dx) * scale)), int(round((my - dy) * scale)), got.width, got.height)
+        return None if base is None else not base.same_pixels(got)
+
+    def menu_verified(menu: List[int]) -> bool:
+        # CB-143: an AX menu frame alone proves nothing (2026-11-19: unrelated desktop content). The capture
+        # counts only if the same rectangle looked different before the click.
+        nonlocal menu_rect
+        if not have_base or not capture(menu, shot):
+            return False
+        menu_rect = menu
+        t0 = lane.clock.now()
+        differs = menu_differs()  # decode and compare: real time, so it is timed and the deadline rechecked
+        rec["verify_ms"] = int(rec["verify_ms"]) + _ms(lane.clock.now() - t0)  # type: ignore[call-overload]
+        if lane.clock.now() > deadline:
+            rec["late"] = True  # the result arrived after the budget: not accepted, and not "never appeared"
+            return False
+        if differs is None:
+            rec["changed"] = "no-baseline"
+            return False
+        rec["changed"] = "yes" if differs else "no"
+        return differs
+
+    menu_rect: List[int] = []
+    menu_ok: Optional[List[int]] = None
+    while lane.clock.now() < deadline:
+        if ax:
+            menu = ax_panel_frame(lane, int(pid), ax, deadline) if dispatch("menu") else None  # type: ignore[arg-type]
+            if menu:
+                if rec["menu_ms"] is None:
+                    rec["menu_ms"] = _ms(lane.clock.now() - start)
+                if menu_verified(menu):
+                    menu_ok = menu
+                    break
+                if shot.exists():
+                    shot.unlink()  # AX says a menu, the pixels say nothing was drawn (or no baseline)
+            elif not pressed and lane.clock.now() - start >= CLICK_WINDOW_S:
+                if have_base and rec["menu_ms"] is None and region_changed():
+                    changed = True  # the click already opened it: a second press could close it again
+                    break
+                if lane.clock.now() >= deadline:
+                    rec["axpress"] = "skipped (no budget)"  # never dispatched: do not say it ran
+                    break
+                lane.call(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10, deadline)
+                rec["opened_by"], rec["axpress"], pressed = "axpress", "yes", True
+                continue  # look at the AX menu again straight away; the timer is not reset
+        if rec["late"]:
+            break
+        # A rejected AX menu frame is a known rectangle: the region guess must not rescue it (Codex round 2).
+        if (not ax or pressed) and have_base and rec["menu_ms"] is None and region_changed():
+            changed = True
+            break
+        if rec["late"]:
+            break
+        lane.clock.sleep(PANEL_POLL_S)
+    if menu_ok:
+        rec.update(ok=True, source="ax-menu", region=list(menu_ok))
+    elif changed:
+        rec.update(ok=True, source="region-under-item", region=list(region_guess))
+    if rec["changed"] == "no" and not rec["check_run"] and rec["check_skip"]:
+        rec["changed"] = "not-checked (no budget)"
+    if not rec["ok"] and shot.exists():
+        shot.unlink()  # unverified capture (desktop or another app): keep only the diagnostic text
+    rec["elapsed_ms"] = _ms(lane.clock.now() - start)
+    return rec
+
+
+def _probes(run: object, skip: object, noun: str) -> str:
+    text = "%s %s" % (run, noun if run == 1 else noun + "s")
+    return text + (", %s skipped (no budget)" % skip if skip else "")
+
+
+def _attempt_lines(attempts: Sequence[Dict[str, object]], have_base: bool, have_wide: bool,
+                   escape_rc: Optional[object]) -> List[str]:
+    lines = ["open-panel attempts: %d, budget %d ms each, %d ms gap with Escape; baseline: %s; wide baseline: %s" % (
+        len(attempts), _ms(PANEL_BUDGET_S), _ms(RETRY_GAP_S), "yes" if have_base else "no",
+        "yes" if have_wide else "no")]
+    for n, rec in enumerate(attempts, 1):
+        if rec["menu_ms"] is not None:
+            menu = "seen at %s ms" % rec["menu_ms"]
+        elif rec["menu_run"]:
+            menu = "never (%s)" % _probes(rec["menu_run"], rec["menu_skip"], "probe")
+        else:
+            menu = ("not probed (no budget)" if rec["menu_skip"] else
+                    "not probed (the click used the whole budget)" if rec["ax"] else "not probed (no AX item)")
+        lines += ["attempt %d:" % n, "  click rc: %s (returned at %s ms)" % (rec["click_rc"], rec["click_ms"]),
+                  "  axpress: %s" % rec["axpress"], "  ax-menu: %s" % menu,
+                  "  region-changed: %s" % rec["changed"],
+                  "  captures: %s" % _probes(rec["check_run"], rec["check_skip"], "capture"),
+                  "  verify: %s ms%s" % (rec["verify_ms"], " (verification late: result arrived after the budget)"
+                                         if rec["late"] else ""),
+                  "  elapsed: %s ms" % rec["elapsed_ms"]]
+        if n == 1 and len(attempts) > 1:
+            lines.append("  escape rc before attempt 2: %s" % escape_rc)
+    return lines
+
+
 def open_panel(lane: Lane, run_dir: Path, shot: Path) -> Tuple[int, List[str]]:
-    """Find, open (positional click, AXPress when that does not open it) and capture the panel."""
+    """Find, open (positional click, AXPress when that does not open it) and capture the panel.
+
+    Two attempts at most (CB-143): the second after Escape and RETRY_GAP_S, each with its own PANEL_BUDGET_S,
+    so the command ends within 2 + 1 + 2 = 5 s of the first click. A block records every attempt in ax-dump.txt.
+    Baselines are taken before the first click, outside that bound: the region under the item (exact compare)
+    and the whole display (decoded and cropped to an AX menu frame that lies elsewhere).
+    """
     code, lines, found = find_status_item(lane, run_dir)
     if code != 0 or not found:
         return 2, lines
     pid, item, frame = found["pid"], found.get("item"), list(found["frame"])  # type: ignore[arg-type]
     ax = item or next((i for i in ax_items(lane, int(pid)) if is_status_item(i)), None)  # type: ignore[arg-type]
     cx, cy = center(frame)
-    region_guess = panel_region(frame, None, display_for(displays(lane), (cx, cy)))
+    display = display_for(displays(lane), (cx, cy))
+    region_guess = panel_region(frame, None, display)
     before = shot.with_name(shot.stem + ".before.png")
+    wide_path = shot.with_name(shot.stem + ".wide.png")
     shot.parent.mkdir(parents=True, exist_ok=True)
-    if before.exists():
-        before.unlink()
+    for stale in (before, wide_path):
+        if stale.exists():
+            stale.unlink()
     see = [peekaboo_bin(lane), "see", "--mode", "area", "--region"]
     base_rc, _ = lane.run(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(before),
                                  "--json"], 20)
     have_base = base_rc == 0 and before.exists()
-    # One absolute deadline from the moment the click is dispatched: the click itself, the AX frame, the
-    # AXPress fallback, every probe and the capture all run inside it, with their timeouts capped to
-    # what is left, so a slow click cannot extend the evidence window (CB-138).
-    start = lane.clock.now()
-    deadline = start + PANEL_BUDGET_S
-    lane.call([peekaboo_bin(lane), "click", "--at", "%d,%d" % (cx, cy), "--global", "--foreground",
-               "--no-auto-focus"], 15, deadline)
-    opened_by, pressed, menu, changed = "click", False, None, False
-    def region_changed() -> bool:
-        # Readiness without an AX menu frame: the region under the item differs from the pre-click capture.
-        rc, _ = lane.call(see + [",".join(str(v) for v in region_guess), "--no-elements", "--path", str(shot),
-                                 "--json"], 20, deadline)
-        return (rc == 0 and shot.exists() and lane.clock.now() <= deadline
-                and before.read_bytes() != shot.read_bytes())
-
-    while lane.clock.now() < deadline:
-        if ax:
-            menu = ax_panel_frame(lane, int(pid), ax, deadline)  # type: ignore[arg-type]
-            if menu:
-                break
-            if not pressed and lane.clock.now() - start >= CLICK_WINDOW_S:
-                if have_base and region_changed():
-                    changed = True  # the click already opened it: a second press could close it again
-                    break
-                lane.call(["osascript", "-e", AX_PRESS_SCRIPT, str(pid), str(ax["index"]), str(ax["bar"])], 10, deadline)
-                opened_by, pressed = "axpress", True
-                continue  # look at the AX menu again straight away; the timer is not reset
-        if (not ax or pressed) and have_base and region_changed():
-            changed = True
+    wide: Optional[lane_pixels.Image] = None
+    if have_base and display:
+        wide_rc, _ = lane.run(see + [",".join(str(v) for v in display), "--no-elements", "--path", str(wide_path),
+                                     "--json"], 20)
+        wide = lane_pixels.decode(wide_path) if wide_rc == 0 else None
+        if wide_path.exists():
+            wide_path.unlink()
+    attempts: List[Dict[str, object]] = []
+    escape_rc: object = None
+    for n in range(1, 3):
+        if n == 2:
+            # Close any half-open menu, then wait out the gap. The pre-click baselines are kept: Escape restores
+            # the screen they were taken from, and a new capture here would spend time the 5 s bound does not have.
+            gap_end = lane.clock.now() + RETRY_GAP_S
+            if lane.clock.now() < gap_end:
+                escape_rc, _ = lane.call(["osascript", "-e", 'tell application "System Events" to key code 53'], 10,
+                                         gap_end)
+            else:
+                escape_rc = "skipped (no budget)"
+            if gap_end > lane.clock.now():
+                lane.clock.sleep(gap_end - lane.clock.now())
+        rec = _attempt(lane, found, ax, region_guess, before, have_base, wide, display, shot, see)
+        attempts.append(rec)
+        if rec["ok"]:
             break
-        lane.clock.sleep(PANEL_POLL_S)
-    region, source, ok = region_guess, "region-under-item", changed
-    if menu:
-        region, source = list(menu), "ax-menu"
-        rc, _ = lane.call(see + [",".join(str(v) for v in region), "--no-elements", "--path", str(shot), "--json"],
-                          20, deadline)
-        ok = rc == 0 and shot.exists() and lane.clock.now() <= deadline
     if before.exists():
         before.unlink()
-    if not ok:
-        if shot.exists():
-            shot.unlink()  # unverified region capture (desktop or another app): keep only the diagnostic text
-        # Nothing opened inside the budget (click and AXPress both tried), or no capture: one BLOCKED line.
+    last = attempts[-1]
+    if not last["ok"]:
         result = {"pids": [pid], "menubar_total": found.get("menubar_total", 0),
                   "ax_matches": found.get("ax_matches", 0), "peekaboo": found.get("peekaboo", [])}
-        return _block(lane, run_dir, result, "panel-not-capturable")[:2]
-    return 0, lines + ["opened-by: %s" % opened_by, "panel-capture: %s" % source,
-                       "panel-region: %s" % ",".join(str(v) for v in region), "screenshot: %s" % shot]
+        out = _block(lane, run_dir, result, "panel-not-capturable")[:2]
+        with (run_dir / DUMP_FILE).open("a") as fh:
+            fh.write("\n".join(_attempt_lines(attempts, have_base, wide is not None, escape_rc)) + "\n")
+        return out
+    return 0, lines + ["opened-by: %s" % last["opened_by"], "attempt: %d" % len(attempts),
+                       "panel-capture: %s" % last["source"],
+                       "panel-region: %s" % ",".join(str(v) for v in last["region"]),  # type: ignore[union-attr]
+                       "screenshot: %s" % shot]
 
 
 def close_panel(lane: Lane) -> None:
