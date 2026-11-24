@@ -96,7 +96,7 @@ click Allow. Take a cropped screenshot, mark the run BLOCKED, post one line to
    Fallback when the UI restore fails or the previous run aborted: quit through `quitApp`,
    `defaults import com.tookes.ContainerBar <workspace>/qa/containerbar/baseline.plist`,
    relaunch, record it as a finding.
-3. Only when step 2 succeeded: `python3 -B T/cbqa_lane.py gui-done` (clears the flag).
+3. Only when step 2 succeeded: `python3 -B T/cbqa_lane.py gui-done --run-dir <run>` (clears the flag only with the app process and its status item).
    If step 2 failed, leave the flag; the next pass's step 0 quits and relaunches the app.
 4. `python3 -B T/cbqa_lane.py release --token <token>` to release the desktop lock. If it
    answers `lock not owned by this pass` (exit 1), this pass's hold ran out and another

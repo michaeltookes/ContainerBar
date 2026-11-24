@@ -159,9 +159,8 @@ curl -sSf https://raw.githubusercontent.com/michaeltookes/homebrew-tap/main/Cask
 PASS: the pre-preflight signature checks passed and tag (without `v`) = appcast = cask = installed. Installed differs: FAIL `stale-install`, continue. Versions
 disagree: `FAIL TC-CB-01` with the four values.
 
-**TC-CB-02 Status item present and named.** Case folder `<run>/assets/TC-CB-02/` (`C`). If `pgrep -x ContainerBar` has no released PID: `open
-/Applications/ContainerBar.app`; within 10 s the status item shows. Neither path finds it in 10 s: FAIL with the last 50 lines of `log show --last 2m
---predicate 'process == "ContainerBar"'` and the newest `~/Library/Logs/DiagnosticReports/ContainerBar-*.ips` file name. Otherwise run, in this order (CB-138):
+**TC-CB-02 Status item present and named.** Case folder `<run>/assets/TC-CB-02/` (`C`). `capture-status-item` first launches the released app when it is not running (CB-142): paste its `app-launch:` line. `BLOCKED app-launch-failed <reason>`
+blocks every UI case (never FAIL, never `status-item-not-found`); the report carries `app-launch-log.txt` and the `.ips` name from that line. Run, in this order (CB-138):
 
 ```sh
 cd "${CBQA_WORKSPACE:-$HOME/.openclaw/workspace}"
@@ -209,7 +208,7 @@ awk -F' *[|] *' -v b="$BUILD" -v h="$HASH" 'h!="" {ok = ($2=="apple-development"
 ```
 
 **TC-CB-08 Settings persist across relaunch** (video: one region recording, below). General: `01-general-baseline.png` (10 seconds, show
-stopped on); set Refresh Interval to 30 seconds and Show Stopped Containers off, `02-general-changed.png`; Quit; `open /Applications/ContainerBar.app`; General shows
+stopped on); set Refresh Interval to 30 seconds and Show Stopped Containers off, `02-general-changed.png`; Quit; `cbqa_lane.py launch-app --run-dir "<run>"`; General shows
 30 s and off (`03-after-relaunch.png`); Connections lists `QA Runtime` and `QA Runtime (socket)` with the same types, `QA Runtime` currently active
 (`04-connections.png`; a missing host is `FAIL P1`, CB-075). Dashboard hides `cbqa-stopped`: run it only with the gate open, else that step is `blocked
 local-network-denied (CB-116)` and the case verdict comes from the other steps. Restore: 10 seconds, show stopped on, Quit, relaunch, `05-restored.png`; note the
@@ -275,8 +274,8 @@ zsh tools/containerbar-qa/containerbar-qa-restore.sh   # copy every restore: lin
 2. In the UI: refresh interval 10 s, Show Stopped Containers on, no run-created section or host,
    `QA Runtime` selected, no Settings window and no Sparkle dialog open, ContainerBar running.
    Fallback when that fails or step 0 found drift: Quit, then
-   `defaults import com.tookes.ContainerBar qa/containerbar/baseline.plist`, relaunch, record a finding.
-3. Only if step 2 succeeded: `python3 -B tools/containerbar-qa/cbqa_lane.py gui-done` (failed: leave the flag).
+   `defaults import com.tookes.ContainerBar qa/containerbar/baseline.plist`, `launch-app --run-dir "<run>"`, record a finding.
+3. Only if step 2 succeeded: `python3 -B tools/containerbar-qa/cbqa_lane.py gui-done --run-dir "<run>"` (needs the process and its status item; failed: leave the flag).
 4. `python3 -B tools/containerbar-qa/cbqa_lane.py release --token "$TOKEN"`; `lock not owned by this pass`: record it, stop.
 
 ## Report and post
